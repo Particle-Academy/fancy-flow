@@ -1,0 +1,55 @@
+{
+  "name": "@particle-academy/fancy-flow",
+  "version": "0.1.0",
+  "description": "Workflow editor + runner built on React Flow. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Particle-Academy/fancy-flow.git"
+  },
+  "homepage": "https://github.com/Particle-Academy/fancy-flow#readme",
+  "bugs": "https://github.com/Particle-Academy/fancy-flow/issues",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+    },
+    "./runtime": {
+      "import": { "types": "./dist/runtime.d.ts", "default": "./dist/runtime.js" },
+      "require": { "types": "./dist/runtime.d.cts", "default": "./dist/runtime.cjs" }
+    },
+    "./styles.css": "./dist/styles.css"
+  },
+  "files": ["dist", "docs", "README.md"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "tsup"
+  },
+  "keywords": ["react", "workflow", "flow", "graph", "react-flow", "xyflow", "fancy"],
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "@xyflow/react": "^12.0.0"
+  },
+  "dependencies": {
+    "clsx": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@xyflow/react": "^12.4.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "publishConfig": { "access": "public" },
+  "license": "MIT",
+  "sideEffects": ["**/*.css"]
+}
