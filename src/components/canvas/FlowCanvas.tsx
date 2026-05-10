@@ -51,7 +51,7 @@ const DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
 export function FlowCanvas({
   nodes,
   edges,
-  background = "dots",
+  background = BackgroundVariant.Dots,
   showControls = true,
   showMinimap = false,
   height = 600,
