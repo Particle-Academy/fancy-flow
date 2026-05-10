@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css";
 import { defaultNodeTypes } from "../nodes";
 import type { FlowNode } from "../../types";
 
-export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "edges"> & {
+export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "edges" | "height"> & {
   nodes: FlowNode[];
   edges: Edge[];
   /** Background variant. Default: "dots". */
