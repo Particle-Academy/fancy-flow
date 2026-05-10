@@ -81,6 +81,12 @@ export async function runFlow(
         }
       }
 
+      // Note nodes are annotations — never executed.
+      if (node.type === "note") {
+        onEvent({ type: "node-status", nodeId: node.id, status: "idle", text: "annotation" });
+        continue;
+      }
+
       onEvent({ type: "node-status", nodeId: node.id, status: "running" });
 
       const inputs = collectInputs(node, incoming, portValues, initialInputs);

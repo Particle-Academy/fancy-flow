@@ -1,4 +1,6 @@
-/* @particle-academy/fancy-flow — minimal styles. Pair with @xyflow/react/dist/style.css. */
+/* @particle-academy/fancy-flow — minimal styles. Pair with @xyflow/react/dist/style.css.
+   Dark mode honors both `.dark` ancestor (Tailwind class strategy) and OS
+   `prefers-color-scheme: dark`. */
 
 .ff-canvas {
   display: flex;
@@ -8,9 +10,11 @@
   overflow: hidden;
   background: white;
 }
+.dark .ff-canvas { background: #0a0a0a; border-color: #3f3f46; }
 @media (prefers-color-scheme: dark) {
-  .ff-canvas { background: #0a0a0a; border-color: #3f3f46; }
+  .ff-canvas:not(.ff-canvas--light) { background: #0a0a0a; border-color: #3f3f46; }
 }
+
 .ff-canvas__toolbar {
   border-bottom: 1px solid #e4e4e7;
   padding: 6px 8px;
@@ -19,10 +23,14 @@
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
 }
+.dark .ff-canvas__toolbar { background: rgba(24, 24, 27, 0.6); border-color: #3f3f46; color: #e4e4e7; }
 @media (prefers-color-scheme: dark) {
-  .ff-canvas__toolbar { background: rgba(63, 63, 70, 0.4); border-color: #3f3f46; }
+  .ff-canvas__toolbar { background: rgba(24, 24, 27, 0.6); border-color: #3f3f46; color: #e4e4e7; }
 }
 .ff-canvas__surface { flex: 1; min-height: 0; position: relative; }
+
+/* xyflow background grid color override for dark canvas */
+.dark .react-flow__background pattern circle { fill: rgba(255, 255, 255, 0.10); }
 
 /* === Nodes === */
 .ff-node {
@@ -36,21 +44,28 @@
   color: #18181b;
   box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
   transition: box-shadow 200ms, border-color 200ms;
+  overflow: hidden;
+}
+.dark .ff-node {
+  background: #1c1917;
+  color: #fafafa;
+  border-color: #3f3f46;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 16px rgba(0,0,0,0.5);
 }
 @media (prefers-color-scheme: dark) {
-  .ff-node { background: #18181b; color: #fafafa; border-color: #3f3f46; }
+  .ff-node { background: #1c1917; color: #fafafa; border-color: #3f3f46; box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 6px 16px rgba(0,0,0,0.5); }
 }
 .ff-node--selected {
-  box-shadow: 0 0 0 2px currentColor, 0 4px 16px rgba(0,0,0,0.10);
+  box-shadow: 0 0 0 2px currentColor, 0 4px 16px rgba(0,0,0,0.20);
 }
+
 .ff-node__header {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 10px;
-  border-radius: 7px 7px 0 0;
+  padding: 7px 10px;
   color: white;
   font-weight: 600;
 }
-.ff-node__icon { font-size: 14px; }
+.ff-node__icon { font-size: 14px; line-height: 1; }
 .ff-node__tag {
   font-size: 10px;
   letter-spacing: 0.06em;
@@ -59,13 +74,27 @@
   text-transform: uppercase;
 }
 .ff-node__label { flex: 1; font-size: 13px; }
-.ff-node__desc { margin: 0; padding: 6px 10px 0; font-size: 11px; color: #71717a; }
-.ff-node__body { padding: 6px 10px 10px; }
-.ff-node__status-text {
-  margin: 0; padding: 4px 10px 8px; font-size: 11px;
+.ff-node__desc {
+  margin: 0;
+  padding: 8px 10px 0;
+  font-size: 11px;
   color: #71717a;
 }
+.dark .ff-node__desc { color: #a1a1aa; }
+@media (prefers-color-scheme: dark) { .ff-node__desc { color: #a1a1aa; } }
+
+.ff-node__body { padding: 8px 10px 10px; }
+.ff-node__status-text {
+  margin: 0;
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  color: #71717a;
+}
+.dark .ff-node__status-text { color: #a1a1aa; }
+@media (prefers-color-scheme: dark) { .ff-node__status-text { color: #a1a1aa; } }
 .ff-node--status-error .ff-node__status-text { color: #dc2626; }
+.dark .ff-node--status-error .ff-node__status-text { color: #f87171; }
+
 .ff-node--status-running { animation: ff-pulse 1.4s ease-in-out infinite; }
 @keyframes ff-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4), 0 4px 12px rgba(0,0,0,0.06); }
@@ -87,8 +116,10 @@
   display: flex; justify-content: space-between;
   font-size: 11px; color: #71717a;
 }
+.dark .ff-subgraph__meta { color: #a1a1aa; }
+@media (prefers-color-scheme: dark) { .ff-subgraph__meta { color: #a1a1aa; } }
 
-/* Note node — no header chrome */
+/* Note node — no header chrome, sticky-style */
 .ff-note {
   background: #fef3c7;
   border: 1px solid rgba(0,0,0,0.06);
@@ -99,19 +130,73 @@
   color: #1f2937;
   min-width: 180px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06);
+  /* Pin to light text-on-yellow even in dark mode for readability */
+  color-scheme: light;
 }
-.ff-note--selected { box-shadow: 0 0 0 2px #a855f7, 0 4px 12px rgba(0,0,0,0.06); }
+.ff-note--selected { box-shadow: 0 0 0 2px #a855f7, 0 4px 12px rgba(0,0,0,0.2); }
 .ff-note__title { font-weight: 600; margin-bottom: 4px; }
 .ff-note__body { margin: 0; white-space: pre-wrap; }
 
-/* xyflow handle override — match accent + hide the inner dot for cleaner look. */
+/* xyflow wraps every custom node in a `.react-flow__node-{type}` div with
+   default border / background / box-shadow / padding. Our kit ships its
+   own chrome via `.ff-node`, so strip xyflow's defaults for our types
+   to avoid the white "frame" effect around the colored cards. */
+.react-flow__node-trigger,
+.react-flow__node-action,
+.react-flow__node-decision,
+.react-flow__node-output,
+.react-flow__node-note,
+.react-flow__node-subgraph {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* xyflow handle — match accent + visible on both themes. */
 .react-flow__handle {
   width: 10px; height: 10px;
   background: white;
   border: 2px solid #94a3b8;
   border-radius: 50%;
 }
+.dark .react-flow__handle { background: #18181b; border-color: #71717a; }
+@media (prefers-color-scheme: dark) {
+  .react-flow__handle { background: #18181b; border-color: #71717a; }
+}
 .react-flow__handle:hover { background: #3b82f6; border-color: #3b82f6; }
+
+/* xyflow edge color — softer in dark */
+.dark .react-flow__edge-path { stroke: #71717a; }
+@media (prefers-color-scheme: dark) {
+  .react-flow__edge-path { stroke: #71717a; }
+}
+.react-flow__connection-path { stroke: #3b82f6; stroke-width: 2; }
+
+/* xyflow controls — bump specificity + !important so dark theming wins
+   over xyflow's default stylesheet. */
+.dark .react-flow__controls,
+.react-flow__controls.ff-controls {
+  background: transparent;
+  box-shadow: none;
+}
+.dark .react-flow__controls .react-flow__controls-button {
+  background: #18181b !important;
+  border-color: #3f3f46 !important;
+  border-bottom-color: #3f3f46 !important;
+  color: #fafafa !important;
+}
+.dark .react-flow__controls .react-flow__controls-button:hover {
+  background: #27272a !important;
+}
+.dark .react-flow__controls .react-flow__controls-button svg,
+.dark .react-flow__controls .react-flow__controls-button svg path,
+.dark .react-flow__controls .react-flow__controls-button svg polyline,
+.dark .react-flow__controls .react-flow__controls-button svg polygon {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
 
 /* Run controls */
 .ff-run-controls { display: flex; gap: 6px; }
@@ -122,7 +207,9 @@
   cursor: pointer;
   background: #e4e4e7; color: #18181b;
 }
+.dark .ff-run-controls__btn { background: #27272a; color: #fafafa; }
 .ff-run-controls__btn--run { background: #10b981; color: white; }
+.dark .ff-run-controls__btn--run { background: #10b981; color: white; }
 .ff-run-controls__btn--cancel { background: #ef4444; color: white; }
 .ff-run-controls__btn:disabled { opacity: 0.5; cursor: default; }
 
@@ -136,6 +223,7 @@
   padding: 8px 10px;
   overflow: auto;
   max-height: 240px;
+  border: 1px solid #1f1f23;
 }
 .ff-run-feed__empty { color: #71717a; margin: 0; }
 .ff-run-feed__row { display: flex; gap: 8px; padding: 1px 0; }
@@ -145,3 +233,163 @@
 .ff-run-feed__time { color: #71717a; }
 .ff-run-feed__node { color: #c4b5fd; }
 .ff-run-feed__text { flex: 1; }
+
+/* === Node summary inside the card === */
+.ff-node__summary { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.ff-node__summary li { display: flex; gap: 6px; font-size: 11px; }
+.ff-node__summary-key { color: #71717a; }
+.dark .ff-node__summary-key { color: #a1a1aa; }
+.ff-node__summary-value { font-family: ui-monospace, monospace; }
+.ff-node__summary-more { color: #71717a; font-size: 10px; }
+.ff-node__body-empty { font-size: 11px; color: #a1a1aa; font-style: italic; }
+
+/* === FlowEditor layout === */
+.ff-editor {
+  display: grid;
+  grid-template-columns: 220px 1fr 320px;
+  gap: 12px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.ff-editor__main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ff-editor__feed { flex-shrink: 0; }
+.ff-editor__sep { width: 1px; align-self: stretch; background: #e4e4e7; }
+.dark .ff-editor__sep { background: #3f3f46; }
+.ff-editor__btn {
+  border: 1px solid #d4d4d8; background: transparent; cursor: pointer;
+  border-radius: 6px; padding: 4px 10px;
+  color: inherit; font-size: 12px;
+}
+.ff-editor__btn:hover { background: rgba(0,0,0,0.04); }
+.dark .ff-editor__btn { border-color: #3f3f46; }
+.dark .ff-editor__btn:hover { background: #27272a; }
+.ff-editor__count {
+  margin-left: auto; font-size: 11px; color: #71717a;
+}
+.dark .ff-editor__count { color: #a1a1aa; }
+
+/* === NodePalette === */
+.ff-palette {
+  display: flex; flex-direction: column;
+  background: white;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 13px;
+  color: #18181b;
+}
+.dark .ff-palette { background: #18181b; color: #fafafa; border-color: #3f3f46; }
+.ff-palette__search { padding: 8px; border-bottom: 1px solid #e4e4e7; }
+.dark .ff-palette__search { border-color: #3f3f46; }
+.ff-palette__search-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.dark .ff-palette__search-input { border-color: #3f3f46; }
+.ff-palette__list { flex: 1; overflow: auto; padding: 4px; }
+.ff-palette__group { padding: 4px 0; }
+.ff-palette__group-label {
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #71717a;
+  padding: 4px 8px;
+}
+.dark .ff-palette__group-label { color: #a1a1aa; }
+.ff-palette__row {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border: 0; background: transparent; cursor: grab;
+  border-radius: 6px;
+  text-align: left; color: inherit; font: inherit;
+}
+.ff-palette__row:hover { background: rgba(0,0,0,0.04); }
+.dark .ff-palette__row:hover { background: #27272a; }
+.ff-palette__row:active { cursor: grabbing; }
+.ff-palette__row-dot {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white; font-size: 14px;
+}
+.ff-palette__row-text { display: flex; flex-direction: column; min-width: 0; }
+.ff-palette__row-label { font-size: 12px; font-weight: 500; }
+.ff-palette__row-desc {
+  font-size: 11px; color: #71717a;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dark .ff-palette__row-desc { color: #a1a1aa; }
+
+/* === NodeConfigPanel === */
+.ff-panel {
+  background: white;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+  overflow: auto;
+  font-size: 13px;
+  color: #18181b;
+}
+.dark .ff-panel { background: #18181b; color: #fafafa; border-color: #3f3f46; }
+.ff-panel--empty { align-items: center; justify-content: center; }
+.ff-panel__empty { font-size: 12px; color: #a1a1aa; }
+.ff-panel__header { display: flex; flex-direction: column; gap: 4px; }
+.ff-panel__kind-tag {
+  align-self: flex-start;
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  background: rgba(168, 85, 247, 0.12); color: #a855f7;
+  padding: 2px 8px; border-radius: 999px;
+}
+.ff-panel__kind-desc { margin: 0; font-size: 12px; color: #71717a; }
+.dark .ff-panel__kind-desc { color: #a1a1aa; }
+.ff-panel__divider { border: 0; border-top: 1px solid #e4e4e7; margin: 4px 0; }
+.dark .ff-panel__divider { border-top-color: #3f3f46; }
+.ff-panel__field { display: flex; flex-direction: column; gap: 4px; }
+.ff-panel__label { font-size: 12px; font-weight: 500; }
+.ff-panel__hint { font-size: 11px; color: #71717a; margin: 0; }
+.dark .ff-panel__hint { color: #a1a1aa; }
+.ff-panel__required { color: #dc2626; }
+.ff-panel__input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.ff-panel__input:focus { outline: 2px solid #a855f7; outline-offset: -1px; }
+.dark .ff-panel__input { border-color: #3f3f46; }
+.ff-panel__input--textarea { font-family: inherit; resize: vertical; }
+.ff-panel__input--expression,
+.ff-panel__input--json {
+  font-family: ui-monospace, monospace; font-size: 11px;
+}
+.ff-panel__switch { display: inline-flex; align-items: center; cursor: pointer; }
+.ff-panel__switch input { display: none; }
+.ff-panel__switch-slider {
+  width: 32px; height: 18px;
+  background: #d4d4d8;
+  border-radius: 999px;
+  position: relative;
+  transition: background 200ms;
+}
+.ff-panel__switch-slider::before {
+  content: "";
+  position: absolute; left: 2px; top: 2px;
+  width: 14px; height: 14px;
+  background: white;
+  border-radius: 50%;
+  transition: left 200ms;
+}
+.ff-panel__switch input:checked + .ff-panel__switch-slider { background: #a855f7; }
+.ff-panel__switch input:checked + .ff-panel__switch-slider::before { left: 16px; }
+.ff-panel__issues { margin-top: 4px; }
+.ff-panel__issue { font-size: 11px; color: #b45309; margin: 2px 0; }
+.dark .ff-panel__issue { color: #fbbf24; }
