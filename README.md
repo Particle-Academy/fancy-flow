@@ -1,17 +1,40 @@
 # @particle-academy/fancy-flow
 
-Workflow editor + runner built on [React Flow](https://reactflow.dev/). Six built-in node kits, tokenized theme, topological execution with per-node status events.
+Workflow editor + runner with six built-in node kits, tokenized theme, and topological execution with per-node status events. React Flow is bundled — consumers `npm install fancy-flow` and get nothing extra.
 
 ## Install
 
 ```bash
-npm install @particle-academy/fancy-flow @xyflow/react
+npm install @particle-academy/fancy-flow
 ```
 
 ```ts
-import "@xyflow/react/dist/style.css";
 import "@particle-academy/fancy-flow/styles.css";
 ```
+
+No more `@xyflow/react` peer install since `0.3.0` — it's bundled into our dist and hidden behind the `defineNode` / `<NodePort>` authoring API (see "Custom nodes" below). React Flow's own stylesheet is included inside ours.
+
+> **Why might I see two copies?** If your app *also* imports `@xyflow/react` directly somewhere (e.g. for a non-fancy-flow surface), your bundler will include both our bundled copy and yours. They won't share React-Flow's provider state. Two ways to avoid it: (a) author every custom node with `defineNode` + `<NodePort>` instead of importing react-flow yourself, or (b) tell your bundler to alias `@xyflow/react` to a single source. Cases where you actually need both are rare.
+
+## Custom nodes — no react-flow imports needed
+
+```tsx
+import { defineNode, NodePort } from "@particle-academy/fancy-flow";
+
+type MyData = { label: string; threshold: number };
+
+export const ThresholdNode = defineNode<MyData>(({ data, selected }) => (
+  <div className={selected ? "node node--selected" : "node"}>
+    <NodePort side="left" type="target" id="in" />
+    <div className="node__title">{data.label}</div>
+    <div className="node__body">≥ {data.threshold}</div>
+    <NodePort side="right" type="source" id="pass" title="pass" />
+    <NodePort side="right" type="source" id="fail" title="fail" style={{ top: "70%" }} />
+  </div>
+));
+```
+
+`defineNode` returns a memoized component compatible with the underlying engine; `<NodePort>` renders a connection handle. Together they cover what the typical node author needs — multiple ports, source vs target, position per side — without ever importing from `@xyflow/react`.
 
 ## Quick start
 

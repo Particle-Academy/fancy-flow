@@ -29,6 +29,19 @@ export {
   type NodeShellProps,
 } from "./components/nodes";
 
+// Authoring API for custom node kinds — defineNode + NodePort. Consumers
+// who write their own nodes use these instead of importing @xyflow/react,
+// which keeps the underlying engine swappable and avoids react-flow types
+// leaking into application code.
+export {
+  defineNode,
+  NodePort,
+  type FlowNodeRenderProps,
+  type NodePortProps,
+  type NodePortSide,
+  type NodePortType,
+} from "./components/nodes/api";
+
 export { FlowRunControls, type FlowRunControlsProps } from "./components/FlowRunControls";
 export { FlowRunFeed, type FlowRunFeedProps } from "./components/FlowRunFeed";
 

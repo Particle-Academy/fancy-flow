@@ -1,7 +1,7 @@
 {
   "name": "@particle-academy/fancy-flow",
-  "version": "0.2.2",
-  "description": "Workflow editor + runner built on React Flow. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status.",
+  "version": "0.3.0",
+  "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Particle-Academy/fancy-flow.git"
@@ -31,19 +31,18 @@
     "clean": "rm -rf dist",
     "prepublishOnly": "tsup"
   },
-  "keywords": ["react", "workflow", "flow", "graph", "react-flow", "xyflow", "fancy"],
+  "keywords": ["react", "workflow", "flow", "graph", "agent", "fancy"],
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
-    "@xyflow/react": "^12.0.0"
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
+    "@xyflow/react": "^12.4.0",
     "clsx": "^2.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@xyflow/react": "^12.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
