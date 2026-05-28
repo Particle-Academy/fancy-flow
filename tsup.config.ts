@@ -1,4 +1,27 @@
+import { fileURLToPath } from "node:url";
+import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
+
+const withSelectorShim = fileURLToPath(
+  new URL("./src/shims/use-sync-external-store-with-selector.ts", import.meta.url),
+);
+
+/**
+ * Because we bundle @xyflow/react (below), its transitive zustand pulls in
+ * the CJS-only `use-sync-external-store/shim/with-selector`. esbuild bundles
+ * that CJS module but leaves its internal `require("react")` intact in ESM
+ * output (react is external), which throws "Calling require for react" in a
+ * browser ESM consumer. Redirect that import to our ESM polyfill, which uses
+ * React 18+'s native useSyncExternalStore (our peer range is ^18 || ^19).
+ */
+const shimUseSyncExternalStore: Plugin = {
+  name: "shim-use-sync-external-store-with-selector",
+  setup(build) {
+    build.onResolve({ filter: /use-sync-external-store\/shim\/with-selector(\.js)?$/ }, () => ({
+      path: withSelectorShim,
+    }));
+  },
+};
 
 /**
  * Bundle @xyflow/react into our dist so consumers don't have to install it
@@ -26,4 +49,5 @@ export default defineConfig({
   external: ["react", "react-dom", "react/jsx-runtime"],
   noExternal: ["@xyflow/react", "@xyflow/system", "clsx"],
   treeshake: true,
+  esbuildPlugins: [shimUseSyncExternalStore],
 });
