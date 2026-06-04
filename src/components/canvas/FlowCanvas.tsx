@@ -85,6 +85,11 @@ export function FlowCanvas({
           fitViewOptions={DEFAULT_FIT_VIEW}
           defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
           proOptions={{ hideAttribution: true }}
+          // Embedded-in-a-page friendly: a bare wheel scrolls the PAGE (so the
+          // canvas never traps the scroll), and Shift+wheel zooms the canvas.
+          // Drag still pans. All overridable via props.
+          zoomActivationKeyCode="Shift"
+          preventScrolling={false}
           {...rest}
         >
           {background !== "none" && (

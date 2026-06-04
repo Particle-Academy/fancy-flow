@@ -1,6 +1,13 @@
-/* @particle-academy/fancy-flow — minimal styles. Pair with @xyflow/react/dist/style.css.
+/* @particle-academy/fancy-flow styles.
    Dark mode honors both `.dark` ancestor (Tailwind class strategy) and OS
    `prefers-color-scheme: dark`. */
+
+/* React Flow base layout CSS — bundled in so consumers import only this one
+   stylesheet. Without it `.react-flow__node` isn't absolutely positioned and the
+   pane/viewport transforms don't work, so the canvas renders blank. xyflow's JS is
+   already bundled into our dist, so the consumer has no separate @xyflow/react to
+   import its CSS from. */
+@import "@xyflow/react/dist/style.css";
 
 .ff-canvas {
   display: flex;
