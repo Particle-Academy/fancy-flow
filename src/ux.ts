@@ -89,6 +89,13 @@ export function createFlowRunnerUx(options: FlowRunnerUxOptions): FlowRunnerUx {
     executors[kindFor(name)] = async ({ node }: { node: FlowNode }) => {
       const params = (node.data as { config?: Record<string, unknown> } | undefined)?.config ?? {};
       const result = await dispatcher.dispatch(name, params);
+      // A UX effect can drive flow control: if it returns the decision sugar
+      // (`{ branch }` or `{ __port }`) — e.g. an interactive "choose" effect that
+      // awaits a human pick and returns the chosen port — pass it straight
+      // through so runFlow routes on it. Otherwise wrap the result for the feed.
+      if (result && typeof result === "object" && ("branch" in result || "__port" in result)) {
+        return result;
+      }
       return { effect: name, result };
     };
   }
