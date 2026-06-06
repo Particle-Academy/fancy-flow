@@ -1,5 +1,7 @@
 # @particle-academy/fancy-flow
 
+[![Fancified](art/fancified.svg)](https://particle.academy)
+
 Workflow editor + runner with six built-in node kits, tokenized theme, and topological execution with per-node status events. React Flow is bundled — consumers `npm install fancy-flow` and get nothing extra.
 
 ## Install
