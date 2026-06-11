@@ -20,8 +20,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: npm install
       - run: npm run build
-      # First publish needs NPM_TOKEN bootstrap; remove env line after Trusted Publisher is set.
+      # Trusted Publishing (OIDC) — no token. Trusted Publisher configured on
+      # npmjs.com; the bootstrap NPM_TOKEN has been revoked.
       - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -y npm@latest publish --provenance --access public
