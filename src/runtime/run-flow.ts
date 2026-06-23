@@ -71,11 +71,19 @@ export async function runFlow(
 
       const incoming = incomingByNode.get(node.id) ?? [];
 
-      // Skip nodes whose upstream wasn't activated (e.g. a Decision routed
-      // to a different branch).
+      // Run a node once any upstream branch reaches it. We iterate in
+      // topological order, so by the time we reach this node every upstream
+      // node has been processed — each incoming edge is therefore *settled*
+      // (active or dead, never still-pending). Requiring ALL incoming edges to
+      // be active wrongly skipped MERGE POINTS: when a Decision routes down one
+      // branch, the other branch's edge stays dead forever, so an `every` check
+      // skipped the shared continuation node and halted the run after the first
+      // branch (#1). Run when AT LEAST ONE incoming edge is active —
+      // collectInputs() only reads from the active ones. A genuine parallel
+      // join still works: in topo order both of its inputs are already active.
       if (incoming.length > 0) {
-        const allActive = incoming.every((e) => portValues.has(`${e.source}:${e.sourceHandle ?? "out"}`));
-        if (!allActive) {
+        const anyActive = incoming.some((e) => portValues.has(`${e.source}:${e.sourceHandle ?? "out"}`));
+        if (!anyActive) {
           onEvent({ type: "node-status", nodeId: node.id, status: "idle", text: "skipped" });
           continue;
         }
