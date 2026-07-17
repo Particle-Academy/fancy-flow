@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Standalone CI has no pnpm workspace, so rewrite any `workspace:*` deps to
+      # a plain range before install. A no-op when there are none.
+      - name: Rewrite workspace protocol
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));for(const s of ['dependencies','devDependencies','peerDependencies','optionalDependencies']){if(!p[s])continue;for(const[n,v]of Object.entries(p[s])){if(typeof v==='string'&&v.startsWith('workspace:'))p[s][n]=v.slice('workspace:'.length)||'*';}}fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');"
+
+      - name: Install
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Build
+        run: npm run build --if-present
