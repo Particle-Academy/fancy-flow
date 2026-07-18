@@ -2,7 +2,7 @@
 
 [![Fancified](art/fancified.svg)](https://particle.academy)
 
-Workflow editor + runner with six built-in node kits, tokenized theme, and topological execution with per-node status events. React Flow is bundled — consumers `npm install fancy-flow` and get nothing extra.
+A headless workflow **engine**, plus an optional React Flow **editor** — six built-in node kits, tokenized theme, and topological execution with per-node status events. The editor is for *designing* graphs; running them is a separate concern, so `fancy-flow/engine` executes a graph with **zero React** on a server, worker, or CLI. React Flow is bundled — consumers `npm install fancy-flow` and get nothing extra.
 
 ## Install
 
@@ -115,6 +115,41 @@ Custom nodes plug in via xyflow's standard `nodeTypes` prop:
 - `onEvent` receives `RunEvent`s for status, output, log, run-start/end.
 
 `useFlowRun` wraps `runFlow` with React state for statuses, status text, and a feed log.
+
+### Run a flow without the editor
+
+**The editor is never required to execute a graph.** Import only the layer you need:
+
+| Import | What you get | React? |
+|---|---|---|
+| `@particle-academy/fancy-flow/engine` | `runFlow` + graph/executor types — the headless runner | **No** |
+| `@particle-academy/fancy-flow/runtime` | `runFlow` + the UI runner hooks (`useFlowRun`, `useFlowState`) | Yes |
+| `@particle-academy/fancy-flow` | the full editor — `<FlowEditor>`, canvas, palette, config panel | Yes |
+
+```ts
+// A Node server, queue worker, CLI, or edge function — no DOM, no React.
+import { runFlow, type ExecutorRegistry } from "@particle-academy/fancy-flow/engine";
+
+const executors: ExecutorRegistry = {
+  llm_call: async ({ inputs }) => ({ text: await callModel(inputs) }),
+  "*": ({ node }) => ({ ran: node.id }),
+};
+
+const result = await runFlow(graph, executors, (event) => log(event));
+// result.ok / result.outputs / result.error
+```
+
+The `/engine` entry pulls in only the pure topological runner and its types — no
+editor, no hooks, no `@xyflow/react` or React runtime code (the react-flow types
+it references are `import type`, erased at compile).
+
+Because the same `runFlow` backs both the in-editor `useFlowRun` hook and a
+headless backend, a graph an agent or human authors in `<FlowEditor>` runs
+unchanged on the server. For a PHP/Laravel backend,
+[`particle-academy/fancy-flow-php`](https://github.com/Particle-Academy/fancy-flow-php)
+is the parity-tested runtime twin — same `WorkflowSchema` JSON in, same outputs
+out — and adds queued durable runs with resume-from-checkpoint plus human
+approval / `user_input` pauses.
 
 ## Status
 
