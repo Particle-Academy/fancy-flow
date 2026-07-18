@@ -88,6 +88,8 @@ export type FlowEditorAction = {
 export type FlowEditorBuiltins = {
   run?: boolean;
   delete?: boolean;
+  /** Right-click a node for Delete / Duplicate. Default true. */
+  contextMenu?: boolean;
   export?: boolean;
   import?: boolean;
   count?: boolean;
@@ -107,6 +109,9 @@ export type FlowEditorSlots = {
   feed?: (api: FlowEditorApi) => ReactNode;
   /** Rendered over the canvas when the graph is empty. */
   empty?: (api: FlowEditorApi) => ReactNode;
+  /** Replace the node right-click menu. Receives the right-clicked node id;
+   *  call `close` when an item is chosen. */
+  contextMenu?: (api: FlowEditorApi, nodeId: string, close: () => void) => ReactNode;
 };
 
 const FlowEditorContext = createContext<FlowEditorApi | null>(null);

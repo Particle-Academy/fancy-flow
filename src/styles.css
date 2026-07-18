@@ -267,6 +267,22 @@
 /* Slot: config panel + an optional footer for per-node actions. */
 .ff-editor__panel-wrap { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .ff-editor__panel-footer { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+/* Node right-click menu — fixed so the canvas' overflow can't clip it. */
+.ff-editor__ctx {
+  position: fixed; z-index: 50; min-width: 140px; padding: 4px;
+  display: flex; flex-direction: column;
+  background: white; border: 1px solid #d4d4d8; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+.dark .ff-editor__ctx { background: #18181b; border-color: #3f3f46; }
+.ff-editor__ctx-item {
+  border: 0; background: transparent; cursor: pointer; text-align: left;
+  padding: 6px 10px; border-radius: 5px; font-size: 12.5px; color: inherit;
+}
+.ff-editor__ctx-item:hover { background: rgba(0,0,0,0.05); }
+.dark .ff-editor__ctx-item:hover { background: #27272a; }
+.ff-editor__ctx-item--danger { color: #dc2626; }
+.dark .ff-editor__ctx-item--danger { color: #f87171; }
 .ff-editor__feed { flex-shrink: 0; }
 .ff-editor__sep { width: 1px; align-self: stretch; background: #e4e4e7; }
 .dark .ff-editor__sep { background: #3f3f46; }

@@ -108,9 +108,27 @@ editor.current?.run();
 Three ways, all of which prune the edges attached to the node (a dangling edge
 would survive into the schema and break the runner):
 
+- **right-click a node** → Delete / Duplicate,
 - the **Delete** toolbar button (enabled when a node is selected),
 - the <kbd>Delete</kbd> or <kbd>Backspace</kbd> key on the canvas,
 - `api.deleteSelected()` / `api.deleteNodes(ids)` from code.
+
+Swap the menu for your own with `slots.contextMenu`, or turn it off with
+`builtins={{ contextMenu: false }}` (passing your own
+`canvasProps.onNodeContextMenu` also takes over):
+
+```tsx
+<FlowEditor
+  slots={{
+    contextMenu: (api, nodeId, close) => (
+      <>
+        <button onClick={() => { api.duplicateNode(nodeId); close(); }}>Duplicate</button>
+        <button onClick={() => { pinNode(nodeId); close(); }}>Pin</button>
+      </>
+    ),
+  }}
+/>
+```
 
 `onDelete(ids)` fires after either path, so a host can sync its own store.
 

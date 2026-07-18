@@ -144,6 +144,32 @@ function FlowEditorInner({
 
   const handleNodeClick: NodeMouseHandler = (_e, node) => setSelectedId(node.id);
 
+  // Right-click menu. Anchored in viewport coords (position: fixed), so it is
+  // not clipped by the canvas' overflow.
+  const [menu, setMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const handleNodeContextMenu: NodeMouseHandler = (event, node) => {
+    event.preventDefault();
+    setSelectedId(node.id);
+    setMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+  };
+
+  // Dismiss on any outside click, scroll, or Escape.
+  useEffect(() => {
+    if (menu === null) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
+
   // Uncontrolled: notify host on every graph mutation. Controlled mode
   // already notifies via the adapter on each setNodes/setEdges call.
   useEffect(() => {
@@ -291,6 +317,7 @@ function FlowEditorInner({
           onEdgesChange={flow.onEdgesChange}
           onConnect={flow.onConnect}
           onNodeClick={handleNodeClick}
+          onNodeContextMenu={builtins.contextMenu === false ? undefined : handleNodeContextMenu}
           onNodesDelete={(deleted) => onDelete?.(deleted.map((n) => n.id))}
           // Both keys delete, so muscle memory from either platform works.
           deleteKeyCode={["Delete", "Backspace"]}
@@ -300,6 +327,40 @@ function FlowEditorInner({
         />
         {slots.empty && api.nodes.length === 0 && (
           <div className="ff-editor__empty">{slots.empty(api)}</div>
+        )}
+        {menu !== null && builtins.contextMenu !== false && (
+          <div
+            className="ff-editor__ctx"
+            style={{ top: menu.y, left: menu.x }}
+            role="menu"
+            // Keep the outside-click listener from closing us before the click lands.
+            onClick={(e) => e.stopPropagation()}
+          >
+            {slots.contextMenu ? (
+              slots.contextMenu(api, menu.nodeId, closeMenu)
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ff-editor__ctx-item"
+                  data-action="ctx-duplicate"
+                  onClick={() => { api.duplicateNode(menu.nodeId); closeMenu(); }}
+                >
+                  Duplicate
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ff-editor__ctx-item ff-editor__ctx-item--danger"
+                  data-action="ctx-delete"
+                  onClick={() => { api.deleteNodes([menu.nodeId]); closeMenu(); }}
+                >
+                  Delete
+                </button>
+              </>
+            )}
+          </div>
         )}
         {showFeed &&
           (slots.feed ? slots.feed(api) : <FlowRunFeed entries={runner.feed} className="ff-editor__feed" />)}
