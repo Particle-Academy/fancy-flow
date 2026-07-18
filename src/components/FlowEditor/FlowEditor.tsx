@@ -1,4 +1,13 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   ReactFlowProvider,
   useReactFlow,
@@ -10,7 +19,7 @@ import {
   type NodeMouseHandler,
 } from "@xyflow/react";
 import type { UseFlowStateReturn } from "../../runtime/use-flow-state";
-import { FlowCanvas } from "../canvas/FlowCanvas";
+import { FlowCanvas, type FlowCanvasProps } from "../canvas/FlowCanvas";
 import { NodePalette, paletteDropHandlers } from "../NodePalette";
 import { NodeConfigPanel } from "../NodeConfigPanel";
 import { FlowRunControls } from "../FlowRunControls";
@@ -20,6 +29,14 @@ import { useFlowRun, applyStatusesToNodes } from "../../runtime/use-flow-run";
 import { exportWorkflow, importWorkflow, workflowToBlob, type WorkflowMetadata, type WorkflowSchema } from "../../schema";
 import { buildNodeTypes, defaultConfigFor, getNodeKind, listNodeKinds, onNodeKindsChanged } from "../../registry";
 import type { ExecutorRegistry, FlowGraph, FlowNode } from "../../types";
+import { duplicateNode as cloneNode, removeEdges, removeNodes } from "./graph-ops";
+import {
+  FlowEditorProvider,
+  type FlowEditorAction,
+  type FlowEditorApi,
+  type FlowEditorBuiltins,
+  type FlowEditorSlots,
+} from "./api";
 
 export type FlowEditorProps = {
   initial?: FlowGraph;
@@ -38,32 +55,49 @@ export type FlowEditorProps = {
   showFeed?: boolean;
   /** Total editor height. Default 720. */
   height?: number;
-  /** Optional toolbar content rendered next to the run controls. */
+  /** Extra toolbar content, appended after the built-ins. Prefer `actions`
+   *  (declarative + agent-emittable); this stays for back-compat. */
   extraToolbar?: ReactNode;
+  /** Declarative custom toolbar buttons. */
+  actions?: FlowEditorAction[];
+  /** Turn built-in toolbar affordances off individually. */
+  builtins?: FlowEditorBuiltins;
+  /** Replace whole regions of the editor. */
+  slots?: FlowEditorSlots;
+  /** Forwarded to `<FlowCanvas>` / React Flow — snapToGrid, minimap, context
+   *  menus, edge types, and anything else xyflow accepts. */
+  canvasProps?: Partial<Omit<FlowCanvasProps, "nodes" | "edges">>;
   /** Called whenever the graph changes — host can persist. */
   onChange?: (graph: FlowGraph) => void;
+  /** Called when the selected node changes. */
+  onSelectionChange?: (node: FlowNode | null) => void;
+  /** Called after nodes are deleted, with the deleted ids. */
+  onDelete?: (ids: string[]) => void;
   className?: string;
   style?: CSSProperties;
 };
 
 /**
- * FlowEditor — opinionated, batteries-included workflow editor. Composes
- * NodePalette + FlowCanvas + NodeConfigPanel + run controls + run feed
- * with sensible defaults. Hosts that want à la carte can use the
- * primitives directly.
+ * FlowEditor — batteries-included workflow editor, but not a black box.
+ *
+ * Defaults compose NodePalette + FlowCanvas + NodeConfigPanel + run controls +
+ * feed. Every part is replaceable: pass `actions` for custom toolbar buttons,
+ * `slots` to swap a whole region, `canvasProps` to reach React Flow, or grab
+ * the {@link FlowEditorApi} from `ref` / `useFlowEditor()` and build your own
+ * chrome around the primitives.
  */
-export function FlowEditor(props: FlowEditorProps) {
+export const FlowEditor = forwardRef<FlowEditorApi, FlowEditorProps>(function FlowEditor(props, ref) {
   return (
     <ReactFlowProvider>
       <div
         className={["ff-editor", props.className ?? ""].filter(Boolean).join(" ")}
         style={{ height: props.height ?? 720, ...props.style }}
       >
-        <FlowEditorInner {...props} />
+        <FlowEditorInner {...props} apiRef={ref} />
       </div>
     </ReactFlowProvider>
   );
-}
+});
 
 function FlowEditorInner({
   initial = { nodes: [], edges: [] },
@@ -74,18 +108,24 @@ function FlowEditorInner({
   showPanel = true,
   showFeed = true,
   extraToolbar,
+  actions = [],
+  builtins = {},
+  slots = {},
+  canvasProps = {},
   onChange,
-}: FlowEditorProps) {
+  onSelectionChange,
+  onDelete,
+  apiRef,
+}: FlowEditorProps & { apiRef?: React.ForwardedRef<FlowEditorApi> }) {
   const internal = useFlowState(initial);
   const runner = useFlowRun();
+  const rf = useReactFlow();
 
   // When `value` is provided we run in controlled mode: host owns nodes/edges,
   // local edits go through onChange. Internal state is unused but the hook
   // still has to run (rules of hooks).
   const controlled = value !== undefined;
-  const flow = controlled
-    ? makeControlledFlowAdapter(value!, onChange)
-    : internal;
+  const flow = controlled ? makeControlledFlowAdapter(value!, onChange) : internal;
 
   // Re-render when registry kinds change so the palette + nodeTypes reflect it.
   const [, force] = useState(0);
@@ -100,6 +140,8 @@ function FlowEditorInner({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = useMemo(() => flow.nodes.find((n) => n.id === selectedId) ?? null, [flow.nodes, selectedId]);
 
+  useEffect(() => onSelectionChange?.(selected), [selected, onSelectionChange]);
+
   const handleNodeClick: NodeMouseHandler = (_e, node) => setSelectedId(node.id);
 
   // Uncontrolled: notify host on every graph mutation. Controlled mode
@@ -108,23 +150,218 @@ function FlowEditorInner({
     if (!controlled) onChange?.({ nodes: flow.nodes, edges: flow.edges });
   }, [flow.nodes, flow.edges, onChange, controlled]);
 
-  return (
-    <FlowEditorBody
-      showPalette={showPalette}
-      showPanel={showPanel}
-      showFeed={showFeed}
-      flow={flow}
-      runner={runner}
-      executors={executors}
-      metadata={metadata}
-      nodeTypes={nodeTypes}
-      renderedNodes={renderedNodes}
-      selected={selected}
-      setSelectedId={setSelectedId}
-      handleNodeClick={handleNodeClick}
-      extraToolbar={extraToolbar}
-    />
+  const addNode = useCallback(
+    (kindName: string, position?: { x: number; y: number }): string | null => {
+      const kind = getNodeKind(kindName);
+      if (!kind) return null;
+      const at = position ?? { x: 80, y: 80 };
+      const id = newNodeId();
+      flow.setNodes((all: FlowNode[]) => [
+        ...all,
+        {
+          id,
+          type: kind.name,
+          position: at,
+          data: { kind: kind.name, label: kind.label, config: defaultConfigFor(kind) } as any,
+        } as FlowNode,
+      ]);
+      setSelectedId(id);
+      return id;
+    },
+    [flow],
   );
+
+  /** Delete nodes AND every edge attached to them — an orphaned edge would
+   *  otherwise survive the node it connected. */
+  const deleteNodes = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const doomed = new Set(ids);
+      flow.setNodes((all: FlowNode[]) => removeNodes({ nodes: all, edges: [] }, ids).nodes);
+      flow.setEdges((all: Edge[]) => removeNodes({ nodes: [], edges: all }, ids).edges);
+      setSelectedId((cur) => (cur !== null && doomed.has(cur) ? null : cur));
+      onDelete?.(ids);
+    },
+    [flow, onDelete],
+  );
+
+  const api: FlowEditorApi = useMemo(() => {
+    const toWorkflow = () => exportWorkflow({ nodes: flow.nodes, edges: flow.edges }, metadata);
+
+    return {
+      graph: { nodes: flow.nodes, edges: flow.edges },
+      nodes: flow.nodes,
+      edges: flow.edges,
+      selectedId,
+      selected,
+      running: runner.running,
+      statuses: runner.statuses,
+
+      select: setSelectedId,
+
+      addNode,
+      updateNode: (next) => flow.setNodes((all: FlowNode[]) => all.map((x) => (x.id === next.id ? next : x))),
+      deleteNodes,
+      deleteSelected: () => deleteNodes(selectedId ? [selectedId] : []),
+      deleteEdges: (ids) => flow.setEdges((all: Edge[]) => removeEdges(all, ids)),
+      duplicateNode: (id) => {
+        const src = flow.nodes.find((n) => n.id === id);
+        if (!src) return null;
+        const copy = cloneNode(src, newNodeId());
+        flow.setNodes((all: FlowNode[]) => [...all, copy]);
+        setSelectedId(copy.id);
+        return copy.id;
+      },
+      setGraph: (graph) => {
+        flow.setNodes(graph.nodes);
+        flow.setEdges(graph.edges);
+      },
+
+      run: () => runner.run({ nodes: flow.nodes, edges: flow.edges }, executors),
+      cancel: runner.cancel,
+      reset: runner.reset,
+
+      toWorkflow,
+      exportWorkflow: () => downloadWorkflow(toWorkflow(), metadata),
+      importWorkflow: () =>
+        pickWorkflow((graph) => {
+          flow.setNodes(graph.nodes);
+          flow.setEdges(graph.edges);
+        }),
+
+      fitView: () => rf.fitView({ padding: 0.2 }),
+    };
+  }, [flow, selectedId, selected, runner, executors, metadata, addNode, deleteNodes, rf]);
+
+  useImperativeHandle(apiRef, () => api, [api]);
+
+  const dropHandlers = paletteDropHandlers((kindName, evt) => {
+    const point = rf.screenToFlowPosition({ x: evt.clientX, y: evt.clientY });
+    addNode(kindName, { x: point.x - 100, y: point.y - 30 });
+  });
+
+  const startActions = actions.filter((a) => a.placement === "start");
+  const endActions = actions.filter((a) => a.placement !== "start");
+
+  const toolbar = slots.toolbar ? (
+    slots.toolbar(api)
+  ) : (
+    <>
+      {startActions.map((a) => renderAction(a, api))}
+      {builtins.run !== false && (
+        <FlowRunControls running={api.running} onRun={api.run} onCancel={api.cancel} onReset={api.reset} />
+      )}
+      {(builtins.delete !== false || builtins.export !== false || builtins.import !== false) && (
+        <span className="ff-editor__sep" />
+      )}
+      {builtins.delete !== false && (
+        <button
+          className="ff-editor__btn"
+          data-action="delete"
+          onClick={api.deleteSelected}
+          disabled={api.selected === null}
+          title="Delete the selected node (Del / Backspace)"
+        >
+          ✕ Delete
+        </button>
+      )}
+      {builtins.export !== false && (
+        <button className="ff-editor__btn" data-action="export" onClick={api.exportWorkflow}>↓ Export</button>
+      )}
+      {builtins.import !== false && (
+        <button className="ff-editor__btn" data-action="import" onClick={api.importWorkflow}>↑ Import</button>
+      )}
+      {endActions.map((a) => renderAction(a, api))}
+      {extraToolbar}
+      {builtins.count !== false && (
+        <span className="ff-editor__count">{api.nodes.length} nodes · {api.edges.length} edges</span>
+      )}
+    </>
+  );
+
+  return (
+    <FlowEditorProvider value={api}>
+      {showPalette && (slots.palette ? slots.palette(api) : <NodePalette className="ff-editor__palette" />)}
+      <div className="ff-editor__main" {...dropHandlers}>
+        <FlowCanvas
+          nodes={renderedNodes}
+          edges={flow.edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={flow.onNodesChange}
+          onEdgesChange={flow.onEdgesChange}
+          onConnect={flow.onConnect}
+          onNodeClick={handleNodeClick}
+          onNodesDelete={(deleted) => onDelete?.(deleted.map((n) => n.id))}
+          // Both keys delete, so muscle memory from either platform works.
+          deleteKeyCode={["Delete", "Backspace"]}
+          height="100%"
+          toolbar={toolbar}
+          {...canvasProps}
+        />
+        {slots.empty && api.nodes.length === 0 && (
+          <div className="ff-editor__empty">{slots.empty(api)}</div>
+        )}
+        {showFeed &&
+          (slots.feed ? slots.feed(api) : <FlowRunFeed entries={runner.feed} className="ff-editor__feed" />)}
+      </div>
+      {showPanel &&
+        (slots.panel ? (
+          slots.panel(api)
+        ) : (
+          <div className="ff-editor__panel-wrap">
+            <NodeConfigPanel className="ff-editor__panel" node={api.selected} onChange={api.updateNode} />
+            {slots.panelFooter && <div className="ff-editor__panel-footer">{slots.panelFooter(api)}</div>}
+          </div>
+        ))}
+    </FlowEditorProvider>
+  );
+}
+
+function renderAction(action: FlowEditorAction, api: FlowEditorApi) {
+  if (action.visible && !action.visible(api)) return null;
+  const disabled = action.disabled ? action.disabled(api) : action.requiresSelection === true && api.selected === null;
+  return (
+    <button
+      key={action.id}
+      className="ff-editor__btn"
+      data-action={action.id}
+      title={action.title}
+      disabled={disabled}
+      onClick={() => action.onSelect(api)}
+    >
+      {action.label}
+    </button>
+  );
+}
+
+function newNodeId(): string {
+  return `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function downloadWorkflow(schema: WorkflowSchema, metadata?: WorkflowMetadata) {
+  const url = URL.createObjectURL(workflowToBlob(schema));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${metadata?.id ?? "workflow"}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function pickWorkflow(onLoad: (graph: FlowGraph) => void) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json";
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const result = importWorkflow(JSON.parse(await file.text()), { lenient: true });
+      onLoad(result.graph);
+    } catch (e) {
+      console.error("import failed", e);
+    }
+  };
+  input.click();
 }
 
 /**
@@ -158,98 +395,4 @@ function makeControlledFlowAdapter(
     },
     toGraph: () => value,
   };
-}
-
-function FlowEditorBody({
-  showPalette, showPanel, showFeed,
-  flow, runner, executors, metadata,
-  nodeTypes, renderedNodes, selected, setSelectedId, handleNodeClick, extraToolbar,
-}: any) {
-  const rf = useReactFlow();
-
-  const dropHandlers = paletteDropHandlers((kindName, evt) => {
-    const kind = getNodeKind(kindName);
-    if (!kind) return;
-    const point = rf.screenToFlowPosition({ x: evt.clientX, y: evt.clientY });
-    const id = `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-    flow.setNodes((all: FlowNode[]) => [
-      ...all,
-      {
-        id, type: kind.name,
-        position: { x: point.x - 100, y: point.y - 30 },
-        data: { kind: kind.name, label: kind.label, config: defaultConfigFor(kind) } as any,
-      } as FlowNode,
-    ]);
-    setSelectedId(id);
-  });
-
-  const doExport = () => {
-    const schema: WorkflowSchema = exportWorkflow({ nodes: flow.nodes, edges: flow.edges }, metadata);
-    const url = URL.createObjectURL(workflowToBlob(schema));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${metadata?.id ?? "workflow"}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const doImport = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      try {
-        const result = importWorkflow(JSON.parse(text), { lenient: true });
-        flow.setNodes(result.graph.nodes);
-        flow.setEdges(result.graph.edges);
-      } catch (e) {
-        console.error("import failed", e);
-      }
-    };
-    input.click();
-  };
-
-  return (
-    <>
-      {showPalette && <NodePalette className="ff-editor__palette" />}
-      <div className="ff-editor__main" {...dropHandlers}>
-        <FlowCanvas
-          nodes={renderedNodes}
-          edges={flow.edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={flow.onNodesChange}
-          onEdgesChange={flow.onEdgesChange}
-          onConnect={flow.onConnect}
-          onNodeClick={handleNodeClick}
-          height="100%"
-          toolbar={
-            <>
-              <FlowRunControls
-                running={runner.running}
-                onRun={() => runner.run({ nodes: flow.nodes, edges: flow.edges }, executors)}
-                onCancel={runner.cancel}
-                onReset={runner.reset}
-              />
-              <span className="ff-editor__sep" />
-              <button className="ff-editor__btn" onClick={doExport}>↓ Export</button>
-              <button className="ff-editor__btn" onClick={doImport}>↑ Import</button>
-              {extraToolbar}
-              <span className="ff-editor__count">{flow.nodes.length} nodes · {flow.edges.length} edges</span>
-            </>
-          }
-        />
-        {showFeed && <FlowRunFeed entries={runner.feed} className="ff-editor__feed" />}
-      </div>
-      {showPanel && (
-        <NodeConfigPanel
-          className="ff-editor__panel"
-          node={selected}
-          onChange={(next: FlowNode) => flow.setNodes((all: FlowNode[]) => all.map((x) => (x.id === next.id ? next : x)))}
-        />
-      )}
-    </>
-  );
 }

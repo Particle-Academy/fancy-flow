@@ -257,7 +257,16 @@
   gap: 12px;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
-.ff-editor__main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ff-editor__main { display: flex; flex-direction: column; gap: 8px; min-width: 0; position: relative; }
+/* Slot: rendered over the canvas while the graph is empty. */
+.ff-editor__empty {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  padding: 24px; text-align: center; pointer-events: none;
+}
+.ff-editor__empty > * { pointer-events: auto; }
+/* Slot: config panel + an optional footer for per-node actions. */
+.ff-editor__panel-wrap { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.ff-editor__panel-footer { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .ff-editor__feed { flex-shrink: 0; }
 .ff-editor__sep { width: 1px; align-self: stretch; background: #e4e4e7; }
 .dark .ff-editor__sep { background: #3f3f46; }
@@ -266,7 +275,8 @@
   border-radius: 6px; padding: 4px 10px;
   color: inherit; font-size: 12px;
 }
-.ff-editor__btn:hover { background: rgba(0,0,0,0.04); }
+.ff-editor__btn:hover:not(:disabled) { background: rgba(0,0,0,0.04); }
+.ff-editor__btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .dark .ff-editor__btn { border-color: #3f3f46; }
 .dark .ff-editor__btn:hover { background: #27272a; }
 .ff-editor__count {

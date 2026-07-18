@@ -38,6 +38,86 @@ export const ThresholdNode = defineNode<MyData>(({ data, selected }) => (
 
 `defineNode` returns a memoized component compatible with the underlying engine; `<NodePort>` renders a connection handle. Together they cover what the typical node author needs — multiple ports, source vs target, position per side — without ever importing from `@xyflow/react`.
 
+## Extending the editor
+
+`<FlowEditor>` is batteries-included but not a black box. Four escape hatches,
+smallest first — reach for the first one that fits.
+
+**1. Custom toolbar buttons — declarative, so an agent can emit them too.**
+
+```tsx
+<FlowEditor
+  actions={[
+    {
+      id: "save",
+      label: "Save",
+      placement: "start",
+      onSelect: (api) => persist(api.toWorkflow()),
+    },
+    {
+      id: "duplicate",
+      label: "Duplicate",
+      requiresSelection: true,          // auto-disabled with no selection
+      onSelect: (api) => api.duplicateNode(api.selectedId!),
+    },
+  ]}
+  builtins={{ import: false }}          // drop built-ins you don't want
+/>
+```
+
+Each button renders with `data-action="<id>"`, so an agent gets a stable handle
+instead of guessing DOM.
+
+**2. Replace a whole region with `slots`.** Every slot receives the editor API.
+
+```tsx
+<FlowEditor
+  slots={{
+    panel: (api) => <MyInspector node={api.selected} onChange={api.updateNode} />,
+    panelFooter: (api) => <button onClick={api.deleteSelected}>Delete node</button>,
+    empty: () => <p>Drag a node from the palette to start.</p>,
+    toolbar: (api) => <MyToolbar api={api} />,   // replaces built-ins entirely
+  }}
+/>
+```
+
+**3. Drive it from outside** — `ref` for imperative control, `useFlowEditor()`
+inside any child:
+
+```tsx
+const editor = useRef<FlowEditorApi>(null);
+editor.current?.addNode("llm_call", { x: 120, y: 80 });
+editor.current?.deleteSelected();
+editor.current?.run();
+```
+
+`FlowEditorApi` carries the graph, selection, run state, and every mutation:
+`addNode` · `updateNode` · `deleteNodes` · `deleteSelected` · `deleteEdges` ·
+`duplicateNode` · `setGraph` · `select` · `run` / `cancel` / `reset` ·
+`toWorkflow` / `exportWorkflow` / `importWorkflow` · `fitView`.
+
+**4. Reach React Flow directly** with `canvasProps` — context menus,
+`snapToGrid`, minimap options, edge types, anything xyflow accepts:
+
+```tsx
+<FlowEditor canvasProps={{ snapToGrid: true, showMinimap: true, onNodeContextMenu: openMenu }} />
+```
+
+### Deleting nodes
+
+Three ways, all of which prune the edges attached to the node (a dangling edge
+would survive into the schema and break the runner):
+
+- the **Delete** toolbar button (enabled when a node is selected),
+- the <kbd>Delete</kbd> or <kbd>Backspace</kbd> key on the canvas,
+- `api.deleteSelected()` / `api.deleteNodes(ids)` from code.
+
+`onDelete(ids)` fires after either path, so a host can sync its own store.
+
+If you want none of the above chrome, skip `<FlowEditor>` entirely and compose
+`useFlowState()` + `<FlowCanvas>` + `<NodePalette>` + `<NodeConfigPanel>`
+yourself — they are all exported.
+
 ## Quick start
 
 ```tsx

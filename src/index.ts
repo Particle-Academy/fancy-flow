@@ -7,7 +7,16 @@ registerBuiltinKinds();
 
 // Editor
 export { FlowCanvas, type FlowCanvasProps } from "./components/canvas";
-export { FlowEditor, type FlowEditorProps } from "./components/FlowEditor";
+export {
+  FlowEditor,
+  useFlowEditor,
+  useFlowEditorOptional,
+  type FlowEditorProps,
+  type FlowEditorApi,
+  type FlowEditorAction,
+  type FlowEditorBuiltins,
+  type FlowEditorSlots,
+} from "./components/FlowEditor";
 export { NodePalette, paletteDropHandlers, type NodePaletteProps } from "./components/NodePalette";
 export {
   NodeConfigPanel,
