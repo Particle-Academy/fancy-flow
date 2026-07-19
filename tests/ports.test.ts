@@ -236,3 +236,60 @@ describe("validateConfig — repeater / keyvalue", () => {
     expect(validateConfig(kvKind, { map: ["a"] })[0].message).toMatch(/key\/value map/);
   });
 });
+
+describe("schema carries resolved ports (cross-runtime parity)", () => {
+  beforeEach(() => registerBuiltinKinds());
+
+  it("writes a config-driven kind's ACTUAL ports into the exported document", async () => {
+    // A runtime in another language cannot execute a JS port function. If the
+    // document does not carry the resolved ports, the PHP twin sees none,
+    // falls back to a single `out`, and every branch edge stops firing —
+    // breaking the "same schema in, same routing out" guarantee.
+    const { exportWorkflow } = await import("../src/schema/workflow-schema");
+    const graph: FlowGraph = {
+      nodes: [
+        node("sw", "switch_case", {
+          kind: "switch_case",
+          config: { value: "{{ $json.k }}", cases: { a: "case_a", b: "case_b" } },
+        }),
+      ],
+      edges: [],
+    };
+
+    const doc = exportWorkflow(graph);
+    const exported = doc.graph.nodes[0];
+    expect(exported.outputs?.map((p) => p.id)).toEqual(["case_a", "case_b", "default"]);
+  });
+
+  it("round-trips those ports back onto the node", async () => {
+    const { exportWorkflow, importWorkflow } = await import("../src/schema/workflow-schema");
+    const graph: FlowGraph = {
+      nodes: [
+        node("sw", "switch_case", {
+          kind: "switch_case",
+          config: { value: "{{ $json.k }}", cases: { a: "case_a" } },
+        }),
+      ],
+      edges: [],
+    };
+
+    const back = importWorkflow(exportWorkflow(graph));
+    const outputs = (back.graph.nodes[0]!.data as any).outputs;
+    expect(outputs.map((p: { id: string }) => p.id)).toEqual(["case_a", "default"]);
+  });
+
+  it("exports llm_branch routes as ports", async () => {
+    const { exportWorkflow } = await import("../src/schema/workflow-schema");
+    const graph: FlowGraph = {
+      nodes: [
+        node("r", "llm_branch", {
+          kind: "llm_branch",
+          config: { routes: [{ port: "billing" }, { port: "support" }], fallback: true },
+        }),
+      ],
+      edges: [],
+    };
+    const exported = exportWorkflow(graph).graph.nodes[0];
+    expect(exported.outputs?.map((p) => p.id)).toEqual(["billing", "support", "fallback"]);
+  });
+});

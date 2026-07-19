@@ -1,5 +1,6 @@
-import type { FlowEdge, FlowGraph, FlowNode } from "../types";
+import type { FlowEdge, FlowGraph, FlowNode, PortDescriptor } from "../types";
 import { defaultConfigFor, getNodeKind, validateConfig } from "../registry/registry";
+import { resolveNodePorts } from "../registry/ports";
 
 /** Schema version. Bump on breaking shape changes; add migrations as needed. */
 export const WORKFLOW_SCHEMA_VERSION = 1 as const;
@@ -36,6 +37,22 @@ export type WorkflowSchemaNode = {
   label?: string;
   description?: string;
   config?: Record<string, unknown>;
+  /**
+   * Resolved ports, written on export.
+   *
+   * A kind may derive its ports from config (`switch_case` cases,
+   * `llm_branch` routes), and that derivation is a JavaScript function — a
+   * runtime in another language cannot execute it. Without the resolved ports
+   * in the document, the PHP twin sees no declared outputs and falls back to a
+   * single `out`, so every branch edge in an exported flow silently stops
+   * firing. Serializing them keeps the schema self-describing and preserves
+   * the cross-runtime guarantee: same JSON in, same routing out.
+   *
+   * Optional and additive — a hand-written schema may omit them, and each
+   * runtime then falls back to its own kind registry.
+   */
+  inputs?: PortDescriptor[];
+  outputs?: PortDescriptor[];
 };
 
 export type WorkflowSchemaEdge = {
@@ -82,13 +99,20 @@ export function exportWorkflow(
 
 function toSchemaNode(n: FlowNode): WorkflowSchemaNode {
   const data: any = n.data ?? {};
+  const kindName = data.kind ?? n.type ?? "custom";
+  // Resolve through the same helper the canvas and runtime use, so a
+  // config-driven kind writes its ACTUAL ports into the document instead of
+  // leaving another language's runtime to guess at them.
+  const ports = resolveNodePorts(n, getNodeKind(kindName) ?? undefined);
   return {
     id: n.id,
-    kind: data.kind ?? n.type ?? "custom",
+    kind: kindName,
     position: { x: n.position.x, y: n.position.y },
     label: data.label,
     description: data.description,
     config: data.config,
+    inputs: ports.inputs,
+    outputs: ports.outputs,
   };
 }
 
@@ -157,6 +181,10 @@ export function importWorkflow(schema: unknown, options: ImportOptions = {}): Im
         label: n.label ?? kind?.label ?? n.kind,
         description: n.description,
         config,
+        // Carry serialized ports back onto the node so a round-trip is stable
+        // and an unknown kind still routes the way the document described.
+        ...(n.inputs ? { inputs: n.inputs } : {}),
+        ...(n.outputs ? { outputs: n.outputs } : {}),
       } as any,
     };
   });
