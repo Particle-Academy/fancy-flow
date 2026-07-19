@@ -8,10 +8,26 @@ export type {
   JsonConfigField,
   ExpressionConfigField,
   CredentialConfigField,
+  RepeaterConfigField,
+  RepeaterRowField,
+  KeyValueConfigField,
+  DocumentConfigField,
   NodeCategory,
   NodeKindDefinition,
+  PortSpec,
   RenderBodyContext,
 } from "./types";
+
+export { resolvePortSpec, resolveNodePorts, nodeConfig } from "./ports";
+
+export {
+  registerRichInputAdapter,
+  getRichInputAdapter,
+  isRichInputEnabled,
+  onRichInputAdapterChanged,
+  RichInputPreview,
+  type RichInputAdapter,
+} from "./rich-input";
 
 export {
   registerNodeKind,

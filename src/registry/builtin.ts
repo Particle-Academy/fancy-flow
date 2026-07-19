@@ -1,4 +1,7 @@
+import { createElement } from "react";
 import { registerNodeKind } from "./registry";
+import { RichInputPreview } from "./rich-input";
+import type { PortDescriptor } from "../types";
 import type { ConfigField, NodeKindDefinition } from "./types";
 
 /**
@@ -6,6 +9,52 @@ import type { ConfigField, NodeKindDefinition } from "./types";
  * NO executor — host apps wire executors per kind so they control where
  * memory, data, network, and AI calls actually go.
  */
+
+/**
+ * Ports for `switch_case`, derived from its `cases` map (match value → port).
+ *
+ * Several match values may route to the same port, so ports are de-duplicated
+ * and labelled with every value that reaches them ("a|c"). `default` is always
+ * present — unmatched input has to land somewhere.
+ */
+function casePorts(cases: unknown): PortDescriptor[] {
+  const byPort = new Map<string, string[]>();
+  if (cases && typeof cases === "object" && !Array.isArray(cases)) {
+    for (const [match, port] of Object.entries(cases as Record<string, unknown>)) {
+      if (typeof port !== "string" || port === "" || port === "default") continue;
+      const matches = byPort.get(port) ?? [];
+      matches.push(match);
+      byPort.set(port, matches);
+    }
+  }
+  const ports: PortDescriptor[] = [...byPort].map(([id, matches]) => ({
+    id,
+    label: matches.join("|"),
+  }));
+  return [...ports, { id: "default", label: "default" }];
+}
+
+/**
+ * Ports for `llm_branch`, derived from its `routes` list. Blank and duplicate
+ * port names are dropped so a half-typed route can't collide with a real one.
+ */
+function routePorts(routes: unknown, fallback?: unknown): PortDescriptor[] {
+  const ports: PortDescriptor[] = [];
+  const seen = new Set<string>();
+  if (Array.isArray(routes)) {
+    for (const route of routes) {
+      const id = (route as any)?.port;
+      if (typeof id !== "string" || id.trim() === "" || seen.has(id)) continue;
+      seen.add(id);
+      ports.push({ id, label: id });
+    }
+  }
+  if (fallback !== false && !seen.has("fallback")) {
+    ports.push({ id: "fallback", label: "fallback" });
+  }
+  if (ports.length === 0) ports.push({ id: "out" });
+  return ports;
+}
 
 const HTTP_METHODS: ConfigField[] = [
   { type: "select", key: "method", label: "Method", options: [
@@ -68,9 +117,57 @@ const KINDS: NodeKindDefinition[] = [
     outputs: [{ id: "out", label: "values" }],
     configSchema: [
       { type: "text", key: "title", label: "Form title", default: "Need your input" },
-      { type: "json", key: "fields", label: "Fields (JSON)", language: "json", rows: 6,
-        default: [{ key: "answer", label: "Your answer", type: "textarea" }] },
+      {
+        type: "repeater",
+        key: "fields",
+        label: "Fields",
+        description: "The form the run pauses on.",
+        titleKey: "label",
+        addLabel: "Add field",
+        minItems: 1,
+        fields: [
+          { type: "text", key: "key", label: "Key", required: true, placeholder: "answer" },
+          { type: "text", key: "label", label: "Label", required: true, placeholder: "Your answer" },
+          {
+            type: "select", key: "type", label: "Type", default: "text",
+            options: [
+              { value: "text", label: "Text" },
+              { value: "textarea", label: "Long text" },
+              { value: "number", label: "Number" },
+              { value: "select", label: "Select" },
+              { value: "switch", label: "Switch" },
+            ],
+          },
+          { type: "switch", key: "required", label: "Required", default: false },
+        ],
+        default: [{ key: "answer", label: "Your answer", type: "textarea", required: true }],
+      },
     ],
+  },
+
+  {
+    name: "rich_user_input",
+    category: "human",
+    label: "Rich User Input",
+    description: "Pause the flow on a fully authored page — content, required reading, multi-section forms.",
+    icon: "▤",
+    inputs: [{ id: "in" }],
+    outputs: [{ id: "out", label: "values" }],
+    configSchema: [
+      { type: "text", key: "title", label: "Step title", default: "Please review" },
+      {
+        type: "document",
+        key: "document",
+        label: "Page content",
+        documentType: "stages",
+        description: "Authored with the host's document editor (fancy-cms Stages).",
+      },
+      { type: "switch", key: "requireConfirm", label: "Require explicit confirmation", default: true },
+      { type: "text", key: "submitLabel", label: "Submit button", default: "Continue" },
+    ],
+    // Preview the authored page inside a FauxClient frame, so the canvas shows
+    // what the person hitting this step will actually see.
+    renderBody: (ctx) => createElement(RichInputPreview, { config: (ctx.config ?? {}) as Record<string, unknown> }),
   },
 
   // ───────────── Logic ─────────────
@@ -93,10 +190,24 @@ const KINDS: NodeKindDefinition[] = [
     description: "Route to one of N labelled outputs based on a key.",
     icon: "⤳",
     inputs: [{ id: "in" }],
-    outputs: [{ id: "case_a", label: "a" }, { id: "case_b", label: "b" }, { id: "default", label: "default" }],
+    // Ports ARE the config: every distinct port a case routes to becomes an
+    // output handle, plus the always-present `default`. Editing the cases map
+    // moves the ports on the canvas and the ports the runtime activates.
+    outputs: (config: any) => casePorts(config?.cases),
     configSchema: [
       { type: "expression", key: "value", label: "Switch on", example: "{{ $json.kind }}", required: true },
-      { type: "json", key: "cases", label: "Cases (JSON)", default: { a: "case_a", b: "case_b" } },
+      {
+        type: "keyvalue",
+        key: "cases",
+        label: "Cases",
+        description: "Match value → output port. Unmatched input takes `default`.",
+        keyLabel: "When value is",
+        valueLabel: "Route to port",
+        keyPlaceholder: "a",
+        valuePlaceholder: "case_a",
+        addLabel: "Add case",
+        default: { a: "case_a", b: "case_b" },
+      },
     ],
   },
   {
@@ -215,6 +326,51 @@ const KINDS: NodeKindDefinition[] = [
       { type: "number", key: "temperature", label: "Temperature", min: 0, max: 2, step: 0.1, default: 0.7 },
       { type: "number", key: "max_tokens", label: "Max tokens", min: 1, max: 8192, default: 1024 },
       { type: "json", key: "tools", label: "Tools (JSON)", description: "Optional Anthropic-style tool definitions." },
+      { type: "credential", key: "credential", label: "API credential", credentialType: "llm_credential" },
+    ],
+  },
+  {
+    name: "llm_branch",
+    category: "ai",
+    label: "LLM Router",
+    description: "Let a model choose which route the flow takes.",
+    icon: "✧",
+    inputs: [{ id: "in" }],
+    // Each declared route is a port. The executor returns `{ __port: id }`
+    // (or `Port.only(id)` on the PHP runtime) to pick one.
+    outputs: (config: any) => routePorts(config?.routes, config?.fallback),
+    configSchema: [
+      { type: "textarea", key: "system", label: "System prompt", rows: 3,
+        description: "Optional framing for the routing decision." },
+      { type: "expression", key: "prompt", label: "What to route on",
+        example: "{{ $json.message }}", required: true },
+      {
+        type: "repeater",
+        key: "routes",
+        label: "Routes",
+        description: "The model picks exactly one. Descriptions are what it chooses between — make them distinct.",
+        titleKey: "port",
+        addLabel: "Add route",
+        minItems: 2,
+        fields: [
+          { type: "text", key: "port", label: "Port", required: true, placeholder: "billing" },
+          { type: "text", key: "description", label: "When to choose it", required: true,
+            placeholder: "The user is asking about an invoice, refund, or payment." },
+        ],
+        default: [
+          { port: "a", description: "Describe when the model should pick this route." },
+          { port: "b", description: "Describe when the model should pick this route." },
+        ],
+      },
+      { type: "select", key: "provider", label: "Provider", default: "anthropic",
+        options: [
+          { value: "anthropic", label: "Anthropic" },
+          { value: "openai", label: "OpenAI" },
+          { value: "custom", label: "Custom" },
+        ] },
+      { type: "text", key: "model", label: "Model", placeholder: "claude-sonnet-4-5" },
+      { type: "switch", key: "fallback", label: "Add a `fallback` port", default: true,
+        description: "Where the flow goes if the model returns no usable route." },
       { type: "credential", key: "credential", label: "API credential", credentialType: "llm_credential" },
     ],
   },

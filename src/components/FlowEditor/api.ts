@@ -22,6 +22,10 @@ export type FlowEditorApi = {
   selectedId: string | null;
   /** Currently selected node, or null. */
   selected: FlowNode | null;
+  /** Currently selected edge id, or null. Independent of node selection. */
+  selectedEdgeId: string | null;
+  /** Currently selected edge, or null. */
+  selectedEdge: Edge | null;
   /** True while a run is in flight. */
   running: boolean;
   /** Per-node run status, keyed by node id. */
@@ -29,6 +33,8 @@ export type FlowEditorApi = {
 
   // ── Selection ────────────────────────────────────────────────────────
   select: (id: string | null) => void;
+  /** Select an edge (the connection between two nodes), or clear with null. */
+  selectEdge: (id: string | null) => void;
 
   // ── Graph mutation ───────────────────────────────────────────────────
   /** Add a node of `kind` at an optional flow position. Returns the new id. */
@@ -39,8 +45,12 @@ export type FlowEditorApi = {
   deleteNodes: (ids: string[]) => void;
   /** Delete the current selection (no-op when nothing is selected). */
   deleteSelected: () => void;
-  /** Delete edges by id. */
+  /** Delete edges by id — i.e. break the connections between nodes. */
   deleteEdges: (ids: string[]) => void;
+  /** Delete the selected edge (no-op when no edge is selected). */
+  deleteSelectedEdge: () => void;
+  /** Label a connection, or clear the label by passing undefined/"". */
+  setEdgeLabel: (id: string, label: string | undefined) => void;
   /** Copy a node (offset slightly) and select the copy. Returns the new id. */
   duplicateNode: (id: string) => string | null;
   /** Replace the whole graph. */
@@ -90,6 +100,8 @@ export type FlowEditorBuiltins = {
   delete?: boolean;
   /** Right-click a node for Delete / Duplicate. Default true. */
   contextMenu?: boolean;
+  /** Right-click a connection for Label / Delete. Default true. */
+  edgeContextMenu?: boolean;
   export?: boolean;
   import?: boolean;
   count?: boolean;
@@ -112,6 +124,9 @@ export type FlowEditorSlots = {
   /** Replace the node right-click menu. Receives the right-clicked node id;
    *  call `close` when an item is chosen. */
   contextMenu?: (api: FlowEditorApi, nodeId: string, close: () => void) => ReactNode;
+  /** Replace the connection right-click menu. Receives the right-clicked edge
+   *  id; call `close` when an item is chosen. */
+  edgeContextMenu?: (api: FlowEditorApi, edgeId: string, close: () => void) => ReactNode;
 };
 
 const FlowEditorContext = createContext<FlowEditorApi | null>(null);

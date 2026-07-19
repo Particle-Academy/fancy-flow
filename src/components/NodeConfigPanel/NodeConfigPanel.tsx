@@ -1,6 +1,7 @@
 import { type ReactNode, useMemo } from "react";
 import type { FlowNode } from "../../types";
 import { getNodeKind, validateConfig } from "../../registry/registry";
+import { getRichInputAdapter } from "../../registry/rich-input";
 import { ConfigFieldRenderer } from "./ConfigFieldRenderer";
 
 export type NodeConfigPanelProps = {
@@ -13,6 +14,16 @@ export type NodeConfigPanelProps = {
   /** Optional credential picker hook — host renders the picker. */
   renderCredentialField?: (props: {
     credentialType: string;
+    value: unknown;
+    onChange: (next: unknown) => void;
+  }) => ReactNode;
+  /**
+   * Optional document editor hook — host renders the editor for `document`
+   * fields. Lets rich authored content live in node config without fancy-flow
+   * taking on a document model.
+   */
+  renderDocumentField?: (props: {
+    documentType?: string;
     value: unknown;
     onChange: (next: unknown) => void;
   }) => ReactNode;
@@ -29,6 +40,7 @@ export function NodeConfigPanel({
   onChange,
   header,
   renderCredentialField,
+  renderDocumentField,
   className,
   style,
 }: NodeConfigPanelProps) {
@@ -64,6 +76,16 @@ export function NodeConfigPanel({
     onChange({ ...node, data: { ...node.data, config: { ...config, [key]: value } } });
 
   const issues = validateConfig(kind, config);
+
+  // An explicit prop wins; otherwise fall back to the rich-input adapter, so a
+  // single registerRichInputAdapter() call enables BOTH authoring here and the
+  // in-node preview without the host wiring the same editor twice.
+  const adapter = getRichInputAdapter();
+  const documentField = renderDocumentField
+    ?? (adapter?.renderEditor
+      ? ({ value, onChange: set }: { value: unknown; onChange: (n: unknown) => void }) =>
+          adapter.renderEditor!({ value, onChange: set })
+      : undefined);
 
   return (
     <aside className={["ff-panel", className ?? ""].filter(Boolean).join(" ")} style={style}>
@@ -114,6 +136,7 @@ export function NodeConfigPanel({
                 value={config[field.key]}
                 onChange={(v) => setConfigValue(field.key, v)}
                 renderCredentialField={renderCredentialField}
+                renderDocumentField={documentField}
               />
             </div>
           ))}

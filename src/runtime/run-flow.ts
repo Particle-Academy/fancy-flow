@@ -6,6 +6,11 @@ import type {
   NodeExecutor,
   RunEvent,
 } from "../types";
+// Both modules are React-free by design — the `/engine` entry must not pull in
+// React. Import them directly rather than via the `registry` barrel, which
+// re-exports the RegistryNode component.
+import { getNodeKind } from "../registry/registry";
+import { resolveNodePorts } from "../registry/ports";
 
 export type RunOptions = {
   /** Stop the run after this many ms. Default: no timeout. */
@@ -212,6 +217,11 @@ function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; val
       return { ports: [r.branch], value: r.value ?? r };
     }
   }
-  const declared = node.data.outputs?.map((p) => p.id) ?? ["out"];
-  return { ports: declared, value: result };
+  // Resolve through the shared helper so the ports the runtime activates are
+  // the same ones the canvas drew — including config-driven ports, which the
+  // node's `data` does not carry. Falls back to a lone `out` when a node
+  // declares nothing.
+  const kind = getNodeKind((node.data as any)?.kind ?? node.type ?? "") ?? undefined;
+  const declared = resolveNodePorts(node, kind).outputs?.map((p) => p.id);
+  return { ports: declared?.length ? declared : ["out"], value: result };
 }

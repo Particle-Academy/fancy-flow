@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode, NodeRunStatus, PortDescriptor } from "../types";
 import { categoryAccent, getNodeKind } from "./registry";
+import { nodeConfig, resolveNodePorts } from "./ports";
 
 /**
  * RegistryNode — generic node renderer that looks up the node's kind in
@@ -27,9 +28,10 @@ function RegistryNodeInner(props: NodeProps<FlowNode>) {
   const data = props.data;
   const status: NodeRunStatus = data.status ?? "idle";
   const accent = kind.accent ?? categoryAccent(kind.category);
-  const inputs: PortDescriptor[] = data.inputs ?? kind.inputs ?? defaultInputs(kind.category);
-  const outputs: PortDescriptor[] = data.outputs ?? kind.outputs ?? defaultOutputs(kind.category);
-  const config = ((data as any).config ?? {}) as Record<string, unknown>;
+  const resolved = resolveNodePorts(props, kind);
+  const inputs: PortDescriptor[] = resolved.inputs ?? defaultInputs(kind.category);
+  const outputs: PortDescriptor[] = resolved.outputs ?? defaultOutputs(kind.category);
+  const config = nodeConfig(props);
   const label = data.label ?? kind.label;
 
   return (

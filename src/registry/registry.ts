@@ -98,6 +98,47 @@ function validateField(field: ConfigField, value: unknown): string | null {
     }
     case "json":
       return null; // permissive — just JSON-shaped
+    case "repeater": {
+      if (!Array.isArray(value)) return `${field.label} must be a list`;
+      if (field.minItems !== undefined && value.length < field.minItems) {
+        return `${field.label} needs at least ${field.minItems}`;
+      }
+      if (field.maxItems !== undefined && value.length > field.maxItems) {
+        return `${field.label} allows at most ${field.maxItems}`;
+      }
+      // Surface the first offending row so the author knows WHICH one.
+      for (let i = 0; i < value.length; i++) {
+        const row = value[i];
+        if (!row || typeof row !== "object" || Array.isArray(row)) {
+          return `${field.label} item ${i + 1} must be an object`;
+        }
+        for (const sub of field.fields) {
+          const cell = (row as Record<string, unknown>)[sub.key];
+          if (sub.required && (cell === undefined || cell === null || cell === "")) {
+            return `${field.label} item ${i + 1}: ${sub.label} is required`;
+          }
+          if (cell === undefined || cell === null) continue;
+          const issue = validateField(sub, cell);
+          if (issue) return `${field.label} item ${i + 1}: ${issue}`;
+        }
+      }
+      return null;
+    }
+    case "keyvalue": {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return `${field.label} must be a key/value map`;
+      }
+      const allowed = field.valueOptions?.map((o) => o.value);
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof v !== "string") return `${field.label}: "${k}" must be a string`;
+        if (allowed && !allowed.includes(v)) {
+          return `${field.label}: "${k}" must be one of ${allowed.join(", ")}`;
+        }
+      }
+      return null;
+    }
+    case "document":
+      return null; // opaque to fancy-flow — the host's editor owns its shape
     default:
       return null;
   }

@@ -132,6 +132,99 @@ Swap the menu for your own with `slots.contextMenu`, or turn it off with
 
 `onDelete(ids)` fires after either path, so a host can sync its own store.
 
+### Connections — breaking and labelling
+
+- **right-click a connection** → `Label…` / `Delete connection`,
+- select a connection and press <kbd>Delete</kbd> / <kbd>Backspace</kbd>,
+- `api.deleteEdges(ids)`, `api.deleteSelectedEdge()`, `api.setEdgeLabel(id, text)`.
+
+Labels ride on the edge (`edge.label`), so they survive export/import. Clearing
+a label removes the key rather than storing `""`.
+
+Replace the menu with `slots.edgeContextMenu`, disable it with
+`builtins={{ edgeContextMenu: false }}`, and hook `onEdgeDelete(ids)` to sync
+your own store.
+
+```tsx
+<FlowEditor
+  onEdgeDelete={(ids) => console.log("broke", ids)}
+  slots={{
+    edgeContextMenu: (api, edgeId, close) => (
+      <button onClick={() => { api.setEdgeLabel(edgeId, "approved"); close(); }}>
+        Mark approved
+      </button>
+    ),
+  }}
+/>
+```
+
+## Config fields
+
+Node config is declared as a `configSchema` and rendered by `NodeConfigPanel`.
+Alongside `text` / `textarea` / `number` / `select` / `switch` / `json` /
+`expression` / `credential`:
+
+- **`repeater`** — a list of objects, each row authored with its own
+  sub-schema. Reach for this instead of `type: "json"` whenever config is
+  list-shaped (form fields, routes, tool bindings); it keeps the panel the
+  single authoring surface for humans and keeps the shape introspectable for
+  agents.
+- **`keyvalue`** — an editable `Record<string, string>` (filter maps, headers,
+  case→port tables). `valueOptions` constrains the values.
+- **`document`** — an opaque rich document edited by a **host-supplied**
+  editor (see below).
+
+A `text` field with `choices` renders as a select instead of a free-text input,
+so a kind can gain a fixed set of options without changing its type or
+migrating saved config. A stored value outside the list is preserved and shown
+rather than dropped:
+
+```ts
+{ type: "text", key: "region", label: "Region", choices: ["us-east", "eu-west"] }
+{ type: "text", key: "tier", label: "Tier", choices: [{ value: "p1", label: "Priority 1" }] }
+```
+
+### Ports that follow config
+
+`inputs` / `outputs` accept a function of the node's config, for kinds whose
+branches *are* their config:
+
+```ts
+outputs: (config) => config.routes.map((r) => ({ id: r.port, label: r.port })),
+```
+
+Both the canvas and the runtime resolve ports through the same helper, so the
+handles you see and the ports a run activates cannot drift apart. `switch_case`
+and `llm_branch` are built this way.
+
+### Rich human input
+
+`rich_user_input` pauses a run on a fully authored page rather than a flat field
+list, and previews that page **inside the node** using react-fancy's
+`FauxClient` frame.
+
+It needs a document model and a preview frame, neither of which fancy-flow
+depends on — so the host registers them once:
+
+```tsx
+import { FauxClient } from "@particle-academy/react-fancy";
+import { StagesViewer, StagesEditor } from "@particle-academy/fancy-cms-ui";
+import { registerRichInputAdapter } from "@particle-academy/fancy-flow";
+
+registerRichInputAdapter({
+  FauxClient,
+  renderDocument: (doc) => <StagesViewer doc={doc} />,
+  renderEditor: ({ value, onChange }) => <StagesEditor doc={value} onChange={onChange} />,
+});
+```
+
+That single call enables both authoring (in the config panel) and the in-node
+preview. Without it the node still registers and still round-trips its config —
+it renders an "install this to enable" body instead of an empty card.
+
+The same seam is available to any kind via a `document` field plus
+`NodeConfigPanel`'s `renderDocumentField`, so you are not tied to fancy-cms.
+
 If you want none of the above chrome, skip `<FlowEditor>` entirely and compose
 `useFlowState()` + `<FlowCanvas>` + `<NodePalette>` + `<NodeConfigPanel>`
 yourself — they are all exported.

@@ -26,7 +26,17 @@ export type ConfigField =
   | SwitchConfigField
   | JsonConfigField
   | ExpressionConfigField
-  | CredentialConfigField;
+  | CredentialConfigField
+  | RepeaterConfigField
+  | KeyValueConfigField
+  | DocumentConfigField;
+
+/**
+ * Field types that may appear inside a `repeater` row. Excludes `repeater`
+ * itself — a row of rows has no sane form rendering, and the nesting would
+ * make the config shape hard for an agent to emit.
+ */
+export type RepeaterRowField = Exclude<ConfigField, RepeaterConfigField>;
 
 type ConfigFieldBase = {
   key: string;
@@ -39,6 +49,19 @@ export type TextConfigField = ConfigFieldBase & {
   type: "text";
   placeholder?: string;
   default?: string;
+  /**
+   * Optional fixed choices. When present the field renders as a select
+   * instead of a free-text input — the same field declaration serves both a
+   * free-form value and a constrained one, so a kind can gain choices later
+   * without changing its `type` or migrating stored config.
+   *
+   * Bare strings are shorthand for `{ value, label: value }`.
+   *
+   * Unlike `type: "select"`, a stored value outside the list is preserved and
+   * shown rather than rejected — choices can change after configs are saved,
+   * and silently dropping an author's value is worse than showing a stale one.
+   */
+  choices?: Array<string | { value: string; label?: string }>;
 };
 export type TextareaConfigField = ConfigFieldBase & {
   type: "textarea";
@@ -81,6 +104,84 @@ export type CredentialConfigField = ConfigFieldBase & {
 };
 
 /**
+ * Repeater — an editable list of objects, each row authored with its own
+ * sub-schema of ConfigFields. This is what a node kind should reach for
+ * instead of `type: "json"` whenever its config is list-shaped (form field
+ * lists, router routes, tool bindings). Keeping it declarative is what lets
+ * `NodeConfigPanel` stay the single authoring surface for humans AND keeps
+ * the shape introspectable for agents.
+ *
+ * Value shape: `Array<Record<string, unknown>>`.
+ */
+export type RepeaterConfigField = ConfigFieldBase & {
+  type: "repeater";
+  /** Schema applied to every row. */
+  fields: RepeaterRowField[];
+  /**
+   * Row field whose value titles the row in the editor. Falls back to the
+   * first field's value, then to "Item N".
+   */
+  titleKey?: string;
+  /** Label for the add button. Default: "Add". */
+  addLabel?: string;
+  /** Bounds enforced by validation + the add/remove controls. */
+  minItems?: number;
+  maxItems?: number;
+  default?: Array<Record<string, unknown>>;
+};
+
+/**
+ * Key/value map — an editable `Record<string, string>`. Use for filter maps,
+ * input bindings, header maps, and case→port tables.
+ *
+ * Value shape: `Record<string, string>`.
+ */
+export type KeyValueConfigField = ConfigFieldBase & {
+  type: "keyvalue";
+  keyLabel?: string;
+  valueLabel?: string;
+  keyPlaceholder?: string;
+  valuePlaceholder?: string;
+  /** Constrain values to a fixed set (e.g. the node's own port ids). */
+  valueOptions?: Array<{ value: string; label: string }>;
+  addLabel?: string;
+  default?: Record<string, string>;
+};
+
+/**
+ * Document — an opaque rich/structured document stored in node config and
+ * edited by a HOST-SUPPLIED editor, wired through
+ * `NodeConfigPanel`'s `renderDocumentField`.
+ *
+ * fancy-flow deliberately does not know what a document *is* — same
+ * arrangement as `credential`. That keeps rich human-input surfaces (authored
+ * pages, required-reading steps, multi-section forms) possible without the
+ * editor taking a dependency on any particular document model or CMS.
+ */
+export type DocumentConfigField = ConfigFieldBase & {
+  type: "document";
+  /**
+   * Logical document format, passed through to the host renderer so one host
+   * can serve several (e.g. "stages", "markdown", "portable-text").
+   */
+  documentType?: string;
+  default?: unknown;
+};
+
+/**
+ * Port declaration — either a fixed list, or a function of the node's config
+ * for kinds whose branches ARE their config (switch cases, router routes).
+ *
+ * Declaring the function form keeps the canvas ports, the config, and the
+ * ports the runtime activates in lockstep automatically; a static list forces
+ * every consumer to hand-sync `data.outputs` from config in a custom renderer,
+ * and forgetting to breaks routing silently at execution time.
+ */
+export type PortSpec<TConfig = unknown> =
+  | PortDescriptor[]
+  | ((config: TConfig) => PortDescriptor[]);
+
+/**
  * Context passed to a kind's optional `renderBody`. Hosts can read the
  * resolved config + node id to render whatever fancy-* component they
  * want inside the node card.
@@ -105,8 +206,11 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
   label: string;
   /** One-line summary surfaced in the palette + agent bridge. */
   description?: string;
-  /** Emoji or icon glyph rendered in the node header. */
-  icon?: string;
+  /**
+   * Icon rendered in the node header and the palette row. A glyph string is
+   * fine; any ReactNode works, so a brand SVG can be dropped in directly.
+   */
+  icon?: ReactNode;
   /** Hex / CSS color for the header bar. Falls back to a category default. */
   accent?: string;
 
@@ -115,10 +219,10 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
   /** Default config values used when a node of this kind is created. */
   defaultConfig?: TConfig;
 
-  /** Input ports. Defaults vary by category. */
-  inputs?: PortDescriptor[];
-  /** Output ports. Defaults vary by category. */
-  outputs?: PortDescriptor[];
+  /** Input ports. Defaults vary by category. See `PortSpec`. */
+  inputs?: PortSpec<TConfig>;
+  /** Output ports. Defaults vary by category. See `PortSpec`. */
+  outputs?: PortSpec<TConfig>;
 
   /** Optional custom body rendered inside the node card. */
   renderBody?: (ctx: RenderBodyContext<TConfig>) => ReactNode;

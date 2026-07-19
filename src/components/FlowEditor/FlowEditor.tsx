@@ -4,6 +4,7 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -29,7 +30,7 @@ import { useFlowRun, applyStatusesToNodes } from "../../runtime/use-flow-run";
 import { exportWorkflow, importWorkflow, workflowToBlob, type WorkflowMetadata, type WorkflowSchema } from "../../schema";
 import { buildNodeTypes, defaultConfigFor, getNodeKind, listNodeKinds, onNodeKindsChanged } from "../../registry";
 import type { ExecutorRegistry, FlowGraph, FlowNode } from "../../types";
-import { duplicateNode as cloneNode, removeEdges, removeNodes } from "./graph-ops";
+import { duplicateNode as cloneNode, removeEdges, removeNodes, setEdgeLabel } from "./graph-ops";
 import {
   FlowEditorProvider,
   type FlowEditorAction,
@@ -73,6 +74,8 @@ export type FlowEditorProps = {
   onSelectionChange?: (node: FlowNode | null) => void;
   /** Called after nodes are deleted, with the deleted ids. */
   onDelete?: (ids: string[]) => void;
+  /** Called after connections are broken, with the deleted edge ids. */
+  onEdgeDelete?: (ids: string[]) => void;
   className?: string;
   style?: CSSProperties;
 };
@@ -115,6 +118,7 @@ function FlowEditorInner({
   onChange,
   onSelectionChange,
   onDelete,
+  onEdgeDelete,
   apiRef,
 }: FlowEditorProps & { apiRef?: React.ForwardedRef<FlowEditorApi> }) {
   const internal = useFlowState(initial);
@@ -142,24 +146,51 @@ function FlowEditorInner({
 
   useEffect(() => onSelectionChange?.(selected), [selected, onSelectionChange]);
 
-  const handleNodeClick: NodeMouseHandler = (_e, node) => setSelectedId(node.id);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const selectedEdge = useMemo(
+    () => flow.edges.find((e: Edge) => e.id === selectedEdgeId) ?? null,
+    [flow.edges, selectedEdgeId],
+  );
 
-  // Right-click menu. Anchored in viewport coords (position: fixed), so it is
-  // not clipped by the canvas' overflow.
-  const [menu, setMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+  const handleNodeClick: NodeMouseHandler = (_e, node) => {
+    setSelectedId(node.id);
+    // Node and edge selection are mutually exclusive, so Delete is never
+    // ambiguous about what it would remove.
+    setSelectedEdgeId(null);
+  };
+
+  // Right-click menu, for a node OR a connection. Anchored in viewport coords
+  // (position: fixed), so it is not clipped by the canvas' overflow.
+  const [menu, setMenu] = useState<
+    { x: number; y: number; target: { type: "node" | "edge"; id: string } } | null
+  >(null);
+  // Inline "label this connection" editor, anchored like the menu.
+  const [labelEdit, setLabelEdit] = useState<{ x: number; y: number; edgeId: string } | null>(null);
+
   const closeMenu = useCallback(() => setMenu(null), []);
 
   const handleNodeContextMenu: NodeMouseHandler = (event, node) => {
     event.preventDefault();
     setSelectedId(node.id);
-    setMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+    setSelectedEdgeId(null);
+    setMenu({ x: event.clientX, y: event.clientY, target: { type: "node", id: node.id } });
+  };
+
+  const handleEdgeClick = (_e: React.MouseEvent, edge: Edge) => {
+    setSelectedEdgeId(edge.id);
+  };
+
+  const handleEdgeContextMenu = (event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault();
+    setSelectedEdgeId(edge.id);
+    setMenu({ x: event.clientX, y: event.clientY, target: { type: "edge", id: edge.id } });
   };
 
   // Dismiss on any outside click, scroll, or Escape.
   useEffect(() => {
-    if (menu === null) return;
-    const close = () => setMenu(null);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
+    if (menu === null && labelEdit === null) return;
+    const close = () => { setMenu(null); setLabelEdit(null); };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("click", close);
     window.addEventListener("scroll", close, true);
     window.addEventListener("keydown", onKey);
@@ -168,7 +199,7 @@ function FlowEditorInner({
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("keydown", onKey);
     };
-  }, [menu]);
+  }, [menu, labelEdit]);
 
   // Uncontrolled: notify host on every graph mutation. Controlled mode
   // already notifies via the adapter on each setNodes/setEdges call.
@@ -220,16 +251,31 @@ function FlowEditorInner({
       edges: flow.edges,
       selectedId,
       selected,
+      selectedEdgeId,
+      selectedEdge,
       running: runner.running,
       statuses: runner.statuses,
 
       select: setSelectedId,
+      selectEdge: setSelectedEdgeId,
 
       addNode,
       updateNode: (next) => flow.setNodes((all: FlowNode[]) => all.map((x) => (x.id === next.id ? next : x))),
       deleteNodes,
       deleteSelected: () => deleteNodes(selectedId ? [selectedId] : []),
-      deleteEdges: (ids) => flow.setEdges((all: Edge[]) => removeEdges(all, ids)),
+      deleteEdges: (ids) => {
+        if (ids.length === 0) return;
+        flow.setEdges((all: Edge[]) => removeEdges(all, ids));
+        setSelectedEdgeId((cur) => (cur !== null && ids.includes(cur) ? null : cur));
+        onEdgeDelete?.(ids);
+      },
+      deleteSelectedEdge: () => {
+        if (!selectedEdgeId) return;
+        flow.setEdges((all: Edge[]) => removeEdges(all, [selectedEdgeId]));
+        setSelectedEdgeId(null);
+        onEdgeDelete?.([selectedEdgeId]);
+      },
+      setEdgeLabel: (id, label) => flow.setEdges((all: Edge[]) => setEdgeLabel(all, id, label)),
       duplicateNode: (id) => {
         const src = flow.nodes.find((n) => n.id === id);
         if (!src) return null;
@@ -318,6 +364,9 @@ function FlowEditorInner({
           onConnect={flow.onConnect}
           onNodeClick={handleNodeClick}
           onNodeContextMenu={builtins.contextMenu === false ? undefined : handleNodeContextMenu}
+          onEdgeClick={handleEdgeClick}
+          onEdgeContextMenu={builtins.edgeContextMenu === false ? undefined : handleEdgeContextMenu}
+          onEdgesDelete={(deleted: Edge[]) => onEdgeDelete?.(deleted.map((e) => e.id))}
           onNodesDelete={(deleted) => onDelete?.(deleted.map((n) => n.id))}
           // Both keys delete, so muscle memory from either platform works.
           deleteKeyCode={["Delete", "Backspace"]}
@@ -328,7 +377,7 @@ function FlowEditorInner({
         {slots.empty && api.nodes.length === 0 && (
           <div className="ff-editor__empty">{slots.empty(api)}</div>
         )}
-        {menu !== null && builtins.contextMenu !== false && (
+        {menu?.target.type === "node" && builtins.contextMenu !== false && (
           <div
             className="ff-editor__ctx"
             style={{ top: menu.y, left: menu.x }}
@@ -337,7 +386,7 @@ function FlowEditorInner({
             onClick={(e) => e.stopPropagation()}
           >
             {slots.contextMenu ? (
-              slots.contextMenu(api, menu.nodeId, closeMenu)
+              slots.contextMenu(api, menu.target.id, closeMenu)
             ) : (
               <>
                 <button
@@ -345,7 +394,7 @@ function FlowEditorInner({
                   role="menuitem"
                   className="ff-editor__ctx-item"
                   data-action="ctx-duplicate"
-                  onClick={() => { api.duplicateNode(menu.nodeId); closeMenu(); }}
+                  onClick={() => { api.duplicateNode(menu.target.id); closeMenu(); }}
                 >
                   Duplicate
                 </button>
@@ -354,13 +403,65 @@ function FlowEditorInner({
                   role="menuitem"
                   className="ff-editor__ctx-item ff-editor__ctx-item--danger"
                   data-action="ctx-delete"
-                  onClick={() => { api.deleteNodes([menu.nodeId]); closeMenu(); }}
+                  onClick={() => { api.deleteNodes([menu.target.id]); closeMenu(); }}
                 >
                   Delete
                 </button>
               </>
             )}
           </div>
+        )}
+
+        {menu?.target.type === "edge" && builtins.edgeContextMenu !== false && (
+          <div
+            className="ff-editor__ctx"
+            style={{ top: menu.y, left: menu.x }}
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {slots.edgeContextMenu ? (
+              slots.edgeContextMenu(api, menu.target.id, closeMenu)
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ff-editor__ctx-item"
+                  data-action="ctx-edge-label"
+                  onClick={() => {
+                    setLabelEdit({ x: menu.x, y: menu.y, edgeId: menu.target.id });
+                    setMenu(null);
+                  }}
+                >
+                  Label…
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ff-editor__ctx-item ff-editor__ctx-item--danger"
+                  data-action="ctx-edge-delete"
+                  onClick={() => { api.deleteEdges([menu.target.id]); closeMenu(); }}
+                >
+                  Delete connection
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {labelEdit !== null && (
+          <EdgeLabelEditor
+            x={labelEdit.x}
+            y={labelEdit.y}
+            initial={
+              (flow.edges.find((e: Edge) => e.id === labelEdit.edgeId)?.label as string | undefined) ?? ""
+            }
+            onCommit={(text) => {
+              api.setEdgeLabel(labelEdit.edgeId, text);
+              setLabelEdit(null);
+            }}
+            onCancel={() => setLabelEdit(null)}
+          />
         )}
         {showFeed &&
           (slots.feed ? slots.feed(api) : <FlowRunFeed entries={runner.feed} className="ff-editor__feed" />)}
@@ -456,4 +557,59 @@ function makeControlledFlowAdapter(
     },
     toGraph: () => value,
   };
+}
+
+/**
+ * EdgeLabelEditor — small popover for naming a connection.
+ *
+ * Anchored in viewport coords like the context menu it replaces. Enter
+ * commits, Escape cancels, blur commits (so clicking away doesn't silently
+ * discard the edit).
+ */
+function EdgeLabelEditor({
+  x,
+  y,
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  x: number;
+  y: number;
+  initial: string;
+  onCommit: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(initial);
+  const ref = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+
+  return (
+    <div
+      className="ff-editor__ctx ff-editor__edge-label"
+      style={{ top: y, left: x }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        ref={ref}
+        className="ff-panel__input"
+        value={text}
+        placeholder="Label this connection"
+        aria-label="Connection label"
+        data-action="edge-label-input"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          // Stop the canvas seeing these — Backspace would delete the edge
+          // out from under the editor.
+          e.stopPropagation();
+          if (e.key === "Enter") onCommit(text);
+          if (e.key === "Escape") onCancel();
+        }}
+        onBlur={() => onCommit(text)}
+      />
+    </div>
+  );
 }

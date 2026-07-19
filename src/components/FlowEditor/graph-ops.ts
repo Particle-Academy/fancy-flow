@@ -26,6 +26,25 @@ export function removeEdges(edges: Edge[], ids: string[]): Edge[] {
   return edges.filter((e) => !doomed.has(e.id));
 }
 
+/**
+ * Set (or clear) an edge's label.
+ *
+ * An empty/whitespace label is removed rather than stored as `""` — xyflow
+ * renders an empty label as an empty chip on the wire, and a blank key would
+ * survive export into the workflow schema.
+ */
+export function setEdgeLabel(edges: Edge[], id: string, label: string | undefined): Edge[] {
+  const next = label?.trim();
+  return edges.map((e) => {
+    if (e.id !== id) return e;
+    if (!next) {
+      const { label: _drop, ...rest } = e;
+      return rest as Edge;
+    }
+    return { ...e, label: next };
+  });
+}
+
 /** Copy a node with a fresh id, offset so it doesn't sit exactly on top. */
 export function duplicateNode(node: FlowNode, id: string, offset = 40): FlowNode {
   return {
