@@ -203,27 +203,38 @@ and `llm_branch` are built this way.
 list, and previews that page **inside the node** using react-fancy's
 `FauxClient` frame.
 
-It needs a document model and a preview frame, neither of which fancy-flow
-depends on — so the host registers them once:
+**The page it shows is a fancy-cms page** — the same `PageDoc`, rendered by the
+same `CmsPage`, authored by the same `Editor`. fancy-flow defines no document
+schema of its own; a step authored here stays a document fancy-cms can open.
 
-```tsx
-import { FauxClient } from "@particle-academy/react-fancy";
-import { StagesViewer, StagesEditor } from "@particle-academy/fancy-cms-ui";
-import { registerRichInputAdapter } from "@particle-academy/fancy-flow";
+Enable it with one import:
 
-registerRichInputAdapter({
-  FauxClient,
-  renderDocument: (doc) => <StagesViewer doc={doc} />,
-  renderEditor: ({ value, onChange }) => <StagesEditor doc={value} onChange={onChange} />,
-});
+```ts
+import "@particle-academy/fancy-flow/rich-input";
 ```
 
-That single call enables both authoring (in the config panel) and the in-node
-preview. Without it the node still registers and still round-trips its config —
-it renders an "install this to enable" body instead of an empty card.
+```
+npm i @particle-academy/fancy-cms-ui @particle-academy/react-fancy
+```
 
-The same seam is available to any kind via a `document` field plus
-`NodeConfigPanel`'s `renderDocumentField`, so you are not tied to fancy-cms.
+Those two are **optional peers** — required only by this subpath. The main entry
+never imports them, so a flow that has no rich input never pays for a CMS.
+Without the import the node still registers and round-trips its config; it
+renders a "how to enable" body instead of an empty card.
+
+To pass a custom element registry (the same one you give `CmsPage` at runtime,
+or the edit canvas renders your node types as blank placeholders):
+
+```ts
+import { useFancyCmsForRichInput } from "@particle-academy/fancy-flow/rich-input";
+
+useFancyCmsForRichInput({ registry: myElements, data: previewData });
+```
+
+The underlying seam (`registerRichInputAdapter`) stays public if you need a
+different document engine, and any kind can use a `document` field with
+`NodeConfigPanel`'s `renderDocumentField`. But fancy-cms is the expected path —
+the point is not duplicating a document model.
 
 If you want none of the above chrome, skip `<FlowEditor>` entirely and compose
 `useFlowState()` + `<FlowCanvas>` + `<NodePalette>` + `<NodeConfigPanel>`

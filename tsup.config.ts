@@ -42,15 +42,25 @@ export default defineConfig({
     ux: "src/ux.ts",
     registry: "src/registry/index.ts",
     schema: "src/schema/index.ts",
+    "rich-input": "src/rich-input.tsx",
     styles: "src/styles.css",
   },
   format: ["esm", "cjs"],
-  dts: { entry: ["src/index.ts", "src/runtime/index.ts", "src/engine.ts", "src/ux.ts", "src/registry/index.ts", "src/schema/index.ts"] },
+  dts: { entry: ["src/index.ts", "src/runtime/index.ts", "src/engine.ts", "src/ux.ts", "src/registry/index.ts", "src/schema/index.ts", "src/rich-input.tsx"] },
   sourcemap: true,
   clean: true,
   // fancy-auto-common stays external — it's the shared core agent-integrations
   // also depends on, so consumers carry exactly one copy.
-  external: ["react", "react-dom", "react/jsx-runtime", "@particle-academy/fancy-auto-common"],
+  // fancy-cms-ui + react-fancy are OPTIONAL peers used only by the
+  // `/rich-input` entry — never bundle them, or every consumer pays for a CMS.
+  external: [
+    "react",
+    "react-dom",
+    "react/jsx-runtime",
+    "@particle-academy/fancy-auto-common",
+    "@particle-academy/fancy-cms-ui",
+    "@particle-academy/react-fancy",
+  ],
   noExternal: ["@xyflow/react", "@xyflow/system", "clsx"],
   treeshake: true,
   esbuildPlugins: [shimUseSyncExternalStore],

@@ -1,31 +1,30 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 /**
- * Rich user input — the adapter seam.
+ * Rich user input — the injection point.
  *
  * `rich_user_input` pauses a run on a fully authored page (long-form content,
  * required reading + confirmation, multi-section forms) rather than a flat
- * field list. Authoring and rendering that document needs a document model
- * (fancy-cms Stages) and a device frame for the preview (react-fancy's
- * FauxClient) — neither of which fancy-flow depends on.
+ * field list. That page IS a fancy-cms document — fancy-flow defines no
+ * document schema of its own and never re-implements one.
  *
- * So the host registers them once, and the node lights up:
+ * The wiring ships in the box. Import the subpath once and the node lights up:
  *
- * ```tsx
- * import { FauxClient } from "@particle-academy/react-fancy";
- * import { StagesViewer } from "@particle-academy/fancy-cms-ui";
- * import { registerRichInputAdapter } from "@particle-academy/fancy-flow";
- *
- * registerRichInputAdapter({
- *   FauxClient,
- *   renderDocument: (doc) => <StagesViewer doc={doc} />,
- * });
+ * ```ts
+ * import "@particle-academy/fancy-flow/rich-input";
  * ```
  *
- * Until then the node still registers and still round-trips its config — it
- * just renders an "unavailable" body explaining what to install. Keeping the
- * dependency optional is deliberate: fancy-cms is an early-release beta, and a
- * workflow editor should not hard-require a CMS to draw a canvas.
+ * That module registers fancy-cms's `PageDoc` + `CmsPage` renderer + `Editor`
+ * against this seam. It lives on a separate entry so `@particle-academy/
+ * fancy-cms-ui` and `@particle-academy/react-fancy` stay OPTIONAL peers — most
+ * flows never use a rich input, and a workflow editor should not drag a CMS
+ * into every install.
+ *
+ * The seam stays public so a host can substitute a different document engine,
+ * but that is the escape hatch, not the expected path.
+ *
+ * Until something registers, the node still registers and still round-trips
+ * its config — it renders a "how to enable" body rather than an empty card.
  */
 export type RichInputAdapter = {
   /**
@@ -33,11 +32,13 @@ export type RichInputAdapter = {
    * frame that mimics a browser window or device and scales its content down
    * to fit. Used to preview the authored page inside the node card.
    */
-  FauxClient?: (props: {
-    variant?: "browser" | "device" | "bare";
-    children?: ReactNode;
-    [key: string]: unknown;
-  }) => ReactNode;
+  FauxClient?: ComponentType<any>;
+  /**
+   * Props for the frame — e.g. `{ variant: "browser", width: 1280, scale: "fit" }`
+   * so a full-width page renders at its real width and scales down into the
+   * node card instead of reflowing to a cramped layout that misrepresents it.
+   */
+  frameProps?: Record<string, unknown>;
   /** Render the stored document read-only, for the in-node preview. */
   renderDocument?: (doc: unknown) => ReactNode;
   /** Editor mounted in the config panel via `renderDocumentField`. */
@@ -94,10 +95,9 @@ export function RichInputPreview({ config }: { config: Record<string, unknown> }
       <div className="ff-rich-preview">
         <span className="ff-rich-preview__title">{title}</span>
         <div className="ff-rich-preview__unavailable">
-          Needs a document adapter. Install{" "}
-          <code>@particle-academy/fancy-cms-ui</code> +{" "}
-          <code>@particle-academy/react-fancy</code>, then call{" "}
-          <code>registerRichInputAdapter()</code>.
+          Add <code>@particle-academy/fancy-cms-ui</code> +{" "}
+          <code>@particle-academy/react-fancy</code>, then{" "}
+          <code>import "@particle-academy/fancy-flow/rich-input"</code>.
         </div>
       </div>
     );
@@ -113,7 +113,7 @@ export function RichInputPreview({ config }: { config: Record<string, unknown> }
     <div className="ff-rich-preview">
       <span className="ff-rich-preview__title">{title}</span>
       <div className="ff-rich-preview__frame">
-        {Frame ? <Frame variant="browser">{body}</Frame> : body}
+        {Frame ? <Frame {...(a.frameProps ?? { variant: "browser" })}>{body}</Frame> : body}
       </div>
     </div>
   );

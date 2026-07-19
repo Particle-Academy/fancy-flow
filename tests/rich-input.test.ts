@@ -85,3 +85,40 @@ describe("rich_user_input node kind", () => {
     expect(validateConfig(kind, { document: "raw markdown" })).toEqual([]);
   });
 });
+
+describe("fancy-cms wiring (/rich-input entry)", () => {
+  it("registers fancy-cms as the document engine on import", async () => {
+    const mod = await import("../src/rich-input");
+    // Importing the entry self-registers — a host writes one import line.
+    expect(isRichInputEnabled()).toBe(true);
+    const a = getRichInputAdapter()!;
+    expect(a.renderDocument).toBeTypeOf("function");
+    expect(a.renderEditor).toBeTypeOf("function");
+    expect(a.FauxClient).toBeTruthy();
+    dispose = mod.useFancyCmsForRichInput();
+  });
+
+  it("builds an empty doc that is a real fancy-cms PageDoc", async () => {
+    const { emptyRichInputDoc, isPageDoc } = await import("../src/rich-input");
+    const { emptyDoc } = await import("@particle-academy/fancy-cms-ui");
+
+    const mine = emptyRichInputDoc("step-1");
+    // Same shape the CMS itself produces — fancy-flow declares no doc schema.
+    expect(Object.keys(mine).sort()).toEqual(Object.keys(emptyDoc("step-1")).sort());
+    expect(isPageDoc(mine)).toBe(true);
+  });
+
+  it("rejects non-PageDoc values so a stray config can't reach the renderer", async () => {
+    const { isPageDoc } = await import("../src/rich-input");
+    expect(isPageDoc(null)).toBe(false);
+    expect(isPageDoc("markdown")).toBe(false);
+    expect(isPageDoc({ sections: [] })).toBe(false); // no nodes map
+    expect(isPageDoc({ nodes: {} })).toBe(false); // no sections
+  });
+
+  it("scales the preview to a desktop width instead of reflowing it", async () => {
+    const mod = await import("../src/rich-input");
+    dispose = mod.useFancyCmsForRichInput();
+    expect(getRichInputAdapter()?.frameProps).toMatchObject({ width: 1280, scale: "fit" });
+  });
+});

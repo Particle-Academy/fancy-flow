@@ -1,6 +1,6 @@
 {
   "name": "@particle-academy/fancy-flow",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
   "repository": {
     "type": "git",
@@ -53,7 +53,17 @@
         "default": "./dist/ux.cjs"
       }
     },
-    "./styles.css": "./dist/styles.css"
+    "./styles.css": "./dist/styles.css",
+    "./rich-input": {
+      "import": {
+        "types": "./dist/rich-input.d.ts",
+        "default": "./dist/rich-input.js"
+      },
+      "require": {
+        "types": "./dist/rich-input.d.cts",
+        "default": "./dist/rich-input.cjs"
+      }
+    }
   },
   "files": [
     "dist",
@@ -77,6 +87,8 @@
     "fancy"
   ],
   "peerDependencies": {
+    "@particle-academy/fancy-cms-ui": ">=0.2",
+    "@particle-academy/react-fancy": ">=3",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
@@ -84,6 +96,8 @@
     "@particle-academy/fancy-auto-common": "^0.1.0"
   },
   "devDependencies": {
+    "@particle-academy/fancy-cms-ui": "^0.2.0",
+    "@particle-academy/react-fancy": "^4.15.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@xyflow/react": "^12.4.0",
@@ -103,5 +117,13 @@
   ],
   "overrides": {
     "esbuild": "^0.28.1"
+  },
+  "peerDependenciesMeta": {
+    "@particle-academy/fancy-cms-ui": {
+      "optional": true
+    },
+    "@particle-academy/react-fancy": {
+      "optional": true
+    }
   }
 }
