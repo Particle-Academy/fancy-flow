@@ -1,6 +1,6 @@
 {
   "name": "@particle-academy/fancy-flow",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
   "repository": {
     "type": "git",
@@ -63,6 +63,16 @@
         "types": "./dist/rich-input.d.cts",
         "default": "./dist/rich-input.cjs"
       }
+    },
+    "./llm/vercel-ai": {
+      "import": {
+        "types": "./dist/llm/vercel-ai.d.ts",
+        "default": "./dist/llm/vercel-ai.js"
+      },
+      "require": {
+        "types": "./dist/llm/vercel-ai.d.cts",
+        "default": "./dist/llm/vercel-ai.cjs"
+      }
     }
   },
   "files": [
@@ -90,7 +100,8 @@
     "@particle-academy/fancy-cms-ui": ">=0.2",
     "@particle-academy/react-fancy": ">=3",
     "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "ai": ">=5"
   },
   "dependencies": {
     "@particle-academy/fancy-auto-common": "^0.1.0"
@@ -101,12 +112,14 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@xyflow/react": "^12.4.0",
+    "ai": "^7.0.31",
     "clsx": "^2.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "zod": "^4.4.3"
   },
   "publishConfig": {
     "access": "public"
@@ -123,6 +136,9 @@
       "optional": true
     },
     "@particle-academy/react-fancy": {
+      "optional": true
+    },
+    "ai": {
       "optional": true
     }
   }
