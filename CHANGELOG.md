@@ -42,6 +42,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   thrown class would do. The payload is JSON rather than delimited fields because
   a node id may contain a colon.
 
+- **Node package manifest + validator** — the first half of the node marketplace
+  ([#2](https://github.com/Particle-Academy/fancy-flow/issues/2) §2). A node is
+  not one artifact: it is a kind definition plus an executor for **each runtime
+  the consumer runs**. A package shipping only a TS executor is unusable to
+  anyone executing on PHP, and until now that was invisible until a run failed.
+
+  ```jsonc
+  {
+    "schemaVersion": 1,
+    "name": "@acme/fancy-flow-salesforce",
+    "kind": "@acme/salesforce_upsert",
+    "fancyFlow": ">=0.14.0",
+    "runtimes": { "ts": "dist/executor.js", "php": "acme/fancy-flow-salesforce:^0.1" },
+    "capabilities": ["llm"],
+    "fixtures": "fixtures/salesforce_upsert.json"
+  }
+  ```
+
+  `validateNodeManifest` reports **every** problem at once rather than throwing
+  on the first — a validator that reveals one error per run turns a five-minute
+  fix into five round trips. `checkRuntimeSupport` is the TS-only-package check,
+  an **error** because the node genuinely cannot execute; `checkCapabilities` is
+  a **warning**, because install is the right time to learn what to wire.
+
+  A bare, un-namespaced `kind` is rejected outright — it is the one mistake that
+  cannot be fixed afterwards, since the ambiguous string is already written into
+  saved documents. An author-set `verified` flag is rejected too: a package
+  cannot vouch for itself.
+
+- **Golden fixtures, and they are required to publish.** Every runtime a package
+  claims runs the same language-neutral JSON cases, which is what makes
+  cross-runtime parity *verified* rather than asserted.
+
+  Required rather than encouraged because **cross-runtime drift does not fail
+  loudly**. A fixture asserts that **the downstream node executed** — not the
+  port the node recorded. There is a test demonstrating why: a subject emitting
+  on a port with no edge leaves `__port` reading `"c"`, `result.ok` reading
+  `true`, and nothing downstream run. A `__port` assertion is green. A status
+  assertion is green. Only reachability catches it — which is precisely how the
+  0.9.0 routing divergence reached production.
+
+  `runFixtures` wires a real probe to every declared port and reports which
+  probes actually ran; `validateFixtureFile` rejects empty case lists and cases
+  that assert nothing, since either satisfies the letter of the requirement and
+  none of its purpose.
+
 - **`NodeKindDefinition.pausesForHuman`** — a kind declares that it waits for a
   person, and what for. Readable *without* running the graph, so a host can be
   told it needs a resume path before the first run parks itself forever.

@@ -64,3 +64,26 @@ export {
   type PauseAwaiting,
   type PauseSignal,
 } from "./registry/pause";
+
+/**
+ * Marketplace contracts — the node package manifest and the golden-fixture
+ * runner. Headless for the same reason as the pause contract: the CLI and CI
+ * are what read them, and neither has a DOM.
+ */
+export {
+  NODE_MANIFEST_SCHEMA_VERSION,
+  validateNodeManifest,
+  checkRuntimeSupport,
+  checkCapabilities,
+  runFixtures,
+  validateFixtureFile,
+  type NodePackageManifest,
+  type NodeRuntimeId,
+  type ManifestProblem,
+  type ManifestValidation,
+  type FixtureFile,
+  type FixtureCase,
+  type FixtureExpectation,
+  type FixtureFailure,
+  type FixtureRunResult,
+} from "./marketplace";
