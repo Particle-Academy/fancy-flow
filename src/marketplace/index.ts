@@ -12,8 +12,12 @@ export {
   validateNodeManifest,
   checkRuntimeSupport,
   checkCapabilities,
+  satisfiesRange,
   type NodePackageManifest,
   type NodeRuntimeId,
+  type NodeRuntimeSpec,
+  type CapabilityRequirement,
+  type SideEffects,
   type ManifestProblem,
   type ManifestValidation,
 } from "./manifest";
@@ -24,6 +28,8 @@ export {
   type FixtureFile,
   type FixtureCase,
   type FixtureExpectation,
+  type FixtureStubs,
+  type FixtureEventExpectation,
   type FixtureFailure,
   type FixtureRunResult,
 } from "./fixtures";

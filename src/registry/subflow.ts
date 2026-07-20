@@ -1,4 +1,4 @@
-import { getWorkflowResolver } from "./capabilities";
+import { getWorkflowResolver, isResolutionFailure } from "./capabilities";
 import { runFlow } from "../runtime/run-flow";
 import type { NodeExecutor, RunEvent } from "../types";
 
@@ -60,7 +60,28 @@ export const subflowExecutor: NodeExecutor = async (ctx) => {
     );
   }
 
-  const child = await resolver!(ref);
+  // An optional pin. A workflow another workflow depends on is an interface:
+  // without a pin, someone edits the child and the parent silently runs
+  // different logic while still reporting success.
+  const pinned = config.version === undefined || config.version === "" ? undefined : Number(config.version);
+  if (pinned !== undefined && !Number.isInteger(pinned)) {
+    ctx.abort(`subflow "${ref}" has a non-integer version pin (${String(config.version)}).`);
+  }
+
+  const resolved = await resolver!(ref, pinned);
+
+  // A mismatch names BOTH versions. Reporting it as "not found" would send an
+  // author looking for a workflow that is sitting right there — which is why
+  // the resolver can say which of the two failures it hit.
+  const child = isResolutionFailure(resolved)
+    ? ctx.abort(
+        resolved.reason === "version-mismatch"
+          ? (resolved.message ??
+            `subflow "${ref}" is pinned to version ${pinned}, but the host has ${resolved.available ?? "a different version"}.`)
+          : (resolved.message ?? `subflow could not resolve workflow "${ref}"`),
+      )
+    : resolved;
+
   if (!child) ctx.abort(`subflow could not resolve workflow "${ref}"`);
 
   const mode = subflowMode(config);

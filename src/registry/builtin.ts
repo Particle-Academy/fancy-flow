@@ -196,6 +196,8 @@ const KINDS: NodeKindDefinition[] = [
       { type: "text", key: "workflow", label: "Workflow", required: true,
         placeholder: "onboarding-v2",
         description: "Reference resolved by the host's registerWorkflowResolver()." },
+      { type: "number", key: "version", label: "Pin to version",
+        description: "Optional. Leave blank to always run the child's current version. Pinning fails the run loudly if the child has moved on — without it, someone edits the child and this flow silently runs different logic." },
       {
         type: "select", key: "mode", label: "Return", default: "output",
         options: [

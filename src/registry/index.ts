@@ -32,7 +32,10 @@ export {
   type LlmRouteRequest,
   type LlmRouteChoice,
   type WorkflowResolver,
+  type WorkflowResolution,
+  type WorkflowResolutionFailure,
   type CapabilityId,
+  isResolutionFailure,
 } from "./capabilities";
 
 /**

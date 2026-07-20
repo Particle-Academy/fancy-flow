@@ -12,6 +12,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-07-20
+
+All of this comes from the MOIC Suite consumer's review of 0.15.0 — the only
+consumer actually running the split (TS editor, PHP execution). They found a
+design flaw in the manifest within hours of it shipping.
+
+### Changed
+
+- **BREAKING: the engine range moved into each runtime.** One `fancyFlow` range
+  could not express the split — it cannot say *"needs ts >=0.15 **and** php
+  >=0.7"*. A package supporting both runtimes would install cleanly against a
+  host whose **other** runtime was too old: the 0.9.0 failure shape wearing a
+  manifest.
+
+  ```jsonc
+  "runtimes": {
+    "ts":  { "entry": "dist/executor.js", "engine": "^0.16" },
+    "php": { "package": "acme/fancy-flow-salesforce:^0.1", "engine": "^0.8" }
+  }
+  ```
+
+  **What to do:** if you wrote a manifest against 0.15.0, move `fancyFlow` into
+  each runtime as `engine`, and change each entry from a bare string to
+  `{ entry | package, engine }`. A leftover top-level `fancyFlow` is now an
+  explicit error rather than ignored, because silently it means "no engine
+  constraint at all". Nobody had published against the old shape — it existed
+  for four hours — which is exactly why it was worth fixing now.
+
+- **BREAKING: `capabilities` is a map, not a list.** `["llm"]` becomes
+  `{ "llm": "required" }`. A bare list cannot say whether the node works without
+  one, and `required` is checked at **author** time so an editor can grey the
+  node and name what the host never registered — instead of it installing
+  cleanly and silently no-opping mid-run. `checkCapabilities` now returns an
+  error for a missing required capability and a warning for a missing optional
+  one.
+
+- **BREAKING for implementers: `WorkflowResolver` takes a version.**
+  `resolve(ref)` becomes `resolve(ref, version?)`, and may return a
+  `WorkflowResolutionFailure` as well as a graph or null.
+
+  A workflow another workflow depends on is an **interface, and interfaces need
+  pins**. Without one, a parent goes on calling `invoice-triage`, someone edits
+  that child, and the parent runs different logic *having reported success the
+  whole time* — correct-looking, no error, wrong behaviour. Before this **no
+  host could implement pinning**, because the node had no way to ask and the
+  resolver no way to receive.
+
+  `missing` and `version-mismatch` are distinct on purpose: reporting a mismatch
+  as "not found" sends an author hunting for a workflow that is sitting right
+  there, and a mismatch error should name both versions.
+
+  **What to do:** callers are unaffected. If you *implement* `WorkflowResolver`,
+  add the optional parameter. Done now because the population of implementers is
+  approximately one; later it would not have been.
+
+### Added
+
+- **`subflow` takes a `version` pin.** Optional; blank keeps today's behaviour of
+  running the child's current version.
+- **Manifest `aliases`** — third-party packages can rename a kind and keep old
+  documents opening, the same escape hatch core used for `llm_branch` →
+  `llm_router`. Without it only first-party nodes could rename safely.
+- **Manifest `configVersion`** — a node's config shape evolves on its own clock.
+  Without a declared version every executor accretes hand-written read-fallbacks
+  forever, which is what MOIC carries today for `routes[].key` → `routes[].port`.
+- **Manifest `sideEffects`** (`none` / `idempotent` / `unsafe-to-replay`) —
+  durable runs **retry**. A node that writes has to say so, or a host picks one
+  retry policy for every node and gets it wrong somewhere.
+- **Manifest `pausesForHuman`** — a host-planning fact, not a node internal: a
+  parent embedding workflows must reject a child that can pause, and discovering
+  that at run time means watching a run park.
+- **`satisfiesRange`** — a deliberately small semver check (`^`, `~`, `>=`, `=`,
+  `*`, `||`) shared by the tooling. An unparseable range is treated as
+  **unsatisfied**, so it fails loudly rather than waving a node through. Pinned
+  against the PHP implementation clause for clause.
+
+### Added — fixtures
+
+- **Capability stubs declared as data.** `llm_router` cannot reach a provider in
+  CI, so a fixture supplies a fake. Both engines build the *same* fake from the
+  *same* JSON — otherwise each runtime stubs differently and the fixtures become
+  parity theatre.
+- **Pause/resume cases** (`expect.afterResume`). Resume is the only path that
+  crosses a persistence boundary, so it is where two runtimes are most likely to
+  drift — and it had no parity coverage at all while `PausesForHuman` became
+  public API.
+- **Event assertions** (`expect.events`). Emitted events are behaviour, not
+  decoration: an operator relies on the hallucinated-port warning to know a run
+  took the fallback, and without this that guarantee can degrade on one runtime
+  silently.
+- **Legacy-shape cases** (`case.legacyKind`) — runs a case against an alias,
+  which is what stops `aliases` being declared and then rotting.
+- **At least one failure or pause case is now required to publish.** *"Does it
+  fail the same way"* deserves equal weight to *"does it succeed the same way"*:
+  the incident behind this whole mechanism was a failure that reported
+  `completed` with no error.
+
 ## [0.15.1] — 2026-07-20
 
 ### Fixed
@@ -474,7 +571,8 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.13.0...v0.14.0

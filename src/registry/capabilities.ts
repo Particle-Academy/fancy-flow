@@ -71,14 +71,62 @@ export function getLlmClient(): LlmClient | null {
 // ── Workflow resolution ─────────────────────────────────────────────────────
 
 /**
+ * Why a workflow reference could not be resolved.
+ *
+ * `missing` and `version-mismatch` are deliberately distinct. Collapsing them
+ * into a bare null makes "no such workflow" indistinguishable from "that
+ * workflow exists, but it is not the one you pinned" — and the second wants an
+ * error naming both versions, because it is the interesting failure.
+ */
+export type WorkflowResolutionFailure = {
+  reason: "missing" | "version-mismatch";
+  /** The version the host actually holds, when it holds one. */
+  available?: number;
+  message?: string;
+};
+
+export type WorkflowResolution = FlowGraph | WorkflowResolutionFailure | null;
+
+/**
  * Resolve a workflow reference to a runnable graph.
  *
  * `subflow` names another workflow rather than embedding it, so the host owns
- * where workflows live — a database, a file, an API. Returning null means "no
- * such workflow", which the node reports as an error rather than silently
- * running nothing.
+ * where workflows live — a database, a file, an API.
+ *
+ * ## Why `version` is here
+ *
+ * A workflow another workflow depends on is an INTERFACE, and interfaces need
+ * pins. Without a version, a parent goes on calling `invoice-triage`, someone
+ * edits that child, and the parent now runs different logic having reported
+ * success the whole time — correct-looking, no error, wrong behaviour. The same
+ * failure family as the 0.9.0 routing divergence.
+ *
+ * The parameter lives on the resolver rather than being encoded into the ref
+ * string (`invoice-triage@3`) because a stringly-typed protocol is one every
+ * host invents differently — the "three vocabularies for one node" problem.
+ *
+ * Raised by the MOIC Suite consumer, whose `workflow_ref` pins versions and
+ * fails loudly on mismatch. Their point: a host COULD NOT implement pinning
+ * before this, because the node had no way to ask and the resolver no way to
+ * receive.
+ *
+ * Returning `null` still means "no such workflow". Return a
+ * {@link WorkflowResolutionFailure} to distinguish a version mismatch.
  */
-export type WorkflowResolver = (ref: string) => Promise<FlowGraph | null> | FlowGraph | null;
+export type WorkflowResolver = (
+  ref: string,
+  version?: number,
+) => Promise<WorkflowResolution> | WorkflowResolution;
+
+/** Narrow a resolver's return value to an explicit failure. */
+export function isResolutionFailure(value: WorkflowResolution): value is WorkflowResolutionFailure {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "reason" in value &&
+    (value as WorkflowResolutionFailure).reason !== undefined
+  );
+}
 
 let workflowResolver: WorkflowResolver | null = null;
 

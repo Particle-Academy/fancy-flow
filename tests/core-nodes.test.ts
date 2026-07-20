@@ -260,3 +260,107 @@ describe("config authoring surface", () => {
     expect(types).toContain("expression");
   });
 });
+
+
+// ── Child-workflow version pinning ─────────────────────────────────────────
+//
+// A workflow another workflow depends on is an INTERFACE, and interfaces need
+// pins. Without one, someone edits the child and the parent goes on running
+// different logic while still reporting success — the same correct-looking,
+// no-error, wrong-behaviour shape as the 0.9.0 routing divergence.
+//
+// Before this, no host COULD implement pinning: the resolver took a ref and
+// nothing else, so the node had no way to ask and the resolver no way to hear.
+
+describe("subflow version pinning", () => {
+  const teardown: Array<() => void> = [];
+  beforeEach(() => registerBuiltinKinds());
+  afterEach(() => {
+    teardown.splice(0).forEach((fn) => fn());
+  });
+
+  const child: FlowGraph = { nodes: [node("c1", "action")], edges: [] };
+  const executors = { action: () => "ok" };
+
+  it("passes the pinned version through to the resolver", async () => {
+    const seen: Array<[string, number | undefined]> = [];
+    teardown.push(
+      registerWorkflowResolver((ref, version) => {
+        seen.push([ref, version]);
+        return child;
+      }),
+    );
+
+    await subflowExecutor(ctx({ workflow: "invoice-triage", version: 3, executors }).call);
+
+    expect(seen).toEqual([["invoice-triage", 3]]);
+  });
+
+  it("passes undefined when no pin is configured", async () => {
+    const seen: Array<number | undefined> = [];
+    teardown.push(
+      registerWorkflowResolver((_ref, version) => {
+        seen.push(version);
+        return child;
+      }),
+    );
+
+    await subflowExecutor(ctx({ workflow: "invoice-triage", executors }).call);
+
+    expect(seen).toEqual([undefined]);
+  });
+
+  it("fails loudly on a version mismatch, naming both versions", async () => {
+    // The whole point: a mismatch must not be silent, and must not read as
+    // "no such workflow" — that sends an author hunting for a file that exists.
+    teardown.push(registerWorkflowResolver(() => ({ reason: "version-mismatch" as const, available: 5 })));
+
+    await expect(
+      subflowExecutor(ctx({ workflow: "invoice-triage", version: 3, executors }).call),
+    ).rejects.toThrow(/pinned to version 3.*has 5/);
+  });
+
+  it("still reports a genuinely missing workflow as missing", async () => {
+    teardown.push(registerWorkflowResolver(() => null));
+
+    await expect(subflowExecutor(ctx({ workflow: "nope", executors }).call)).rejects.toThrow(
+      /could not resolve workflow "nope"/,
+    );
+  });
+
+  it("distinguishes a missing workflow from a version mismatch", async () => {
+    // Collapsing the two into one error is what the explicit failure type
+    // exists to prevent.
+    teardown.push(registerWorkflowResolver(() => ({ reason: "missing" as const })));
+
+    await expect(
+      subflowExecutor(ctx({ workflow: "gone", version: 2, executors }).call),
+    ).rejects.toThrow(/could not resolve workflow "gone"/);
+  });
+
+  it("lets a resolver supply its own mismatch message", async () => {
+    teardown.push(
+      registerWorkflowResolver(() => ({
+        reason: "version-mismatch" as const,
+        message: "invoice-triage moved to v5 on 2026-07-01; re-pin or migrate.",
+      })),
+    );
+
+    await expect(
+      subflowExecutor(ctx({ workflow: "invoice-triage", version: 3, executors }).call),
+    ).rejects.toThrow("invoice-triage moved to v5 on 2026-07-01; re-pin or migrate.");
+  });
+
+  it("rejects a non-integer pin rather than coercing it", async () => {
+    teardown.push(registerWorkflowResolver(() => child));
+
+    await expect(
+      subflowExecutor(ctx({ workflow: "invoice-triage", version: "latest", executors }).call),
+    ).rejects.toThrow(/non-integer version pin/);
+  });
+
+  it("declares the pin on the kind so the editor can offer it", () => {
+    const fields = (getNodeKind("subflow")?.configSchema ?? []).map((f: any) => f.key);
+    expect(fields).toContain("version");
+  });
+});

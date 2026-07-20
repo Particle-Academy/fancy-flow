@@ -3,6 +3,7 @@ import {
   validateNodeManifest,
   checkRuntimeSupport,
   checkCapabilities,
+  satisfiesRange,
   NODE_MANIFEST_SCHEMA_VERSION,
 } from "../src/marketplace/manifest";
 import { runFixtures, validateFixtureFile, type FixtureFile } from "../src/marketplace/fixtures";
@@ -16,8 +17,10 @@ const valid = {
   schemaVersion: NODE_MANIFEST_SCHEMA_VERSION,
   name: "@acme/fancy-flow-salesforce",
   kind: "@acme/salesforce_upsert",
-  fancyFlow: ">=0.14.0",
-  runtimes: { ts: "dist/executor.js", php: "acme/fancy-flow-salesforce:^0.1" },
+  runtimes: {
+    ts: { entry: "dist/executor.js", engine: "^0.15" },
+    php: { package: "acme/fancy-flow-salesforce:^0.1", engine: "^0.7" },
+  },
   fixtures: "fixtures/salesforce_upsert.json",
 };
 
@@ -34,7 +37,7 @@ describe("manifest validation", () => {
     const result = validateNodeManifest({ schemaVersion: 1 });
     const fields = result.problems.map((p) => p.field);
     expect(result.ok).toBe(false);
-    expect(fields).toEqual(expect.arrayContaining(["name", "kind", "fancyFlow", "runtimes", "fixtures"]));
+    expect(fields).toEqual(expect.arrayContaining(["name", "kind", "runtimes", "fixtures"]));
   });
 
   it("rejects a bare, un-namespaced kind id", () => {
@@ -48,9 +51,7 @@ describe("manifest validation", () => {
   it("warns rather than fails when a package claims the first-party scope", () => {
     const result = validateNodeManifest({ ...valid, kind: "@particle-academy/salesforce_upsert" });
     expect(result.ok).toBe(true);
-    expect(result.problems).toEqual([
-      expect.objectContaining({ level: "warning", field: "kind" }),
-    ]);
+    expect(result.problems).toEqual([expect.objectContaining({ level: "warning", field: "kind" })]);
   });
 
   it("refuses an author-set verified flag", () => {
@@ -85,35 +86,144 @@ describe("manifest validation", () => {
   });
 });
 
+describe("per-runtime engine ranges", () => {
+  // The flaw MOIC found in the first cut: one range cannot say "needs ts
+  // >=0.15 AND php >=0.7", so a package installs cleanly against a host whose
+  // OTHER runtime is too old.
+  it("rejects a leftover single fancyFlow range and says where the range belongs", () => {
+    const result = validateNodeManifest({ ...valid, fancyFlow: ">=0.10.1" });
+    expect(result.ok).toBe(false);
+    expect(result.problems.find((p) => p.field === "fancyFlow")?.message).toMatch(/into each entry of/);
+  });
+
+  it("requires an engine range on every runtime", () => {
+    const result = validateNodeManifest({ ...valid, runtimes: { ts: { entry: "dist/x.js" } } });
+    expect(result.ok).toBe(false);
+    expect(result.problems.find((p) => p.field === "runtimes.ts.engine")?.message).toMatch(/too old to run it/);
+  });
+
+  it("needs entry or package, and refuses both", () => {
+    const missing = validateNodeManifest({ ...valid, runtimes: { ts: { engine: "^0.15" } } });
+    expect(missing.problems.find((p) => p.field === "runtimes.ts")?.message).toMatch(/module path/);
+
+    const both = validateNodeManifest({
+      ...valid,
+      runtimes: { ts: { entry: "a.js", package: "a/b:^1", engine: "^0.15" } },
+    });
+    expect(both.problems.find((p) => p.field === "runtimes.ts")?.message).toMatch(/not both/);
+  });
+});
+
+describe("aliases, configVersion, sideEffects", () => {
+  it("accepts a package declaring its own aliases", () => {
+    // Core renamed llm_branch and kept old ids working. Third parties rename
+    // too, and without this only first-party nodes could do it safely.
+    const result = validateNodeManifest({ ...valid, aliases: ["@acme/salesforce_write", "salesforce_upsert"] });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects malformed aliases", () => {
+    expect(validateNodeManifest({ ...valid, aliases: ["", 7] }).ok).toBe(false);
+  });
+
+  it("accepts a configVersion and rejects a non-integer one", () => {
+    expect(validateNodeManifest({ ...valid, configVersion: 2 }).ok).toBe(true);
+    expect(validateNodeManifest({ ...valid, configVersion: 1.5 }).ok).toBe(false);
+  });
+
+  it.each([["none"], ["idempotent"], ["unsafe-to-replay"]])("accepts sideEffects=%s", (value) => {
+    expect(validateNodeManifest({ ...valid, sideEffects: value }).ok).toBe(true);
+  });
+
+  it("rejects an unknown sideEffects value", () => {
+    // Durable runs retry; a host reads this to pick a retry policy per node.
+    expect(validateNodeManifest({ ...valid, sideEffects: "sometimes" }).ok).toBe(false);
+  });
+});
+
 describe("runtime support", () => {
   it("passes when the node implements every runtime the host executes on", () => {
-    expect(checkRuntimeSupport(valid, ["ts", "php"])).toEqual([]);
+    expect(checkRuntimeSupport(valid, ["ts", "php"], { ts: "0.15.1", php: "0.7.0" })).toEqual([]);
   });
 
   it("catches the TS-only package on a PHP host", () => {
     // The exact gap MOIC hit: the node installs, appears in the palette, and
     // then cannot run — with nothing visible beforehand.
-    const problems = checkRuntimeSupport({ kind: "@acme/x", runtimes: { ts: "dist/x.js" } }, ["php"]);
-    expect(problems).toHaveLength(1);
+    const problems = checkRuntimeSupport(
+      { kind: "@acme/x", runtimes: { ts: { entry: "dist/x.js", engine: "^0.15" } } },
+      ["php"],
+    );
     expect(problems[0].level).toBe("error");
     expect(problems[0].message).toMatch(/executes on php/);
   });
 
-  it("does not complain about a runtime the host does not use", () => {
-    expect(checkRuntimeSupport(valid, ["ts"])).toEqual([]);
+  it("catches a host whose OTHER runtime is too old", () => {
+    // The failure a single range could not express.
+    const problems = checkRuntimeSupport(valid, ["ts", "php"], { ts: "0.15.1", php: "0.5.0" });
+    expect(problems).toHaveLength(1);
+    expect(problems[0].level).toBe("error");
+    expect(problems[0].field).toBe("runtimes.php.engine");
+    expect(problems[0].message).toMatch(/needs php engine/);
+  });
+
+  it("warns rather than passing silently when the host reports no version", () => {
+    // "We did not check" and "it is fine" must not look the same.
+    const problems = checkRuntimeSupport(valid, ["ts"], {});
+    expect(problems).toHaveLength(1);
+    expect(problems[0].level).toBe("warning");
+    expect(problems[0].message).toMatch(/was not checked/);
   });
 });
 
-describe("capability checks", () => {
-  it("warns, not errors, about an unwired capability", () => {
-    // Install is the right time to learn what to wire, not a reason to refuse.
-    const problems = checkCapabilities({ kind: "@acme/x", capabilities: ["llm"] }, { llm: false });
+describe("satisfiesRange", () => {
+  it.each([
+    ["0.15.1", "^0.15", true],
+    ["0.16.0", "^0.15", false],
+    ["1.2.0", "^1.0", true],
+    ["2.0.0", "^1.0", false],
+    ["0.7.0", ">=0.7", true],
+    ["0.5.0", ">=0.7", false],
+    ["0.7.3", "~0.7.1", true],
+    ["0.8.0", "~0.7.1", false],
+    ["9.9.9", "*", true],
+    ["0.7.0", "^0.5 || ^0.7", true],
+  ])("%s against %s is %s", (version, range, expected) => {
+    expect(satisfiesRange(version as string, range as string)).toBe(expected);
+  });
+
+  it("treats an unparseable range as unsatisfied rather than waving it through", () => {
+    expect(satisfiesRange("1.0.0", "not-a-range")).toBe(false);
+  });
+});
+
+describe("capability requirement levels", () => {
+  it("errors on a missing REQUIRED capability", () => {
+    // The point of the level: surfaced at author time so an editor can grey the
+    // node, instead of it installing cleanly and silently no-opping at run time.
+    const problems = checkCapabilities({ kind: "@acme/x", capabilities: { llm: "required" } }, { llm: false });
     expect(problems).toHaveLength(1);
+    expect(problems[0].level).toBe("error");
+    expect(problems[0].message).toMatch(/cannot run here/);
+  });
+
+  it("only warns on a missing OPTIONAL capability", () => {
+    const problems = checkCapabilities({ kind: "@acme/x", capabilities: { doc: "optional" } }, { doc: false });
     expect(problems[0].level).toBe("warning");
+    expect(problems[0].message).toMatch(/reduced behaviour/);
   });
 
   it("is silent when everything is wired", () => {
-    expect(checkCapabilities({ kind: "@acme/x", capabilities: ["llm"] }, { llm: true })).toEqual([]);
+    expect(checkCapabilities({ kind: "@acme/x", capabilities: { llm: "required" } }, { llm: true })).toEqual([]);
+  });
+
+  it("rejects a bare capability list, which cannot express the level", () => {
+    const result = validateNodeManifest({ ...valid, capabilities: ["llm"] });
+    expect(result.ok).toBe(false);
+    expect(result.problems.find((p) => p.field === "capabilities")?.message).toMatch(/bare list/);
+  });
+
+  it("rejects an unknown requirement level", () => {
+    expect(validateNodeManifest({ ...valid, capabilities: { llm: "maybe" } }).ok).toBe(false);
   });
 });
 
@@ -126,16 +236,39 @@ describe("fixture file validation", () => {
 
   it("rejects a case that asserts nothing", () => {
     const problems = validateFixtureFile({ kind: "@acme/x", cases: [{ name: "n", expect: {} }] });
-    expect(problems).toEqual([expect.stringMatching(/must assert at least one/)]);
+    expect(problems).toEqual(expect.arrayContaining([expect.stringMatching(/must assert at least one/)]));
   });
 
   it("catches a fixture file for a different kind than the manifest declares", () => {
     const problems = validateFixtureFile({ kind: "@acme/y", cases: [{ name: "n", expect: { ports: ["out"] } }] }, "@acme/x");
-    expect(problems).toEqual([expect.stringMatching(/manifest declares/)]);
+    expect(problems).toEqual(expect.arrayContaining([expect.stringMatching(/manifest declares/)]));
   });
 
   it("accepts a well-formed file", () => {
-    expect(validateFixtureFile({ kind: "@acme/x", cases: [{ name: "n", expect: { ports: ["out"] } }] }, "@acme/x")).toEqual([]);
+    const file = {
+      kind: "@acme/x",
+      cases: [
+        { name: "happy", expect: { ports: ["out"] } },
+        { name: "sad", expect: { error: "boom" } },
+      ],
+    };
+    expect(validateFixtureFile(file, "@acme/x")).toEqual([]);
+  });
+
+  it("requires at least one failure or pause case", () => {
+    // "Does it fail the same way" deserves equal weight to "does it succeed the
+    // same way" — the incident behind this whole mechanism was a FAILURE that
+    // reported completed with no error.
+    const allHappy = { kind: "@acme/x", cases: [{ name: "happy", expect: { ports: ["out"] } }] };
+    expect(validateFixtureFile(allHappy)).toEqual([
+      expect.stringMatching(/at least one case must assert a failure/i),
+    ]);
+  });
+
+  it.each([["error"], ["pause"]])("accepts %s as the failure coverage", (key) => {
+    const expectation = key === "error" ? { error: "boom" } : { pause: { awaiting: "input" } };
+    const file = { kind: "@acme/x", cases: [{ name: "sad", expect: expectation }] };
+    expect(validateFixtureFile(file)).toEqual([]);
   });
 });
 
@@ -283,5 +416,142 @@ describe("running fixtures asserts reachability, not intent", () => {
     expect(result.passed).toBe(1);
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0].case).toBe("bad");
+  });
+});
+
+describe("fixture stubs, resume, events, legacy ids", () => {
+  registerNodeKind({
+    name: "@test/waiter",
+    category: "human",
+    label: "Waiter",
+    aliases: ["@test/old_waiter"],
+    pausesForHuman: "signature",
+    outputs: [{ id: "out" }],
+  });
+
+  const waiter: NodeExecutor = (ctx) => {
+    const values = (ctx.inputs as Record<string, unknown>).values;
+    if (values === undefined) pauseForHuman(ctx as any, "signature", { doc: "nda.pdf" });
+    return values;
+  };
+
+  it("resumes a paused case with a submission and asserts the final state", async () => {
+    // Pause/resume is the only path crossing a persistence boundary, so it is
+    // where two runtimes are most likely to drift — and it had no coverage.
+    const result = await runFixtures(
+      {
+        kind: "@test/waiter",
+        cases: [
+          {
+            name: "waits then finishes",
+            expect: {
+              pause: { awaiting: "signature", detail: { doc: "nda.pdf" } },
+              afterResume: { submit: { signedBy: "ada" }, ports: ["out"], value: { signedBy: "ada" } },
+            },
+          },
+        ],
+      },
+      waiter,
+    );
+
+    expect(result.failures).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("fails when the resumed run does not reach the expected state", async () => {
+    const result = await runFixtures(
+      {
+        kind: "@test/waiter",
+        cases: [
+          {
+            name: "wrong resume value",
+            expect: {
+              pause: { awaiting: "signature" },
+              afterResume: { submit: { signedBy: "ada" }, value: { signedBy: "grace" } },
+            },
+          },
+        ],
+      },
+      waiter,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.failures[0].message).toMatch(/after resume/);
+  });
+
+  it("runs a case against a legacy alias, proving the alias is real", async () => {
+    // What stops `aliases` from being declared and then rotting.
+    const result = await runFixtures(
+      {
+        kind: "@test/waiter",
+        cases: [
+          { name: "old id still resolves", legacyKind: "@test/old_waiter", expect: { pause: { awaiting: "signature" } } },
+        ],
+      },
+      waiter,
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("builds an llm_client stub from fixture data, so CI needs no provider", async () => {
+    // If the stub format is not shared, each runtime stubs differently and the
+    // fixtures stop comparing like with like — parity theatre.
+    registerNodeKind({
+      name: "@test/router2",
+      category: "ai",
+      label: "R2",
+      outputs: () => [{ id: "billing" }, { id: "support" }],
+    });
+
+    const usesLlm: NodeExecutor = async () => {
+      const { getLlmClient } = await import("../src/registry/capabilities");
+      const choice = await getLlmClient()!.chooseRoute({ prompt: "?", routes: [{ port: "billing" }, { port: "support" }] });
+      return { __port: choice.port, value: { reason: choice.reason } };
+    };
+
+    const result = await runFixtures(
+      {
+        kind: "@test/router2",
+        cases: [
+          {
+            name: "routes to billing",
+            stubs: { llm_client: { chooseRoute: { port: "billing", reason: "invoice question" } } },
+            expect: { ports: ["billing"], value: { reason: "invoice question" } },
+          },
+        ],
+      },
+      usesLlm,
+    );
+
+    expect(result.failures).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("asserts emitted events, so a warning contract cannot degrade silently", async () => {
+    registerNodeKind({ name: "@test/warner", category: "action", label: "W", outputs: [{ id: "out" }] });
+
+    const warns: NodeExecutor = (ctx) => {
+      ctx.emit({ type: "log", nodeId: ctx.node.id, level: "warn", message: "model chose an unknown port; using fallback" });
+      return { ok: true };
+    };
+
+    const file: FixtureFile = {
+      kind: "@test/warner",
+      cases: [
+        {
+          name: "warns on fallback",
+          expect: { ports: ["out"], events: [{ type: "log", level: "warn", messageContains: "unknown port" }] },
+        },
+      ],
+    };
+
+    expect((await runFixtures(file, warns)).ok).toBe(true);
+
+    // And it fails when the event is absent — otherwise the assertion is decor.
+    const silent: NodeExecutor = () => ({ ok: true });
+    const failed = await runFixtures(file, silent);
+    expect(failed.ok).toBe(false);
+    expect(failed.failures[0].message).toMatch(/expected an emitted event/);
   });
 });

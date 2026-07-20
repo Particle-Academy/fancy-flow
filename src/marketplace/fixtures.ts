@@ -29,7 +29,34 @@ import { runFlow } from "../runtime/run-flow";
 import { getNodeKind } from "../registry/registry";
 import { resolveNodePorts } from "../registry/ports";
 import { decodePause, type PauseAwaiting } from "../registry/pause";
-import type { FlowGraph, FlowNode, NodeExecutor } from "../types";
+import { registerLlmClient, registerWorkflowResolver } from "../registry/capabilities";
+import type { FlowGraph, FlowNode, NodeExecutor, RunEvent } from "../types";
+
+/**
+ * Deterministic stand-ins for host capabilities, declared as DATA.
+ *
+ * `llm_router` cannot reach a provider in CI, so a fixture has to supply a fake
+ * `LlmClient`. If the stub format is not shared, each runtime stubs
+ * differently and the fixtures stop being comparable — parity theatre. So the
+ * fixture declares the stub's *behaviour* and both engines construct it
+ * identically from the same JSON.
+ */
+export type FixtureStubs = {
+  /** Canned `chooseRoute` answer for the LLM capability. */
+  llm_client?: { chooseRoute: { port: string; reason?: string } };
+  /** Canned workflow resolution, keyed by ref, for `subflow`. */
+  workflow_resolver?: Record<string, FlowGraph | null>;
+};
+
+/** An event a case expects the run to have emitted. */
+export type FixtureEventExpectation = {
+  type: RunEvent["type"];
+  /** Emitting node, when it matters. */
+  nodeId?: string;
+  level?: "info" | "warn" | "error";
+  /** Substring match against the message — full text is too brittle to pin. */
+  messageContains?: string;
+};
 
 /** What a case expects to have happened. */
 export type FixtureExpectation = {
@@ -45,6 +72,29 @@ export type FixtureExpectation = {
   pause?: { awaiting: PauseAwaiting; detail?: unknown };
   /** The run failed, and the message contains this substring. */
   error?: string;
+  /**
+   * Events the run must have emitted.
+   *
+   * Emitted events are BEHAVIOUR, not decoration. The hallucinated-port warning
+   * is a contract an operator relies on to know a run took the fallback — if
+   * one runtime stops emitting it, the guarantee degrades silently. Each entry
+   * must match at least one emitted event.
+   */
+  events?: FixtureEventExpectation[];
+  /**
+   * The run resumed after a pause and reached this state.
+   *
+   * Pause/resume is the ONLY path that crosses a persistence boundary, which
+   * makes it where two runtimes are most likely to drift — and it had no parity
+   * coverage at all while `PausesForHuman` became public API.
+   */
+  afterResume?: {
+    /** Delivered on the paused node's `values` input, as a host would on resume. */
+    submit: unknown;
+    ports?: string[];
+    value?: unknown;
+    error?: string;
+  };
 };
 
 export type FixtureCase = {
@@ -69,6 +119,16 @@ export type FixtureCase = {
   ports?: string[];
   /** Inputs delivered on the node's input ports. */
   inputs?: Record<string, unknown>;
+  /**
+   * Run this case against an ALIAS or an older config shape.
+   *
+   * What proves `aliases` and `configVersion` actually work rather than being
+   * declared and rotting. A package that renames its kind should have a case
+   * pinning that the old id still resolves.
+   */
+  legacyKind?: string;
+  /** Deterministic capability stand-ins for this case. */
+  stubs?: FixtureStubs;
   expect: FixtureExpectation;
 };
 
@@ -147,6 +207,89 @@ function deepEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
+ * Install the case's capability stubs, returning a function that removes them.
+ *
+ * Constructed here from the fixture's JSON rather than supplied by the caller,
+ * which is the whole point: both runtimes build the same stub from the same
+ * data, so a fixture covering `llm_router` compares like with like instead of
+ * comparing two different fakes.
+ */
+function installStubs(stubs: FixtureStubs | undefined): () => void {
+  if (!stubs) return () => {};
+
+  const teardown: Array<() => void> = [];
+
+  if (stubs.llm_client) {
+    const answer = stubs.llm_client.chooseRoute;
+    teardown.push(registerLlmClient({ chooseRoute: () => ({ ...answer }) }));
+  }
+
+  if (stubs.workflow_resolver) {
+    const table = stubs.workflow_resolver;
+    teardown.push(registerWorkflowResolver((ref) => table[ref] ?? null));
+  }
+
+  return () => teardown.forEach((fn) => fn());
+}
+
+function matchesEvent(event: RunEvent, want: FixtureEventExpectation): boolean {
+  if (event.type !== want.type) return false;
+
+  const e = event as Record<string, unknown>;
+  if (want.nodeId !== undefined && e.nodeId !== want.nodeId) return false;
+  if (want.level !== undefined && e.level !== want.level) return false;
+  if (want.messageContains !== undefined && !String(e.message ?? "").includes(want.messageContains)) return false;
+
+  return true;
+}
+
+/**
+ * Re-run a paused case with a submission delivered, as a durable host would.
+ *
+ * The submission arrives on `values` because that is the input the builtin
+ * human nodes read, and a third-party pausing node that wants fixture coverage
+ * should follow the same convention rather than inventing its own.
+ */
+async function resume(
+  kindId: string,
+  testCase: FixtureCase,
+  executor: NodeExecutor,
+  pausedNodeId: string,
+  submit: unknown,
+): Promise<{ ok: boolean; error?: string; fired: string[]; carried: unknown }> {
+  const { graph } = buildGraph(kindId, testCase);
+  const fired: string[] = [];
+  let carried: unknown;
+
+  const executors: Record<string, NodeExecutor> = {
+    manual_trigger: () => testCase.inputs ?? {},
+    "@particle-academy/manual_trigger": () => testCase.inputs ?? {},
+    [kindId]: executor,
+  };
+
+  // The resumed node sees its submission, exactly as the durable runner
+  // injects one.
+  executors[pausedNodeId] = ((c: Parameters<NodeExecutor>[0]) =>
+    executor({ ...c, inputs: { ...(c.inputs as object), values: submit } })) as NodeExecutor;
+
+  for (const node of graph.nodes) {
+    if (!node.id.startsWith("probe:")) continue;
+    const port = node.id.slice("probe:".length);
+    executors[node.id] = ((c: { inputs: Record<string, unknown> }) => {
+      fired.push(port);
+      carried = c.inputs?.in ?? c.inputs;
+      return undefined;
+    }) as unknown as NodeExecutor;
+  }
+
+  const releaseStubs = installStubs(testCase.stubs);
+  const result = await runFlow(graph, executors, () => {});
+  releaseStubs();
+
+  return { ok: result.ok, error: result.error, fired, carried };
+}
+
+/**
  * Run one fixture file against a kind's executor.
  *
  * `executor` is the node's own; everything else in the graph is supplied here,
@@ -160,14 +303,20 @@ export async function runFixtures(
   let passed = 0;
 
   for (const testCase of file.cases) {
-    const { graph } = buildGraph(file.kind, testCase);
+    // A case may run against an alias or an older id, which is what proves the
+    // package's `aliases` declaration is real rather than decorative.
+    const kindId = testCase.legacyKind ?? file.kind;
+    const { graph } = buildGraph(kindId, testCase);
     const fired: string[] = [];
+    const events: RunEvent[] = [];
     let carried: unknown;
+
+    const releaseStubs = installStubs(testCase.stubs);
 
     const executors: Record<string, NodeExecutor> = {
       manual_trigger: () => testCase.inputs ?? {},
       "@particle-academy/manual_trigger": () => testCase.inputs ?? {},
-      [file.kind]: executor,
+      [kindId]: executor,
     };
 
     // A probe per port, bound by NODE ID — `pickExecutor` checks that before
@@ -184,7 +333,9 @@ export async function runFixtures(
       }) as unknown as NodeExecutor;
     }
 
-    const result = await runFlow(graph, executors, () => {});
+    const result = await runFlow(graph, executors, (e) => events.push(e));
+    releaseStubs();
+
     const fail = (message: string) => failures.push({ case: testCase.name, message });
     const expected = testCase.expect;
     let caseOk = true;
@@ -232,6 +383,47 @@ export async function runFixtures(
       }
     }
 
+    // Emitted events are behaviour, not decoration — an operator relies on the
+    // hallucinated-port warning to know a run took the fallback.
+    for (const want of expected.events ?? []) {
+      if (!events.some((e) => matchesEvent(e, want))) {
+        caseOk = false;
+        fail(`expected an emitted event matching ${JSON.stringify(want)}, but none of the ${events.length} emitted events did`);
+      }
+    }
+
+    // Resume: the only path crossing a persistence boundary, and so the one
+    // most likely to drift between runtimes.
+    if (expected.afterResume) {
+      const paused = decodePause(result.error);
+      if (!paused) {
+        caseOk = false;
+        fail("expected the run to pause before resuming, but it never paused");
+      } else {
+        const resumed = await resume(kindId, testCase, executor, paused.nodeId, expected.afterResume.submit);
+        const want = expected.afterResume;
+
+        if (want.error !== undefined) {
+          if (resumed.ok || !String(resumed.error ?? "").includes(want.error)) {
+            caseOk = false;
+            fail(`after resume: expected an error containing "${want.error}", got ${resumed.ok ? "success" : `"${resumed.error}"`}`);
+          }
+        }
+        if (want.ports !== undefined) {
+          const got = [...resumed.fired].sort();
+          const wanted = [...want.ports].sort();
+          if (!deepEqual(got, wanted)) {
+            caseOk = false;
+            fail(`after resume: expected ports [${wanted.join(", ")}] to reach a downstream node, but [${got.join(", ")}] did`);
+          }
+        }
+        if ("value" in want && !deepEqual(resumed.carried, want.value)) {
+          caseOk = false;
+          fail(`after resume: expected the value carried downstream to be ${JSON.stringify(want.value)}, got ${JSON.stringify(resumed.carried)}`);
+        }
+      }
+    }
+
     if (caseOk) passed += 1;
   }
 
@@ -263,6 +455,23 @@ export function validateFixtureFile(input: unknown, expectedKind?: string): stri
   if (!Array.isArray(f.cases) || f.cases.length === 0) {
     problems.push("`cases` must contain at least one case — an empty fixture file proves nothing.");
     return problems;
+  }
+
+  // At least one case must exercise a failure.
+  //
+  // "Does it fail the same way" deserves equal weight to "does it succeed the
+  // same way": the incident that motivated this whole mechanism was a FAILURE
+  // that reported `completed` with no error. A suite that only covers happy
+  // paths cannot catch a runtime that fails differently — or does not fail
+  // at all.
+  const coversFailure = f.cases.some((c: unknown) => {
+    const expect = (c as { expect?: Record<string, unknown> })?.expect;
+    return Boolean(expect && ("error" in expect || "pause" in expect));
+  });
+  if (!coversFailure) {
+    problems.push(
+      "At least one case must assert a failure (`expect.error`) or a pause (`expect.pause`). Every case here covers a success path, and the divergence this format exists to catch reported success while doing nothing.",
+    );
   }
 
   f.cases.forEach((c: unknown, i: number) => {
