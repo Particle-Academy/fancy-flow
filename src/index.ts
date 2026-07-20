@@ -84,6 +84,14 @@ export {
   type DocumentConfigField,
   type PortSpec,
   type RenderBodyContext,
+  pauseForHuman,
+  encodePause,
+  decodePause,
+  isPause,
+  PAUSE_PREFIX,
+  LEGACY_PAUSE_PREFIXES,
+  type PauseAwaiting,
+  type PauseSignal,
 } from "./registry";
 
 // Schema (also: fancy-flow/schema)

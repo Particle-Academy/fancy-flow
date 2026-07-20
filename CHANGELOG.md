@@ -12,6 +12,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The human-pause contract is now public and typed.** A run waiting for a
+  person travels the same channel as a failure — the executor aborts, the runner
+  reads `result.error` — and until now the difference was two `str_starts_with`
+  checks in the Laravel run job against constants owned by two *builtin*
+  executors. A third-party human-input node had no way in, and nothing stopped a
+  refactor from removing the mechanism out from under published packages.
+  Reported by the MOIC Suite consumer, who needed exactly that seam and had to
+  reach for a private constant to get it.
+
+  ```ts
+  import { pauseForHuman, decodePause } from "@particle-academy/fancy-flow/engine";
+
+  if (values === undefined) pauseForHuman(ctx, "input", { fields });  // in the node
+  const paused = decodePause(result.error);                           // in the runner
+  ```
+
+  `pauseForHuman` / `encodePause` / `decodePause` / `isPause` are exported from
+  the main entry **and from `/engine`**, because the code that needs them most is
+  a server-side durable runner that must never import React. Verified against the
+  build that the engine entry stays React-free.
+
+  `awaiting` is `"approval"` or `"input"` for the builtins but the type is open,
+  so a marketplace node can define its own (`"signature"`, `"payment"`). The wire
+  format stays a plain string — it survives the existing abort path unchanged,
+  crosses a queue boundary, and decodes identically in PHP, none of which a
+  thrown class would do. The payload is JSON rather than delimited fields because
+  a node id may contain a colon.
+
+- **`NodeKindDefinition.pausesForHuman`** — a kind declares that it waits for a
+  person, and what for. Readable *without* running the graph, so a host can be
+  told it needs a resume path before the first run parks itself forever.
+  Declared on `user_input`, `rich_user_input`, and `human_approval`.
+
+  **Nothing breaks:** the pre-contract `awaiting-approval:` / `awaiting-input:`
+  prefixes are still decoded, so runs that parked under an older version resume.
+  A resume path that only works for new runs would strand every in-flight one.
+
 ## [0.14.0] — 2026-07-19
 
 ### Changed

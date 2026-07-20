@@ -115,6 +115,7 @@ const KINDS: NodeKindDefinition[] = [
   {
     name: "@particle-academy/user_input",
     aliases: ["user_input", "@fancy/user_input"],
+    pausesForHuman: "input",
     category: "human",
     label: "User Input",
     description: "Pause the flow until the user submits the configured form.",
@@ -154,6 +155,7 @@ const KINDS: NodeKindDefinition[] = [
   {
     name: "@particle-academy/rich_user_input",
     aliases: ["rich_user_input", "@fancy/rich_user_input"],
+    pausesForHuman: "input",
     category: "human",
     label: "Rich User Input",
     description: "Pause the flow on a fully authored page — content, required reading, multi-section forms.",
@@ -578,6 +580,7 @@ const KINDS: NodeKindDefinition[] = [
   {
     name: "@particle-academy/human_approval",
     aliases: ["human_approval", "@fancy/human_approval"],
+    pausesForHuman: "approval",
     category: "human",
     label: "Human Approval",
     description: "Pause until a human approves or denies.",

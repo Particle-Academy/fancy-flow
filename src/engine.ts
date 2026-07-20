@@ -42,3 +42,25 @@ export type {
   RunEvent,
   NodeRunStatus,
 } from "./types";
+
+/**
+ * The human-pause contract.
+ *
+ * Exported from the headless entry because the code that needs it most is a
+ * server-side durable runner, which must never import React. Imported straight
+ * from the module rather than the registry barrel for the same reason — that
+ * barrel pulls in `RegistryNode`.
+ *
+ * A runner calls `decodePause(result.error)`: non-null means park the run on
+ * `signal.nodeId` and wait for a person; null means it genuinely failed.
+ */
+export {
+  pauseForHuman,
+  encodePause,
+  decodePause,
+  isPause,
+  PAUSE_PREFIX,
+  LEGACY_PAUSE_PREFIXES,
+  type PauseAwaiting,
+  type PauseSignal,
+} from "./registry/pause";

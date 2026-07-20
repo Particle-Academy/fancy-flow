@@ -353,6 +353,54 @@ is the parity-tested runtime twin — same `WorkflowSchema` JSON in, same output
 out — and adds queued durable runs with resume-from-checkpoint plus human
 approval / `user_input` pauses.
 
+### Pausing for a human
+
+A workflow that waits for a person is not a failure, but it travels the same
+channel as one — the executor aborts, and the runner reads `result.error`. The
+encoding of that reason string is a **public contract**, so a node you write
+can pause exactly the way the builtins do:
+
+```ts
+import { pauseForHuman, decodePause } from "@particle-academy/fancy-flow/engine";
+
+// In your executor — pause until something submits a value.
+const values = ctx.inputs.values;
+if (values === undefined) pauseForHuman(ctx, "input", { fields });
+return values;
+```
+
+```ts
+// In your durable runner — the whole contract from this side.
+const result = await runFlow(graph, executors, onEvent);
+
+const paused = decodePause(result.error);
+if (paused) {
+  await park(runId, paused.nodeId, paused.awaiting, paused.detail);  // wait for a person
+} else if (!result.ok) {
+  throw new Error(result.error);                                     // genuinely failed
+}
+```
+
+Check `values === undefined`, not truthiness — an empty submission (`{}`) is a
+real answer, and a truthy test pauses forever on an empty form.
+
+`awaiting` is `"approval"` or `"input"` for the builtins, but the type is open:
+a node can define its own (`"signature"`, `"payment"`), and a runner that
+doesn't recognise one should surface it rather than guess. Declare it on the
+kind so a host can see it **without running the graph**:
+
+```ts
+registerNodeKind({
+  name: "@acme/countersign",
+  pausesForHuman: "signature",
+  // …
+});
+```
+
+`decodePause` also understands the pre-contract `awaiting-approval:` /
+`awaiting-input:` prefixes, so runs that parked under an older version still
+resume.
+
 ## Status
 
 `v0.1` — editor + runner + node kit. Roadmap:

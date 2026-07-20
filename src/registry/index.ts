@@ -35,6 +35,21 @@ export {
   type CapabilityId,
 } from "./capabilities";
 
+/**
+ * The human-pause contract — a run waiting for a person, not a failure.
+ * `decodePause` is the one function a durable runner needs.
+ */
+export {
+  pauseForHuman,
+  encodePause,
+  decodePause,
+  isPause,
+  PAUSE_PREFIX,
+  LEGACY_PAUSE_PREFIXES,
+  type PauseAwaiting,
+  type PauseSignal,
+} from "./pause";
+
 export { subflowExecutor, subflowPorts, subflowMode, DEFAULT_MAX_DEPTH, type SubflowMode } from "./subflow";
 export { llmRouterExecutor, declaredRoutes, resolveFallbackPort } from "./llm-router";
 /** @deprecated Renamed to `llmRouterExecutor` — the id and label now match. */

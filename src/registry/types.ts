@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { NodeExecutor, PortDescriptor } from "../types";
+import type { PauseAwaiting } from "./pause";
 
 /** Categories used by the palette for grouping. */
 export type NodeCategory =
@@ -257,4 +258,15 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
    * the actual work (memory store backend, LLM client, HTTP fetcher, etc.).
    */
   executor?: NodeExecutor<TIn, TOut>;
+
+  /**
+   * Declares that this kind halts the run to wait for a person, and what for.
+   *
+   * Only a declaration — the executor still emits the pause (via
+   * `pauseForHuman`). Its value is that it is readable WITHOUT running the
+   * graph: a host can be told "this workflow needs a resume path you haven't
+   * built" before the first run parks itself forever, and the marketplace can
+   * refuse to list a pausing node whose package never says so.
+   */
+  pausesForHuman?: PauseAwaiting;
 };
