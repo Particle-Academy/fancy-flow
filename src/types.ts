@@ -82,6 +82,12 @@ export type NodeExecutor<TIn = Record<string, unknown>, TOut = unknown> = (
     abort: (reason?: string) => never;
     /** Lets the executor stream status updates and partial outputs. */
     emit: (event: RunEvent) => void;
+    /**
+     * How deep this run is nested. 0 for a top-level run; `subflow` passes
+     * depth + 1 to its child, so runaway recursion can be reported by name
+     * rather than as a stack overflow.
+     */
+    depth?: number;
   },
 ) => Promise<TOut> | TOut;
 

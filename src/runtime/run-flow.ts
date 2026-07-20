@@ -19,6 +19,8 @@ export type RunOptions = {
   signal?: AbortSignal;
   /** Initial inputs supplied to entry-point nodes (no incoming edges). */
   initialInputs?: Record<string, Record<string, unknown>>;
+  /** Nesting depth — set by `subflow` when it runs a child graph. */
+  depth?: number;
 };
 
 export type RunResult = {
@@ -48,7 +50,7 @@ export async function runFlow(
   onEvent: (event: RunEvent) => void = () => {},
   options: RunOptions = {},
 ): Promise<RunResult> {
-  const { signal, initialInputs = {}, timeoutMs } = options;
+  const { signal, initialInputs = {}, timeoutMs, depth = 0 } = options;
   const outputs: Record<string, unknown> = {};
   const portValues = new Map<string, unknown>(); // key: `${nodeId}:${portId}`
   const completed = new Set<string>();
@@ -119,6 +121,7 @@ export async function runFlow(
             inputs,
             abort: (reason) => { throw new Error(reason ?? "aborted"); },
             emit: onEvent,
+            depth,
           }),
         );
         outputs[node.id] = result;

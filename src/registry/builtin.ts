@@ -1,6 +1,8 @@
 import { createElement } from "react";
 import { registerNodeKind } from "./registry";
 import { RichInputPreview } from "./rich-input";
+import { llmBranchExecutor } from "./llm-branch";
+import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
 import type { PortDescriptor } from "../types";
 import type { ConfigField, NodeKindDefinition } from "./types";
 
@@ -69,8 +71,8 @@ const HTTP_METHODS: ConfigField[] = [
 const KINDS: NodeKindDefinition[] = [
   // ───────────── Triggers ─────────────
   {
-    name: "@fancy/manual_trigger",
-    aliases: ["manual_trigger"],
+    name: "@particle-academy/manual_trigger",
+    aliases: ["manual_trigger", "@fancy/manual_trigger"],
     category: "trigger",
     label: "Manual",
     description: "Entry point fired when the user clicks Run.",
@@ -79,8 +81,8 @@ const KINDS: NodeKindDefinition[] = [
     outputs: [{ id: "out" }],
   },
   {
-    name: "@fancy/webhook_trigger",
-    aliases: ["webhook_trigger"],
+    name: "@particle-academy/webhook_trigger",
+    aliases: ["webhook_trigger", "@fancy/webhook_trigger"],
     category: "trigger",
     label: "Webhook",
     description: "Triggered by an inbound HTTP request to a host-provided URL.",
@@ -96,8 +98,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/schedule_trigger",
-    aliases: ["schedule_trigger"],
+    name: "@particle-academy/schedule_trigger",
+    aliases: ["schedule_trigger", "@fancy/schedule_trigger"],
     category: "trigger",
     label: "Schedule",
     description: "Fires on a cron schedule (host-implemented).",
@@ -111,8 +113,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/user_input",
-    aliases: ["user_input"],
+    name: "@particle-academy/user_input",
+    aliases: ["user_input", "@fancy/user_input"],
     category: "human",
     label: "User Input",
     description: "Pause the flow until the user submits the configured form.",
@@ -150,8 +152,8 @@ const KINDS: NodeKindDefinition[] = [
   },
 
   {
-    name: "@fancy/rich_user_input",
-    aliases: ["rich_user_input"],
+    name: "@particle-academy/rich_user_input",
+    aliases: ["rich_user_input", "@fancy/rich_user_input"],
     category: "human",
     label: "Rich User Input",
     description: "Pause the flow on a fully authored page — content, required reading, multi-section forms.",
@@ -175,10 +177,43 @@ const KINDS: NodeKindDefinition[] = [
     renderBody: (ctx) => createElement(RichInputPreview, { config: (ctx.config ?? {}) as Record<string, unknown> }),
   },
 
+  {
+    name: "@particle-academy/subflow",
+    aliases: ["subflow", "@fancy/subflow"],
+    category: "logic",
+    label: "SubFlow",
+    description: "Run another workflow and bring its result — or its live progress — back into this one.",
+    icon: "⧉",
+    inputs: [{ id: "in" }],
+    // The stream port only exists when something actually streams.
+    outputs: (config: any) => subflowPorts(config ?? {}),
+    // Core, not marketplace: it runs a child graph through this same engine and
+    // needs nothing from outside except where workflows live.
+    executor: subflowExecutor,
+    configSchema: [
+      { type: "text", key: "workflow", label: "Workflow", required: true,
+        placeholder: "onboarding-v2",
+        description: "Reference resolved by the host's registerWorkflowResolver()." },
+      {
+        type: "select", key: "mode", label: "Return", default: "output",
+        options: [
+          { value: "output", label: "Output when it finishes" },
+          { value: "stream", label: "Stream progress as it runs" },
+          { value: "both", label: "Both — stream, then output" },
+        ],
+        description: "Streaming adds a second port so a parent can show progress instead of a spinner.",
+      },
+      { type: "json", key: "inputs", label: "Input mapping",
+        description: "Entry-point inputs for the child run. Omit to pass this node's inputs straight through." },
+      { type: "number", key: "maxDepth", label: "Max nesting depth", default: DEFAULT_MAX_DEPTH, min: 1, max: 32,
+        description: "Guards against a workflow referencing itself." },
+    ],
+  },
+
   // ───────────── Logic ─────────────
   {
-    name: "@fancy/branch",
-    aliases: ["branch"],
+    name: "@particle-academy/branch",
+    aliases: ["branch", "@fancy/branch"],
     category: "logic",
     label: "Branch",
     description: "Multi-way branch on a condition or value.",
@@ -190,8 +225,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/switch_case",
-    aliases: ["switch_case"],
+    name: "@particle-academy/switch_case",
+    aliases: ["switch_case", "@fancy/switch_case"],
     category: "logic",
     label: "Switch",
     description: "Route to one of N labelled outputs based on a key.",
@@ -218,8 +253,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/for_each",
-    aliases: ["for_each"],
+    name: "@particle-academy/for_each",
+    aliases: ["for_each", "@fancy/for_each"],
     category: "logic",
     label: "For Each",
     description: "Iterate over a list, emitting each item on `item`.",
@@ -232,8 +267,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/merge",
-    aliases: ["merge"],
+    name: "@particle-academy/merge",
+    aliases: ["merge", "@fancy/merge"],
     category: "logic",
     label: "Merge",
     description: "Combine multiple inputs into one object or array.",
@@ -246,8 +281,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/wait",
-    aliases: ["wait"],
+    name: "@particle-academy/wait",
+    aliases: ["wait", "@fancy/wait"],
     category: "logic",
     label: "Wait",
     description: "Sleep or wait for an external event.",
@@ -259,8 +294,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/transform",
-    aliases: ["transform"],
+    name: "@particle-academy/transform",
+    aliases: ["transform", "@fancy/transform"],
     category: "logic",
     label: "Transform",
     description: "Reshape data with an expression.",
@@ -273,8 +308,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── Data ─────────────
   {
-    name: "@fancy/memory_store",
-    aliases: ["memory_store"],
+    name: "@particle-academy/memory_store",
+    aliases: ["memory_store", "@fancy/memory_store"],
     category: "data",
     label: "Memory Store",
     description: "Read or write per-conversation memory.",
@@ -288,8 +323,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/data_store",
-    aliases: ["data_store"],
+    name: "@particle-academy/data_store",
+    aliases: ["data_store", "@fancy/data_store"],
     category: "data",
     label: "Data Store",
     description: "Key-value or table read/write against a host store.",
@@ -308,8 +343,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/variable",
-    aliases: ["variable"],
+    name: "@particle-academy/variable",
+    aliases: ["variable", "@fancy/variable"],
     category: "data",
     label: "Variable",
     description: "Workflow-scoped value used by other nodes.",
@@ -322,8 +357,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── AI ─────────────
   {
-    name: "@fancy/llm_call",
-    aliases: ["llm_call"],
+    name: "@particle-academy/llm_call",
+    aliases: ["llm_call", "@fancy/llm_call"],
     category: "ai",
     label: "LLM Call",
     description: "Send a prompt + context to a model and receive a response.",
@@ -345,8 +380,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/llm_branch",
-    aliases: ["llm_branch"],
+    name: "@particle-academy/llm_branch",
+    aliases: ["llm_branch", "@fancy/llm_branch"],
     category: "ai",
     label: "LLM Router",
     description: "Let a model choose which route the flow takes.",
@@ -355,6 +390,10 @@ const KINDS: NodeKindDefinition[] = [
     // Each declared route is a port. The executor returns `{ __port: id }`
     // (or `Port.only(id)` on the PHP runtime) to pick one.
     outputs: (config: any) => routePorts(config?.routes, config?.fallback),
+    // A shuttle, not an engine: it carries the routes out to whatever LLM
+    // client the host registered and carries the choice back. No provider SDK
+    // reaches core, so this stays a builtin without adding a dependency.
+    executor: llmBranchExecutor,
     configSchema: [
       { type: "textarea", key: "system", label: "System prompt", rows: 3,
         description: "Optional framing for the routing decision." },
@@ -391,8 +430,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/tool_use",
-    aliases: ["tool_use"],
+    name: "@particle-academy/tool_use",
+    aliases: ["tool_use", "@fancy/tool_use"],
     category: "ai",
     label: "Tool Use",
     description: "Hand control to a host-registered tool by name.",
@@ -403,8 +442,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/embed_search",
-    aliases: ["embed_search"],
+    name: "@particle-academy/embed_search",
+    aliases: ["embed_search", "@fancy/embed_search"],
     category: "ai",
     label: "Embed & Search",
     description: "Embed a query and search a vector store.",
@@ -418,8 +457,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── IO ─────────────
   {
-    name: "@fancy/api_request",
-    aliases: ["api_request"],
+    name: "@particle-academy/api_request",
+    aliases: ["api_request", "@fancy/api_request"],
     category: "io",
     label: "API Request",
     description: "HTTP request to any URL.",
@@ -433,8 +472,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/webhook_out",
-    aliases: ["webhook_out"],
+    name: "@particle-academy/webhook_out",
+    aliases: ["webhook_out", "@fancy/webhook_out"],
     category: "io",
     label: "Send Webhook",
     description: "POST a payload to a configured URL.",
@@ -448,8 +487,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── Human ─────────────
   {
-    name: "@fancy/human_approval",
-    aliases: ["human_approval"],
+    name: "@particle-academy/human_approval",
+    aliases: ["human_approval", "@fancy/human_approval"],
     category: "human",
     label: "Human Approval",
     description: "Pause until a human approves or denies.",
@@ -463,8 +502,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "@fancy/notify",
-    aliases: ["notify"],
+    name: "@particle-academy/notify",
+    aliases: ["notify", "@fancy/notify"],
     category: "human",
     label: "Notify",
     description: "Send a message via Slack / email / SMS / etc.",
@@ -482,8 +521,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── Output ─────────────
   {
-    name: "@fancy/output",
-    aliases: ["output"],
+    name: "@particle-academy/output",
+    aliases: ["output", "@fancy/output"],
     category: "output",
     label: "Output",
     description: "Terminal node — captures the workflow's result.",
@@ -492,8 +531,8 @@ const KINDS: NodeKindDefinition[] = [
     outputs: [],
   },
   {
-    name: "@fancy/log",
-    aliases: ["log"],
+    name: "@particle-academy/log",
+    aliases: ["log", "@fancy/log"],
     category: "output",
     label: "Log",
     description: "Send to the run feed.",

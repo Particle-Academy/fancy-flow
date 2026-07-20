@@ -300,7 +300,7 @@ describe("namespaced kind ids (#2)", () => {
   it("gives every builtin a namespaced canonical id", async () => {
     const { BUILTIN_KINDS } = await import("../src/registry/builtin");
     for (const kind of BUILTIN_KINDS) {
-      expect(kind.name.startsWith("@fancy/"), kind.name).toBe(true);
+      expect(kind.name.startsWith("@particle-academy/"), kind.name).toBe(true);
     }
   });
 
@@ -308,13 +308,13 @@ describe("namespaced kind ids (#2)", () => {
     // Every graph saved before this change carries the bare id. If these stop
     // resolving, those documents open as unknown nodes — the exact
     // un-migratable failure namespacing exists to prevent.
-    expect(getNodeKind("switch_case")?.name).toBe("@fancy/switch_case");
-    expect(getNodeKind("llm_branch")?.name).toBe("@fancy/llm_branch");
-    expect(getNodeKind("manual_trigger")?.name).toBe("@fancy/manual_trigger");
+    expect(getNodeKind("switch_case")?.name).toBe("@particle-academy/switch_case");
+    expect(getNodeKind("llm_branch")?.name).toBe("@particle-academy/llm_branch");
+    expect(getNodeKind("manual_trigger")?.name).toBe("@particle-academy/manual_trigger");
   });
 
   it("resolves the canonical id too", () => {
-    expect(getNodeKind("@fancy/switch_case")?.name).toBe("@fancy/switch_case");
+    expect(getNodeKind("@particle-academy/switch_case")?.name).toBe("@particle-academy/switch_case");
   });
 
   it("returns null for an unknown id rather than guessing", () => {
@@ -328,9 +328,9 @@ describe("namespaced kind ids (#2)", () => {
 
     // Two packages, same short name, no ambiguity.
     expect(resolveKindId("@acme/llm_branch")).toBe("@acme/llm_branch");
-    expect(resolveKindId("@fancy/llm_branch")).toBe("@fancy/llm_branch");
+    expect(resolveKindId("@particle-academy/llm_branch")).toBe("@particle-academy/llm_branch");
     // The bare alias still belongs to whoever registered it as an alias.
-    expect(resolveKindId("llm_branch")).toBe("@fancy/llm_branch");
+    expect(resolveKindId("llm_branch")).toBe("@particle-academy/llm_branch");
   });
 
   it("canonicalises a pre-namespace document on import", async () => {
@@ -346,8 +346,8 @@ describe("namespaced kind ids (#2)", () => {
 
     const back = importWorkflow(doc);
     const node = back.graph.nodes[0]!;
-    expect(node.type).toBe("@fancy/switch_case");
-    expect((node.data as any).kind).toBe("@fancy/switch_case");
+    expect(node.type).toBe("@particle-academy/switch_case");
+    expect((node.data as any).kind).toBe("@particle-academy/switch_case");
   });
 
   it("keys the xyflow node-type map on aliases as well as canonical ids", async () => {
@@ -355,7 +355,7 @@ describe("namespaced kind ids (#2)", () => {
     const types = buildNodeTypes();
     // xyflow resolves the renderer from `node.type` before any alias handling,
     // so a graph still carrying bare types must find one.
-    expect(types["@fancy/switch_case"]).toBeDefined();
+    expect(types["@particle-academy/switch_case"]).toBeDefined();
     expect(types["switch_case"]).toBeDefined();
   });
 
@@ -372,11 +372,11 @@ describe("executor binding survives namespacing", () => {
   beforeEach(() => registerBuiltinKinds());
 
   it("matches an executor bound under the BARE name after the rename", async () => {
-    // The trap: canonicalising node.type to "@fancy/switch_case" would stop
+    // The trap: canonicalising node.type to "@particle-academy/switch_case" would stop
     // matching every host that bound executors["switch_case"] — the node just
     // stops running, with no error. A rename must not break bindings.
     const graph: FlowGraph = {
-      nodes: [node("sw", "@fancy/switch_case", { kind: "@fancy/switch_case", config: {} })],
+      nodes: [node("sw", "@particle-academy/switch_case", { kind: "@particle-academy/switch_case", config: {} })],
       edges: [],
     };
     let ran = false;
@@ -387,18 +387,18 @@ describe("executor binding survives namespacing", () => {
 
   it("matches an executor bound under the CANONICAL name", async () => {
     const graph: FlowGraph = {
-      nodes: [node("sw", "@fancy/switch_case", { kind: "@fancy/switch_case", config: {} })],
+      nodes: [node("sw", "@particle-academy/switch_case", { kind: "@particle-academy/switch_case", config: {} })],
       edges: [],
     };
     let ran = false;
-    const result = await runFlow(graph, { "@fancy/switch_case": () => { ran = true; return {}; } });
+    const result = await runFlow(graph, { "@particle-academy/switch_case": () => { ran = true; return {}; } });
     expect(result.ok).toBe(true);
     expect(ran).toBe(true);
   });
 
   it("still prefers a per-node id binding over the kind", async () => {
     const graph: FlowGraph = {
-      nodes: [node("sw", "@fancy/switch_case", { kind: "@fancy/switch_case", config: {} })],
+      nodes: [node("sw", "@particle-academy/switch_case", { kind: "@particle-academy/switch_case", config: {} })],
       edges: [],
     };
     const order: string[] = [];

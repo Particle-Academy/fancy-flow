@@ -20,6 +20,24 @@ export type {
 
 export { resolvePortSpec, resolveNodePorts, nodeConfig } from "./ports";
 
+/** Host capabilities — core declares the contract, the host supplies the impl. */
+export {
+  registerLlmClient,
+  getLlmClient,
+  registerWorkflowResolver,
+  getWorkflowResolver,
+  capabilityStatus,
+  type LlmClient,
+  type LlmRoute,
+  type LlmRouteRequest,
+  type LlmRouteChoice,
+  type WorkflowResolver,
+  type CapabilityId,
+} from "./capabilities";
+
+export { subflowExecutor, subflowPorts, subflowMode, DEFAULT_MAX_DEPTH, type SubflowMode } from "./subflow";
+export { llmBranchExecutor, declaredRoutes, resolveFallbackPort } from "./llm-branch";
+
 export {
   registerRichInputAdapter,
   getRichInputAdapter,
