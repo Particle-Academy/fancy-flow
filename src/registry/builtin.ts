@@ -69,7 +69,8 @@ const HTTP_METHODS: ConfigField[] = [
 const KINDS: NodeKindDefinition[] = [
   // ───────────── Triggers ─────────────
   {
-    name: "manual_trigger",
+    name: "@fancy/manual_trigger",
+    aliases: ["manual_trigger"],
     category: "trigger",
     label: "Manual",
     description: "Entry point fired when the user clicks Run.",
@@ -78,7 +79,8 @@ const KINDS: NodeKindDefinition[] = [
     outputs: [{ id: "out" }],
   },
   {
-    name: "webhook_trigger",
+    name: "@fancy/webhook_trigger",
+    aliases: ["webhook_trigger"],
     category: "trigger",
     label: "Webhook",
     description: "Triggered by an inbound HTTP request to a host-provided URL.",
@@ -94,7 +96,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "schedule_trigger",
+    name: "@fancy/schedule_trigger",
+    aliases: ["schedule_trigger"],
     category: "trigger",
     label: "Schedule",
     description: "Fires on a cron schedule (host-implemented).",
@@ -108,7 +111,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "user_input",
+    name: "@fancy/user_input",
+    aliases: ["user_input"],
     category: "human",
     label: "User Input",
     description: "Pause the flow until the user submits the configured form.",
@@ -146,7 +150,8 @@ const KINDS: NodeKindDefinition[] = [
   },
 
   {
-    name: "rich_user_input",
+    name: "@fancy/rich_user_input",
+    aliases: ["rich_user_input"],
     category: "human",
     label: "Rich User Input",
     description: "Pause the flow on a fully authored page — content, required reading, multi-section forms.",
@@ -172,7 +177,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── Logic ─────────────
   {
-    name: "branch",
+    name: "@fancy/branch",
+    aliases: ["branch"],
     category: "logic",
     label: "Branch",
     description: "Multi-way branch on a condition or value.",
@@ -184,7 +190,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "switch_case",
+    name: "@fancy/switch_case",
+    aliases: ["switch_case"],
     category: "logic",
     label: "Switch",
     description: "Route to one of N labelled outputs based on a key.",
@@ -211,7 +218,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "for_each",
+    name: "@fancy/for_each",
+    aliases: ["for_each"],
     category: "logic",
     label: "For Each",
     description: "Iterate over a list, emitting each item on `item`.",
@@ -224,7 +232,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "merge",
+    name: "@fancy/merge",
+    aliases: ["merge"],
     category: "logic",
     label: "Merge",
     description: "Combine multiple inputs into one object or array.",
@@ -237,7 +246,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "wait",
+    name: "@fancy/wait",
+    aliases: ["wait"],
     category: "logic",
     label: "Wait",
     description: "Sleep or wait for an external event.",
@@ -249,7 +259,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "transform",
+    name: "@fancy/transform",
+    aliases: ["transform"],
     category: "logic",
     label: "Transform",
     description: "Reshape data with an expression.",
@@ -262,7 +273,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── Data ─────────────
   {
-    name: "memory_store",
+    name: "@fancy/memory_store",
+    aliases: ["memory_store"],
     category: "data",
     label: "Memory Store",
     description: "Read or write per-conversation memory.",
@@ -276,7 +288,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "data_store",
+    name: "@fancy/data_store",
+    aliases: ["data_store"],
     category: "data",
     label: "Data Store",
     description: "Key-value or table read/write against a host store.",
@@ -295,7 +308,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "variable",
+    name: "@fancy/variable",
+    aliases: ["variable"],
     category: "data",
     label: "Variable",
     description: "Workflow-scoped value used by other nodes.",
@@ -308,7 +322,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── AI ─────────────
   {
-    name: "llm_call",
+    name: "@fancy/llm_call",
+    aliases: ["llm_call"],
     category: "ai",
     label: "LLM Call",
     description: "Send a prompt + context to a model and receive a response.",
@@ -330,7 +345,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "llm_branch",
+    name: "@fancy/llm_branch",
+    aliases: ["llm_branch"],
     category: "ai",
     label: "LLM Router",
     description: "Let a model choose which route the flow takes.",
@@ -375,7 +391,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "tool_use",
+    name: "@fancy/tool_use",
+    aliases: ["tool_use"],
     category: "ai",
     label: "Tool Use",
     description: "Hand control to a host-registered tool by name.",
@@ -386,7 +403,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "embed_search",
+    name: "@fancy/embed_search",
+    aliases: ["embed_search"],
     category: "ai",
     label: "Embed & Search",
     description: "Embed a query and search a vector store.",
@@ -400,7 +418,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── IO ─────────────
   {
-    name: "api_request",
+    name: "@fancy/api_request",
+    aliases: ["api_request"],
     category: "io",
     label: "API Request",
     description: "HTTP request to any URL.",
@@ -414,7 +433,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "webhook_out",
+    name: "@fancy/webhook_out",
+    aliases: ["webhook_out"],
     category: "io",
     label: "Send Webhook",
     description: "POST a payload to a configured URL.",
@@ -428,7 +448,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── Human ─────────────
   {
-    name: "human_approval",
+    name: "@fancy/human_approval",
+    aliases: ["human_approval"],
     category: "human",
     label: "Human Approval",
     description: "Pause until a human approves or denies.",
@@ -442,7 +463,8 @@ const KINDS: NodeKindDefinition[] = [
     ],
   },
   {
-    name: "notify",
+    name: "@fancy/notify",
+    aliases: ["notify"],
     category: "human",
     label: "Notify",
     description: "Send a message via Slack / email / SMS / etc.",
@@ -460,7 +482,8 @@ const KINDS: NodeKindDefinition[] = [
 
   // ───────────── Output ─────────────
   {
-    name: "output",
+    name: "@fancy/output",
+    aliases: ["output"],
     category: "output",
     label: "Output",
     description: "Terminal node — captures the workflow's result.",
@@ -469,7 +492,8 @@ const KINDS: NodeKindDefinition[] = [
     outputs: [],
   },
   {
-    name: "log",
+    name: "@fancy/log",
+    aliases: ["log"],
     category: "output",
     label: "Log",
     description: "Send to the run feed.",

@@ -172,12 +172,16 @@ export function importWorkflow(schema: unknown, options: ImportOptions = {}): Im
         issues.push({ level: "warning", nodeId: n.id, message: `${iss.key}: ${iss.message}` });
       }
     }
+    // Canonicalise on the way in: a document may carry a pre-namespace id, and
+    // rewriting it here means the graph converges on the canonical id the next
+    // time it is saved, rather than carrying the ambiguous name forever.
+    const kindId = kind?.name ?? n.kind;
     return {
       id: n.id,
-      type: n.kind,
+      type: kindId,
       position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
       data: {
-        kind: n.kind,
+        kind: kindId,
         label: n.label ?? kind?.label ?? n.kind,
         description: n.description,
         config,

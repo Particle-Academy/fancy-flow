@@ -293,3 +293,119 @@ describe("schema carries resolved ports (cross-runtime parity)", () => {
     expect(exported.outputs?.map((p) => p.id)).toEqual(["billing", "support", "fallback"]);
   });
 });
+
+describe("namespaced kind ids (#2)", () => {
+  beforeEach(() => registerBuiltinKinds());
+
+  it("gives every builtin a namespaced canonical id", async () => {
+    const { BUILTIN_KINDS } = await import("../src/registry/builtin");
+    for (const kind of BUILTIN_KINDS) {
+      expect(kind.name.startsWith("@fancy/"), kind.name).toBe(true);
+    }
+  });
+
+  it("still resolves the bare pre-namespace name", () => {
+    // Every graph saved before this change carries the bare id. If these stop
+    // resolving, those documents open as unknown nodes — the exact
+    // un-migratable failure namespacing exists to prevent.
+    expect(getNodeKind("switch_case")?.name).toBe("@fancy/switch_case");
+    expect(getNodeKind("llm_branch")?.name).toBe("@fancy/llm_branch");
+    expect(getNodeKind("manual_trigger")?.name).toBe("@fancy/manual_trigger");
+  });
+
+  it("resolves the canonical id too", () => {
+    expect(getNodeKind("@fancy/switch_case")?.name).toBe("@fancy/switch_case");
+  });
+
+  it("returns null for an unknown id rather than guessing", () => {
+    expect(getNodeKind("@acme/not_installed")).toBeNull();
+    expect(getNodeKind("totally_unknown")).toBeNull();
+  });
+
+  it("lets a third-party kind claim its own namespace without colliding", async () => {
+    const { resolveKindId } = await import("../src/registry/registry");
+    registerNodeKind({ name: "@acme/llm_branch", category: "ai", label: "Acme Router" });
+
+    // Two packages, same short name, no ambiguity.
+    expect(resolveKindId("@acme/llm_branch")).toBe("@acme/llm_branch");
+    expect(resolveKindId("@fancy/llm_branch")).toBe("@fancy/llm_branch");
+    // The bare alias still belongs to whoever registered it as an alias.
+    expect(resolveKindId("llm_branch")).toBe("@fancy/llm_branch");
+  });
+
+  it("canonicalises a pre-namespace document on import", async () => {
+    const { importWorkflow } = await import("../src/schema/workflow-schema");
+    const doc = {
+      $schema: "https://particle.academy/schemas/workflow/v1.json",
+      version: 1,
+      graph: {
+        nodes: [{ id: "sw", kind: "switch_case", position: { x: 0, y: 0 }, config: {} }],
+        edges: [],
+      },
+    } as any;
+
+    const back = importWorkflow(doc);
+    const node = back.graph.nodes[0]!;
+    expect(node.type).toBe("@fancy/switch_case");
+    expect((node.data as any).kind).toBe("@fancy/switch_case");
+  });
+
+  it("keys the xyflow node-type map on aliases as well as canonical ids", async () => {
+    const { buildNodeTypes } = await import("../src/registry");
+    const types = buildNodeTypes();
+    // xyflow resolves the renderer from `node.type` before any alias handling,
+    // so a graph still carrying bare types must find one.
+    expect(types["@fancy/switch_case"]).toBeDefined();
+    expect(types["switch_case"]).toBeDefined();
+  });
+
+  it("unregisters a kind's aliases with it", async () => {
+    const { resolveKindId } = await import("../src/registry/registry");
+    const off = registerNodeKind({ name: "@tmp/thing", category: "custom", label: "T", aliases: ["thing"] });
+    expect(resolveKindId("thing")).toBe("@tmp/thing");
+    off();
+    expect(resolveKindId("thing")).toBeNull();
+  });
+});
+
+describe("executor binding survives namespacing", () => {
+  beforeEach(() => registerBuiltinKinds());
+
+  it("matches an executor bound under the BARE name after the rename", async () => {
+    // The trap: canonicalising node.type to "@fancy/switch_case" would stop
+    // matching every host that bound executors["switch_case"] — the node just
+    // stops running, with no error. A rename must not break bindings.
+    const graph: FlowGraph = {
+      nodes: [node("sw", "@fancy/switch_case", { kind: "@fancy/switch_case", config: {} })],
+      edges: [],
+    };
+    let ran = false;
+    const result = await runFlow(graph, { switch_case: () => { ran = true; return {}; } });
+    expect(result.ok).toBe(true);
+    expect(ran).toBe(true);
+  });
+
+  it("matches an executor bound under the CANONICAL name", async () => {
+    const graph: FlowGraph = {
+      nodes: [node("sw", "@fancy/switch_case", { kind: "@fancy/switch_case", config: {} })],
+      edges: [],
+    };
+    let ran = false;
+    const result = await runFlow(graph, { "@fancy/switch_case": () => { ran = true; return {}; } });
+    expect(result.ok).toBe(true);
+    expect(ran).toBe(true);
+  });
+
+  it("still prefers a per-node id binding over the kind", async () => {
+    const graph: FlowGraph = {
+      nodes: [node("sw", "@fancy/switch_case", { kind: "@fancy/switch_case", config: {} })],
+      edges: [],
+    };
+    const order: string[] = [];
+    await runFlow(graph, {
+      sw: () => { order.push("by-id"); return {}; },
+      switch_case: () => { order.push("by-kind"); return {}; },
+    });
+    expect(order).toEqual(["by-id"]);
+  });
+});

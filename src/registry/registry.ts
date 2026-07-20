@@ -1,29 +1,60 @@
 import type { ConfigField, NodeKindDefinition } from "./types";
 
 const kinds = new Map<string, NodeKindDefinition<any, any, any>>();
+/** alias → canonical name. See `resolveKindId`. */
+const aliases = new Map<string, string>();
 const listeners = new Set<() => void>();
 
 /**
  * registerNodeKind — install a node kind in the global registry. Returns
  * an `unregister` function. Calling with the same name replaces the prior
  * registration (handy for HMR).
+ *
+ * A kind's `name` is its CANONICAL id and is what gets written into saved
+ * documents. Publish namespaced (`@fancy/llm_branch`, `@acme/salesforce_upsert`)
+ * and list any previous bare names in `aliases`, so graphs saved before the
+ * rename keep resolving.
  */
 export function registerNodeKind<TC = any, TI = any, TO = any>(
   definition: NodeKindDefinition<TC, TI, TO>,
 ): () => void {
   kinds.set(definition.name, definition as NodeKindDefinition<any, any, any>);
+  for (const alias of definition.aliases ?? []) aliases.set(alias, definition.name);
   notify();
   return () => {
     if (kinds.get(definition.name) === (definition as any)) {
       kinds.delete(definition.name);
+      for (const alias of definition.aliases ?? []) {
+        if (aliases.get(alias) === definition.name) aliases.delete(alias);
+      }
       notify();
     }
   };
 }
 
-/** Get a single kind by name, or null. */
+/**
+ * Resolve any id — canonical or alias — to the canonical one, or null.
+ *
+ * `kind` is persisted inside every saved graph, so a bare name that two
+ * packages could both claim is unfixable after the fact: the ambiguous string
+ * is already in the document. Canonical ids are namespaced; aliases exist so
+ * documents written before namespacing keep opening.
+ */
+export function resolveKindId(id: string): string | null {
+  if (kinds.has(id)) return id;
+  const canonical = aliases.get(id);
+  return canonical && kinds.has(canonical) ? canonical : null;
+}
+
+/** Get a single kind by canonical id or alias, or null. */
 export function getNodeKind(name: string): NodeKindDefinition | null {
-  return (kinds.get(name) as NodeKindDefinition) ?? null;
+  const canonical = resolveKindId(name);
+  return canonical ? ((kinds.get(canonical) as NodeKindDefinition) ?? null) : null;
+}
+
+/** Every id a kind answers to — canonical first. Used to key node-type maps. */
+export function kindIds(kind: NodeKindDefinition): string[] {
+  return [kind.name, ...(kind.aliases ?? [])];
 }
 
 /** List every registered kind, optionally filtered by category. */

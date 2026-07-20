@@ -9,7 +9,7 @@ import type {
 // Both modules are React-free by design — the `/engine` entry must not pull in
 // React. Import them directly rather than via the `registry` barrel, which
 // re-exports the RegistryNode component.
-import { getNodeKind } from "../registry/registry";
+import { getNodeKind, kindIds } from "../registry/registry";
 import { resolveNodePorts } from "../registry/ports";
 
 export type RunOptions = {
@@ -204,6 +204,19 @@ function pickExecutor(
 ): NodeExecutor | undefined {
   if (executors[node.id]) return executors[node.id];
   if (node.type && executors[node.type]) return executors[node.type];
+
+  // Try every id the kind answers to. Kinds are namespaced (`@fancy/switch_case`)
+  // while a host may have bound its executor under the bare name it used before
+  // — or vice versa. Without this, the rename would silently stop matching and
+  // the node would fall through to `*` or simply not run: a breaking change
+  // wearing the costume of a rename.
+  const kind = node.type ? getNodeKind(node.type) : null;
+  if (kind) {
+    for (const id of kindIds(kind)) {
+      if (executors[id]) return executors[id];
+    }
+  }
+
   return executors["*"];
 }
 

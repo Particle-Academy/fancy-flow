@@ -198,8 +198,22 @@ export type RenderBodyContext<TConfig = unknown> = {
  * registry to know what's authorable.
  */
 export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOut = any> = {
-  /** Stable identifier — used as the xyflow node `type` and the schema export key. */
+  /**
+   * Canonical identifier — the xyflow node `type` and the value persisted as
+   * `kind` in every saved document.
+   *
+   * Namespace it when publishing (`@fancy/llm_branch`,
+   * `@acme/salesforce_upsert`). A bare name that two packages could both claim
+   * makes stored graphs ambiguous, and that is unfixable afterwards because the
+   * ambiguous string is already written into the document.
+   */
   name: string;
+  /**
+   * Other ids this kind answers to — previous bare names, or a short alias.
+   * Resolution accepts them, but export always writes `name`, so documents
+   * converge on the canonical id as they are re-saved.
+   */
+  aliases?: string[];
   /** Palette grouping. */
   category: NodeCategory;
   /** Display label. */
