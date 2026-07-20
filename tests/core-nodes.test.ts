@@ -4,7 +4,7 @@ import { getNodeKind } from "../src/registry/registry";
 import { resolvePortSpec } from "../src/registry/ports";
 import { registerLlmClient, registerWorkflowResolver } from "../src/registry/capabilities";
 import { subflowExecutor, subflowMode, subflowPorts, DEFAULT_MAX_DEPTH } from "../src/registry/subflow";
-import { llmBranchExecutor, declaredRoutes, resolveFallbackPort } from "../src/registry/llm-branch";
+import { llmRouterExecutor, declaredRoutes, resolveFallbackPort } from "../src/registry/llm-router";
 import { runFlow } from "../src/runtime/run-flow";
 import type { ExecutorRegistry, FlowGraph, RunEvent } from "../src/types";
 
@@ -33,12 +33,12 @@ function ctx(config: Record<string, unknown>, extra: Record<string, unknown> = {
   };
 }
 
-describe("llm_branch — a shuttle, not an engine", () => {
+describe("llm_router — a shuttle, not an engine", () => {
   beforeEach(() => registerBuiltinKinds());
 
   it("is a core builtin with an executor attached", () => {
     const kind = getNodeKind("llm_branch");
-    expect(kind?.name).toBe("@particle-academy/llm_branch");
+    expect(kind?.name).toBe("@particle-academy/llm_router");
     // Core ships the routing; the model call comes from the host's client.
     expect(kind?.executor).toBeTypeOf("function");
   });
@@ -53,7 +53,7 @@ describe("llm_branch — a shuttle, not an engine", () => {
   it("asks the host's client and routes to its choice", async () => {
     teardown.push(registerLlmClient({ chooseRoute: () => ({ port: "billing", reason: "invoice" }) }));
     const c = ctx({ prompt: "help", routes: [{ port: "billing" }, { port: "support" }] });
-    const out: any = await llmBranchExecutor(c.call);
+    const out: any = await llmRouterExecutor(c.call);
     expect(out.__port).toBe("billing");
     expect(out.value.reason).toBe("invoice");
   });
@@ -61,7 +61,7 @@ describe("llm_branch — a shuttle, not an engine", () => {
   it("carries the reason down the chosen port so a run explains itself", async () => {
     teardown.push(registerLlmClient({ chooseRoute: () => ({ port: "a", reason: "because" }) }));
     const c = ctx({ prompt: "x", routes: [{ port: "a" }] });
-    const out: any = await llmBranchExecutor(c.call);
+    const out: any = await llmRouterExecutor(c.call);
     expect(out.value).toMatchObject({ route: "a", reason: "because" });
   });
 
@@ -70,7 +70,7 @@ describe("llm_branch — a shuttle, not an engine", () => {
     // reports success having done nothing — the worst failure in a workflow.
     teardown.push(registerLlmClient({ chooseRoute: () => ({ port: "totally-made-up" }) }));
     const c = ctx({ prompt: "x", routes: [{ port: "a" }, { port: "b" }], fallback: true });
-    const out: any = await llmBranchExecutor(c.call);
+    const out: any = await llmRouterExecutor(c.call);
     expect(out.__port).toBe("fallback");
     expect(c.events.some((e) => e.type === "log" && (e as any).level === "warn")).toBe(true);
   });
@@ -78,7 +78,7 @@ describe("llm_branch — a shuttle, not an engine", () => {
   it("falls back to the first route when the fallback port is switched off", async () => {
     teardown.push(registerLlmClient({ chooseRoute: () => ({ port: "nope" }) }));
     const c = ctx({ prompt: "x", routes: [{ port: "first" }, { port: "second" }], fallback: false });
-    const out: any = await llmBranchExecutor(c.call);
+    const out: any = await llmRouterExecutor(c.call);
     expect(out.__port).toBe("first");
   });
 
@@ -89,13 +89,13 @@ describe("llm_branch — a shuttle, not an engine", () => {
 
   it("fails loudly when no client is registered rather than guessing a branch", async () => {
     const c = ctx({ prompt: "x", routes: [{ port: "a" }] });
-    await expect(llmBranchExecutor(c.call)).rejects.toThrow(/registerLlmClient/);
+    await expect(llmRouterExecutor(c.call)).rejects.toThrow(/registerLlmClient/);
   });
 
   it("aborts when no routes are configured", async () => {
     teardown.push(registerLlmClient({ chooseRoute: () => ({ port: "a" }) }));
     const c = ctx({ prompt: "x", routes: [] });
-    await expect(llmBranchExecutor(c.call)).rejects.toThrow(/no routes/i);
+    await expect(llmRouterExecutor(c.call)).rejects.toThrow(/no routes/i);
   });
 
   it("imports no provider SDK into core", async () => {
@@ -208,5 +208,55 @@ describe("subflow — run another workflow", () => {
     };
     await runFlow(graph, executors, () => {}, { depth: 2 });
     expect(seen).toEqual([2]);
+  });
+});
+
+describe("config authoring surface", () => {
+  beforeEach(() => registerBuiltinKinds());
+
+  /** Fields an author has to hand-write as raw text rather than compose. */
+  const RAW = new Set(["json", "expression"]);
+
+  it("has no node whose config is ONLY raw json/expression", async () => {
+    // A node configured solely by a hand-written blob pushes the authoring cost
+    // onto every user and makes NodeConfigPanel stop being the single authoring
+    // surface. Structured fields (repeater/keyvalue/select) exist for this.
+    const { BUILTIN_KINDS } = await import("../src/registry/builtin");
+    const offenders: string[] = [];
+
+    for (const kind of BUILTIN_KINDS) {
+      const schema = kind.configSchema ?? [];
+      if (schema.length === 0) continue;
+      if (schema.every((f) => RAW.has(f.type))) offenders.push(kind.name);
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("only uses a json field where the value genuinely IS json", async () => {
+    // The exception, and the whole exception: a JSON Schema and an HTTP JSON
+    // body are json. A header map, a filter map and a tool list are not.
+    const { BUILTIN_KINDS } = await import("../src/registry/builtin");
+    const jsonFields: string[] = [];
+
+    const walk = (fields: readonly any[]) => {
+      for (const f of fields) {
+        if (f.type === "json") jsonFields.push(f.key);
+        if (f.type === "repeater") walk(f.fields ?? []);
+      }
+    };
+    for (const kind of BUILTIN_KINDS) walk(kind.configSchema ?? []);
+
+    // Keep this list short and justified. Adding to it should require an
+    // argument, which is the point of asserting on it.
+    expect([...new Set(jsonFields)].sort()).toEqual(["body", "input_schema"]);
+  });
+
+  it("gives branch a structured condition builder, not a bare expression", async () => {
+    const kind = getNodeKind("branch")!;
+    const types = (kind.configSchema ?? []).map((f) => f.type);
+    expect(types).toContain("repeater");
+    // The raw expression survives as a deliberate escape hatch, not the only way in.
+    expect(types).toContain("expression");
   });
 });

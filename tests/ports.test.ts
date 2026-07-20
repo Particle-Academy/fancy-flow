@@ -77,7 +77,7 @@ describe("builtin config-driven ports", () => {
   });
 
   it("turns llm_branch routes into ports and drops blanks/duplicates", () => {
-    const kind = getNodeKind("llm_branch")!;
+    const kind = getNodeKind("llm_router")!;
     const ports = resolvePortSpec(kind.outputs, {
       routes: [{ port: "billing" }, { port: "" }, { port: "billing" }, { port: "support" }],
       fallback: true,
@@ -86,7 +86,7 @@ describe("builtin config-driven ports", () => {
   });
 
   it("omits llm_branch's fallback port when it is switched off", () => {
-    const kind = getNodeKind("llm_branch")!;
+    const kind = getNodeKind("llm_router")!;
     const ports = resolvePortSpec(kind.outputs, { routes: [{ port: "a" }], fallback: false });
     expect(ports?.map((p) => p.id)).toEqual(["a"]);
   });
@@ -309,7 +309,7 @@ describe("namespaced kind ids (#2)", () => {
     // resolving, those documents open as unknown nodes — the exact
     // un-migratable failure namespacing exists to prevent.
     expect(getNodeKind("switch_case")?.name).toBe("@particle-academy/switch_case");
-    expect(getNodeKind("llm_branch")?.name).toBe("@particle-academy/llm_branch");
+    expect(getNodeKind("llm_branch")?.name).toBe("@particle-academy/llm_router");
     expect(getNodeKind("manual_trigger")?.name).toBe("@particle-academy/manual_trigger");
   });
 
@@ -328,9 +328,9 @@ describe("namespaced kind ids (#2)", () => {
 
     // Two packages, same short name, no ambiguity.
     expect(resolveKindId("@acme/llm_branch")).toBe("@acme/llm_branch");
-    expect(resolveKindId("@particle-academy/llm_branch")).toBe("@particle-academy/llm_branch");
+    expect(resolveKindId("@particle-academy/llm_router")).toBe("@particle-academy/llm_router");
     // The bare alias still belongs to whoever registered it as an alias.
-    expect(resolveKindId("llm_branch")).toBe("@particle-academy/llm_branch");
+    expect(resolveKindId("llm_branch")).toBe("@particle-academy/llm_router");
   });
 
   it("canonicalises a pre-namespace document on import", async () => {

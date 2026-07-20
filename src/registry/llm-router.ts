@@ -39,12 +39,12 @@ export function resolveFallbackPort(routes: LlmRoute[], fallbackEnabled: boolean
   return routes[0]?.port ?? "out";
 }
 
-export const llmBranchExecutor: NodeExecutor = async (ctx) => {
+export const llmRouterExecutor: NodeExecutor = async (ctx) => {
   const config = ((ctx.node.data as any)?.config ?? {}) as Record<string, unknown>;
   const routes = declaredRoutes(config);
 
   if (routes.length === 0) {
-    ctx.abort("llm_branch has no routes configured");
+    ctx.abort("llm_router has no routes configured");
   }
 
   const client = getLlmClient();
@@ -77,7 +77,7 @@ export const llmBranchExecutor: NodeExecutor = async (ctx) => {
       type: "log",
       nodeId: ctx.node.id,
       level: "warn",
-      message: `llm_branch: model returned "${port || "(nothing)"}", which is not a declared route. Routing to "${safe}".`,
+      message: `llm_router: model returned "${port || "(nothing)"}", which is not a declared route. Routing to "${safe}".`,
     });
     reason = reason ?? `unrecognised route "${port}"`;
     port = safe;

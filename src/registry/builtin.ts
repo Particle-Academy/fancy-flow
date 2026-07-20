@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { registerNodeKind } from "./registry";
 import { RichInputPreview } from "./rich-input";
-import { llmBranchExecutor } from "./llm-branch";
+import { llmRouterExecutor } from "./llm-router";
 import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
 import type { PortDescriptor } from "../types";
 import type { ConfigField, NodeKindDefinition } from "./types";
@@ -203,8 +203,9 @@ const KINDS: NodeKindDefinition[] = [
         ],
         description: "Streaming adds a second port so a parent can show progress instead of a spinner.",
       },
-      { type: "json", key: "inputs", label: "Input mapping",
-        description: "Entry-point inputs for the child run. Omit to pass this node's inputs straight through." },
+      { type: "keyvalue", key: "inputs", label: "Input mapping",
+        description: "Values handed to the child's entry points. Omit to pass this node's inputs straight through.",
+        keyLabel: "Name", valueLabel: "Value", addLabel: "Add input" },
       { type: "number", key: "maxDepth", label: "Max nesting depth", default: DEFAULT_MAX_DEPTH, min: 1, max: 32,
         description: "Guards against a workflow referencing itself." },
     ],
@@ -221,7 +222,51 @@ const KINDS: NodeKindDefinition[] = [
     inputs: [{ id: "in" }],
     outputs: [{ id: "true", label: "true" }, { id: "false", label: "false" }],
     configSchema: [
-      { type: "expression", key: "condition", label: "Condition", example: "{{ $json.active }}", required: true },
+      {
+        type: "select", key: "match", label: "Match", default: "all",
+        options: [
+          { value: "all", label: "All conditions (AND)" },
+          { value: "any", label: "Any condition (OR)" },
+        ],
+      },
+      {
+        type: "repeater",
+        key: "conditions",
+        label: "Conditions",
+        description: "Routes to `true` when these match, otherwise `false`.",
+        titleKey: "left",
+        addLabel: "Add condition",
+        minItems: 1,
+        fields: [
+          { type: "expression", key: "left", label: "Value", example: "{{ $json.status }}", required: true },
+          {
+            type: "select", key: "operator", label: "Is", default: "eq",
+            options: [
+              { value: "eq", label: "equal to" },
+              { value: "neq", label: "not equal to" },
+              { value: "contains", label: "contains" },
+              { value: "not_contains", label: "does not contain" },
+              { value: "gt", label: "greater than" },
+              { value: "gte", label: "greater than or equal to" },
+              { value: "lt", label: "less than" },
+              { value: "lte", label: "less than or equal to" },
+              { value: "truthy", label: "true" },
+              { value: "falsy", label: "false" },
+              { value: "empty", label: "empty" },
+              { value: "not_empty", label: "not empty" },
+            ],
+          },
+          { type: "text", key: "right", label: "Compared to", placeholder: "active" },
+        ],
+        default: [{ left: "", operator: "eq", right: "" }],
+      },
+      {
+        type: "expression",
+        key: "condition",
+        label: "Raw expression (advanced)",
+        example: "{{ $json.active && $json.score > 10 }}",
+        description: "Escape hatch for logic the builder can't express. Overrides the conditions above when set.",
+      },
     ],
   },
   {
@@ -301,8 +346,33 @@ const KINDS: NodeKindDefinition[] = [
     description: "Reshape data with an expression.",
     icon: "ƒ",
     configSchema: [
-      { type: "expression", key: "expression", label: "Expression",
-        example: "{{ { id: $json.id, name: $json.first + ' ' + $json.last } }}", required: true },
+      {
+        type: "select", key: "mode", label: "Build the output", default: "fields",
+        options: [
+          { value: "fields", label: "Field by field" },
+          { value: "expression", label: "One expression" },
+        ],
+      },
+      {
+        type: "repeater",
+        key: "fields",
+        label: "Output fields",
+        description: "Each row becomes a key on the result.",
+        titleKey: "key",
+        addLabel: "Add field",
+        fields: [
+          { type: "text", key: "key", label: "Key", required: true, placeholder: "name" },
+          { type: "expression", key: "value", label: "Value", example: "{{ $json.first }}", required: true },
+        ],
+        default: [{ key: "", value: "" }],
+      },
+      {
+        type: "expression",
+        key: "expression",
+        label: "Expression (advanced)",
+        example: "{{ { id: $json.id, name: $json.first + ' ' + $json.last } }}",
+        description: "Used when the mode above is set to one expression.",
+      },
     ],
   },
 
@@ -337,7 +407,9 @@ const KINDS: NodeKindDefinition[] = [
         ] },
       { type: "text", key: "table", label: "Table / collection", required: true },
       { type: "text", key: "key", label: "Key" },
-      { type: "json", key: "where", label: "Where (JSON)", description: "For query/list operations." },
+      { type: "keyvalue", key: "where", label: "Where",
+        description: "Field/value pairs to match. For query and list operations.",
+        keyLabel: "Field", valueLabel: "Equals", addLabel: "Add filter" },
       { type: "expression", key: "value", label: "Value (set only)", example: "{{ $json }}" },
       { type: "credential", key: "store", label: "Data store", credentialType: "data_store" },
     ],
@@ -375,13 +447,25 @@ const KINDS: NodeKindDefinition[] = [
       { type: "expression", key: "prompt", label: "User prompt", example: "{{ $json.question }}", required: true },
       { type: "number", key: "temperature", label: "Temperature", min: 0, max: 2, step: 0.1, default: 0.7 },
       { type: "number", key: "max_tokens", label: "Max tokens", min: 1, max: 8192, default: 1024 },
-      { type: "json", key: "tools", label: "Tools (JSON)", description: "Optional Anthropic-style tool definitions." },
+      {
+        type: "repeater", key: "tools", label: "Tools",
+        description: "Tools the model may call.",
+        titleKey: "name", addLabel: "Add tool",
+        fields: [
+          { type: "text", key: "name", label: "Name", required: true, placeholder: "search_index" },
+          { type: "text", key: "description", label: "When to use it" },
+          { type: "json", key: "input_schema", label: "Input schema",
+            description: "JSON Schema for the tool's arguments." },
+        ],
+      },
       { type: "credential", key: "credential", label: "API credential", credentialType: "llm_credential" },
     ],
   },
   {
-    name: "@particle-academy/llm_branch",
-    aliases: ["llm_branch", "@fancy/llm_branch"],
+    name: "@particle-academy/llm_router",
+    // Every id this node has ever shipped under keeps resolving — MOIC's saved
+    // flows carry the bare `llm_branch`.
+    aliases: ["llm_router", "llm_branch", "@fancy/llm_branch", "@fancy/llm_router"],
     category: "ai",
     label: "LLM Router",
     description: "Let a model choose which route the flow takes.",
@@ -393,7 +477,7 @@ const KINDS: NodeKindDefinition[] = [
     // A shuttle, not an engine: it carries the routes out to whatever LLM
     // client the host registered and carries the choice back. No provider SDK
     // reaches core, so this stays a builtin without adding a dependency.
-    executor: llmBranchExecutor,
+    executor: llmRouterExecutor,
     configSchema: [
       { type: "textarea", key: "system", label: "System prompt", rows: 3,
         description: "Optional framing for the routing decision." },
@@ -466,7 +550,11 @@ const KINDS: NodeKindDefinition[] = [
     configSchema: [
       ...HTTP_METHODS,
       { type: "text", key: "url", label: "URL", placeholder: "https://api.example.com/...", required: true },
-      { type: "json", key: "headers", label: "Headers", default: { "content-type": "application/json" } },
+      { type: "keyvalue", key: "headers", label: "Headers",
+        keyLabel: "Header", valueLabel: "Value",
+        keyPlaceholder: "content-type", valuePlaceholder: "application/json",
+        addLabel: "Add header",
+        default: { "content-type": "application/json" } },
       { type: "json", key: "body", label: "Body" },
       { type: "credential", key: "auth", label: "Auth", credentialType: "api_credential" },
     ],
@@ -480,7 +568,8 @@ const KINDS: NodeKindDefinition[] = [
     icon: "↗",
     configSchema: [
       { type: "text", key: "url", label: "URL", required: true },
-      { type: "json", key: "headers", label: "Headers" },
+      { type: "keyvalue", key: "headers", label: "Headers",
+        keyLabel: "Header", valueLabel: "Value", addLabel: "Add header" },
       { type: "expression", key: "payload", label: "Payload", required: true, example: "{{ $json }}" },
     ],
   },

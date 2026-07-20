@@ -36,7 +36,9 @@ export {
 } from "./capabilities";
 
 export { subflowExecutor, subflowPorts, subflowMode, DEFAULT_MAX_DEPTH, type SubflowMode } from "./subflow";
-export { llmBranchExecutor, declaredRoutes, resolveFallbackPort } from "./llm-branch";
+export { llmRouterExecutor, declaredRoutes, resolveFallbackPort } from "./llm-router";
+/** @deprecated Renamed to `llmRouterExecutor` — the id and label now match. */
+export { llmRouterExecutor as llmBranchExecutor } from "./llm-router";
 
 export {
   registerRichInputAdapter,
