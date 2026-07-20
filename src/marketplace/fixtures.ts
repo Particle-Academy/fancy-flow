@@ -52,6 +52,21 @@ export type FixtureCase = {
   name: string;
   /** Config for the node under test — drives config-derived ports. */
   config?: Record<string, unknown>;
+  /**
+   * The node's resolved output ports, stated rather than derived.
+   *
+   * NOT a convenience. TS derives config-driven ports by running a JavaScript
+   * function (`switch_case`'s cases, `llm_router`'s routes); PHP cannot, and
+   * falls back to the kind's static declaration. Left there, the identical
+   * fixture would build a DIFFERENT graph on each runtime — the fixtures would
+   * silently stop comparing like with like, which is the exact failure they
+   * exist to catch.
+   *
+   * So a case states its ports the same way an exported document does (see
+   * 0.10.1, "serialize resolved ports"), and both runners honour it. Omit it
+   * only for a node whose ports are static.
+   */
+  ports?: string[];
   /** Inputs delivered on the node's input ports. */
   inputs?: Record<string, unknown>;
   expect: FixtureExpectation;
@@ -95,7 +110,9 @@ function buildGraph(kindId: string, testCase: FixtureCase): { graph: FlowGraph; 
   } as unknown as FlowNode;
 
   const kind = getNodeKind(kindId) ?? undefined;
-  const ports = (resolveNodePorts(subject, kind).outputs ?? []).map((p) => p.id);
+  // An explicitly declared port list wins, so both runtimes build the same
+  // graph even where one can derive config-driven ports and the other cannot.
+  const ports = testCase.ports ?? (resolveNodePorts(subject, kind).outputs ?? []).map((p) => p.id);
   const effective = ports.length ? ports : ["out"];
 
   const nodes: FlowNode[] = [

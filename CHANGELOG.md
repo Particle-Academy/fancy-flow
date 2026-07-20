@@ -12,6 +12,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] — 2026-07-20
+
+### Fixed
+
+- **A fixture case can state its resolved output ports (`ports`), and both
+  runtimes honour it.** Without this the golden-fixture format could not express
+  a cross-runtime-safe case for any node whose ports follow config —
+  `switch_case`, `llm_router` — which defeats the point of requiring fixtures.
+
+  TS derives config-driven ports by running a JavaScript function. PHP cannot,
+  and falls back to the kind's static declaration. So the identical fixture file
+  built a **different graph on each runtime**: the fixtures silently stopped
+  comparing like with like, which is the exact class of failure they exist to
+  catch.
+
+  A case now declares its ports the same way an exported document does (see
+  0.10.1, "serialize resolved ports"). Verified by running one fixture file
+  through both engines and diffing the verdicts — identical, including which
+  cases failed and why.
+
+  **What to do:** nothing for a node with static ports. Add `"ports": [...]` to
+  cases for a node whose ports follow config.
+
 ## [0.15.0] — 2026-07-20
 
 ### Added
@@ -451,7 +474,8 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.12.0...v0.13.0
