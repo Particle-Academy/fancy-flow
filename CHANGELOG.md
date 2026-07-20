@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-07-20
+
 ### Added
 
 - **The human-pause contract is now public and typed.** A run waiting for a
@@ -79,7 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loudly**. A fixture asserts that **the downstream node executed** — not the
   port the node recorded. There is a test demonstrating why: a subject emitting
   on a port with no edge leaves `__port` reading `"c"`, `result.ok` reading
-  `true`, and nothing downstream run. A `__port` assertion is green. A status
+  `true`, and nothing downstream ran. A `__port` assertion is green. A status
   assertion is green. Only reachability catches it — which is precisely how the
   0.9.0 routing divergence reached production.
 
@@ -449,7 +451,8 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.11.0...v0.12.0
