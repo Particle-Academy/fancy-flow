@@ -108,6 +108,7 @@ export {
 export {
   exportWorkflow,
   importWorkflow,
+  migrateSchema,
   workflowToBlob,
   WORKFLOW_SCHEMA_VERSION,
   WORKFLOW_SCHEMA_URL,

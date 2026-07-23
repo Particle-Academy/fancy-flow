@@ -269,4 +269,20 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
    * refuse to list a pausing node whose package never says so.
    */
   pausesForHuman?: PauseAwaiting;
+
+  /**
+   * Make nodes of this kind resizable via drag handles (xyflow NodeResizer).
+   * `true` enables it with defaults; pass options to bound it. The resulting
+   * width/height are written onto the node and persisted by the schema (0.21+).
+   */
+  resizable?:
+    | boolean
+    | { minWidth?: number; minHeight?: number; maxWidth?: number; maxHeight?: number; keepAspectRatio?: boolean };
+
+  /**
+   * Contextual per-node toolbar (xyflow NodeToolbar), shown while the node is
+   * selected — a discoverable, agent-legible alternative to the right-click
+   * menu. Call `useFlowEditor()` inside it to reach the editor api.
+   */
+  toolbar?: (ctx: { nodeId: string; config: TConfig; selected: boolean }) => ReactNode;
 };

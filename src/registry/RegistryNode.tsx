@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, NodeResizer, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode, NodeRunStatus, PortDescriptor } from "../types";
 import { categoryAccent, getNodeKind } from "./registry";
 import { nodeConfig, resolveNodePorts } from "./ports";
@@ -41,9 +41,22 @@ function RegistryNodeInner(props: NodeProps<FlowNode>) {
         `ff-node--status-${status}`,
         `ff-node--cat-${kind.category}`,
         props.selected ? "ff-node--selected" : "",
+        kind.resizable ? "ff-node--resizable" : "",
       ].filter(Boolean).join(" ")}
       style={{ borderColor: props.selected ? accent : undefined }}
     >
+      {kind.resizable && (
+        <NodeResizer
+          isVisible={props.selected ?? false}
+          color={accent}
+          {...(typeof kind.resizable === "object" ? kind.resizable : {})}
+        />
+      )}
+      {kind.toolbar && (
+        <NodeToolbar isVisible={props.selected ?? false}>
+          {kind.toolbar({ nodeId: props.id, config: config as any, selected: props.selected ?? false })}
+        </NodeToolbar>
+      )}
       <header className="ff-node__header" style={{ background: accent }}>
         {kind.icon && <span className="ff-node__icon" aria-hidden>{kind.icon}</span>}
         <span className="ff-node__tag">{kind.label.toUpperCase()}</span>

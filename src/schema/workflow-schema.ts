@@ -53,6 +53,18 @@ export type WorkflowSchemaNode = {
    */
   inputs?: PortDescriptor[];
   outputs?: PortDescriptor[];
+  /**
+   * Visual layout — additive + optional. `parentId`/`extent` carry node grouping
+   * (swimlanes / containers); `width`/`height` carry an explicit (resized) size;
+   * `style` carries inline presentation. A runtime that only walks edges/ports
+   * (e.g. the PHP twin) ignores all of these — they exist purely for the canvas,
+   * so an older reader that doesn't know them simply drops them.
+   */
+  parentId?: string;
+  extent?: "parent" | [[number, number], [number, number]];
+  width?: number;
+  height?: number;
+  style?: Record<string, unknown>;
 };
 
 export type WorkflowSchemaEdge = {
@@ -104,6 +116,7 @@ function toSchemaNode(n: FlowNode): WorkflowSchemaNode {
   // config-driven kind writes its ACTUAL ports into the document instead of
   // leaving another language's runtime to guess at them.
   const ports = resolveNodePorts(n, getNodeKind(kindName) ?? undefined);
+  const node = n as any;
   return {
     id: n.id,
     kind: kindName,
@@ -113,6 +126,13 @@ function toSchemaNode(n: FlowNode): WorkflowSchemaNode {
     config: data.config,
     inputs: ports.inputs,
     outputs: ports.outputs,
+    // Visual layout — only when explicitly set (never persist auto-`measured`
+    // dimensions, which are derived, not authored).
+    ...(node.parentId ? { parentId: node.parentId } : {}),
+    ...(node.extent ? { extent: node.extent } : {}),
+    ...(typeof node.width === "number" ? { width: node.width } : {}),
+    ...(typeof node.height === "number" ? { height: node.height } : {}),
+    ...(node.style ? { style: node.style } : {}),
   };
 }
 
@@ -134,6 +154,17 @@ export type ImportOptions = {
 };
 
 /**
+ * Migrate a raw schema object up to the current version. Additive changes need
+ * no migration (an older document simply lacks the newer optional fields); this
+ * is the seam for a future BREAKING bump — add `case N → N+1` steps here and
+ * `importWorkflow` runs them before validating the version.
+ */
+export function migrateSchema(schema: unknown): unknown {
+  // v1 is current — nothing to migrate yet.
+  return schema;
+}
+
+/**
  * Hydrate a schema into runtime FlowGraph + validate kinds/configs against
  * the registry. Reports issues for unknown kinds, missing required config,
  * and dangling edges.
@@ -141,6 +172,7 @@ export type ImportOptions = {
 export function importWorkflow(schema: unknown, options: ImportOptions = {}): ImportResult {
   const issues: ImportIssue[] = [];
   const lenient = options.lenient === true;
+  schema = migrateSchema(schema);
 
   if (!schema || typeof schema !== "object") {
     return { ok: false, graph: { nodes: [], edges: [] }, issues: [{ level: "error", message: "Schema is not an object." }] };
@@ -180,6 +212,12 @@ export function importWorkflow(schema: unknown, options: ImportOptions = {}): Im
       id: n.id,
       type: kindId,
       position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
+      // Rehydrate visual layout onto the node's top level (where xyflow reads it).
+      ...(n.parentId ? { parentId: n.parentId } : {}),
+      ...(n.extent ? { extent: n.extent } : {}),
+      ...(typeof n.width === "number" ? { width: n.width } : {}),
+      ...(typeof n.height === "number" ? { height: n.height } : {}),
+      ...(n.style ? { style: n.style } : {}),
       data: {
         kind: kindId,
         label: n.label ?? kind?.label ?? n.kind,

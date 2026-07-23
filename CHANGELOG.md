@@ -12,6 +12,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-07-23
+
+Release 3 — **node chrome & persistence** — the groundwork swimlanes (0.22) need.
+
+### Added
+
+- **Resizable nodes.** A kind opts in via `NodeKindDefinition.resizable` —
+  `true` or `{ minWidth, minHeight, maxWidth, maxHeight, keepAspectRatio }` —
+  and gets drag-to-resize handles (xyflow `NodeResizer`). The resulting
+  width/height are written onto the node and **persist** (see below). Resize
+  handles are themed (light + dark); a resizable card drops the fixed max-width.
+- **Per-node toolbar.** A kind opts in via `NodeKindDefinition.toolbar` — a
+  render function shown while the node is selected (xyflow `NodeToolbar`) — a
+  discoverable, agent-legible alternative to the right-click menu. Call
+  `useFlowEditor()` inside it to reach the editor api.
+- **The schema now persists visual layout.** `WorkflowSchemaNode` gains optional
+  `parentId`, `extent`, `width`, `height`, `style`, and `exportWorkflow` /
+  `importWorkflow` round-trip them. They're additive + optional — a runtime that
+  only walks edges/ports (the PHP twin) ignores them, and an older reader simply
+  drops them. This is the groundwork for swimlanes. New `migrateSchema()` seam
+  for a future breaking bump.
+
+### Fixed
+
+- **`fancy-flow/registry` and `fancy-flow/schema` are now importable subpaths.**
+  They were built by tsup but absent from `package.json` `exports`, so Node's
+  restrictive resolution rejected them. Also **fixed the `fancy-flow/runtime`
+  types path**, which pointed at a non-existent flat `runtime.d.ts` (the dts is
+  nested) — `runtime` subpath consumers were silently getting no types.
+
 ## [0.20.0] — 2026-07-23
 
 Release 2 of the capability push — **selection & editing**.

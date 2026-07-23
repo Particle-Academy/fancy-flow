@@ -510,3 +510,18 @@
 .dark .ff-rich-preview__unavailable code { background: #27272a; }
 .ff-rich-preview__title { font-size: 11px; font-weight: 600; color: #52525b; }
 .dark .ff-rich-preview__title { color: #d4d4d8; }
+
+/* Resizable nodes (G11) — a resizable kind drops the fixed max-width so the
+   card fills the width/height xyflow's NodeResizer writes onto the node. */
+.ff-node--resizable {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+}
+/* NodeResizer chrome (unstyled by default) — themeable border + handles. */
+.react-flow__resize-control.line { border-color: rgba(0, 0, 0, 0.15); }
+.react-flow__resize-control.handle {
+  width: 8px; height: 8px; border-radius: 2px; border: 1px solid #fff;
+}
+.dark .react-flow__resize-control.line { border-color: rgba(255, 255, 255, 0.18); }
+.dark .react-flow__resize-control.handle { border-color: #1c1917; }
