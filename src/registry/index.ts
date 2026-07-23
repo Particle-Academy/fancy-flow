@@ -20,6 +20,14 @@ export type {
 
 export { resolvePortSpec, resolveNodePorts, nodeConfig } from "./ports";
 
+export {
+  createConnectionValidator,
+  defaultPortCompatibility,
+  ANY_PORT_TYPE,
+  type PortCompatibility,
+  type ConnectionValidatorOptions,
+} from "./connection";
+
 /** Host capabilities — core declares the contract, the host supplies the impl. */
 export {
   registerLlmClient,

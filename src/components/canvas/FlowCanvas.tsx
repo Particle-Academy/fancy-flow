@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -14,6 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { defaultNodeTypes } from "../nodes";
+import { createConnectionValidator, type ConnectionValidatorOptions } from "../../registry/connection";
 import type { FlowNode } from "../../types";
 
 export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "edges" | "height"> & {
@@ -27,6 +28,14 @@ export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "ed
   showMinimap?: boolean;
   /** Pixel height; FlowCanvas expects a sized container. Default 600. */
   height?: number | string;
+  /**
+   * Enforce port-type compatibility on new connections. `true` (default) uses
+   * the built-in validator: a connection is refused only when both ports
+   * declare a concrete, differing `type` (so untyped graphs are unaffected),
+   * and self-loops are blocked. Pass options to tune the rule, or `false` to
+   * disable. An `isValidConnection` you pass yourself always takes precedence.
+   */
+  validateConnections?: boolean | ConnectionValidatorOptions;
   /** Optional toolbar / palette etc. rendered above the canvas. */
   toolbar?: ReactNode;
   className?: string;
@@ -55,6 +64,8 @@ export function FlowCanvas({
   showControls = true,
   showMinimap = false,
   height = 600,
+  validateConnections = true,
+  isValidConnection,
   toolbar,
   nodeTypes,
   edgeTypes,
@@ -66,6 +77,23 @@ export function FlowCanvas({
     () => ({ ...defaultNodeTypes, ...(nodeTypes ?? {}) }),
     [nodeTypes],
   );
+
+  // Read nodes live through a ref so the validator (built once) always sees the
+  // current graph without being rebuilt on every node change.
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const builtinValidator = useMemo(
+    () =>
+      validateConnections === false
+        ? undefined
+        : createConnectionValidator(
+            () => nodesRef.current,
+            validateConnections === true ? undefined : validateConnections,
+          ),
+    [validateConnections],
+  );
+  // A caller-supplied predicate wins; otherwise fall back to port-type validation.
+  const resolvedIsValidConnection = isValidConnection ?? builtinValidator;
 
   const mergedEdgeTypes = useMemo<EdgeTypes | undefined>(
     () => (edgeTypes ? { ...edgeTypes } : undefined),
@@ -90,6 +118,7 @@ export function FlowCanvas({
           // Drag still pans. All overridable via props.
           zoomActivationKeyCode="Shift"
           preventScrolling={false}
+          isValidConnection={resolvedIsValidConnection}
           {...rest}
         >
           {background !== "none" && (

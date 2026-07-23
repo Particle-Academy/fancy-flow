@@ -12,6 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-07-23
+
+### Added
+
+- **Connection validation from port types.** `PortDescriptor.type` has always
+  advertised itself as being "for hosts that want to validate connections", but
+  nothing consumed it — a text output could be wired into a number input, by a
+  human or an agent. `<FlowCanvas>` now enforces it by default: a new connection
+  is refused only when both the source-output and target-input ports declare a
+  concrete, differing `type`. Untyped ports (and an `"any"` wildcard,
+  `ANY_PORT_TYPE`) match anything, and self-loops are blocked.
+
+  New exports (from the package root and `fancy-flow/registry`):
+  `createConnectionValidator(getNodes, options?)` — a pure, React-free
+  `isValidConnection` predicate; `defaultPortCompatibility` — the default rule;
+  `ANY_PORT_TYPE`; and the `PortCompatibility` / `ConnectionValidatorOptions`
+  types. The validator resolves ports through the same `resolveNodePorts` the
+  canvas and runtime use, so a connection the canvas refuses is one an agent's
+  future `flow_connect` refuses too — one rule, no drift.
+
+  `<FlowCanvas>` gains a `validateConnections?: boolean | ConnectionValidatorOptions`
+  prop (default `true`). Pass options to tune the rule (`compatible`,
+  `allowSelfConnection`), or `false` to disable. A `FlowEditor` inherits this
+  automatically.
+
+  **What a consumer must DO:** nothing, unless your nodes declare typed ports —
+  untyped graphs (the default) validate exactly as before. If you *do* set
+  `PortDescriptor.type` and were relying on cross-type connections, either give
+  the ports the `"any"` type, pass `validateConnections={false}`, or supply your
+  own `compatible` rule.
+
 ## [0.17.0] — 2026-07-23
 
 ### Changed
