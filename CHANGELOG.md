@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-07-23
+
+Release 2 of the capability push — **selection & editing**.
+
+### Added
+
+- **Multi-select bulk operations.** `FlowEditorApi` exposes the real xyflow
+  multi-selection (`selectedIds`, `selectedNodes`) and acts on it:
+  `duplicateSelected()` (copying the edges *between* the selected nodes),
+  `alignSelected(edge)` (`left`/`hcenter`/`right`/`top`/`vcenter`/`bottom`), and
+  `distributeSelected("h" | "v")`. Box-select / shift-click are already available
+  through the inherited React Flow props (`selectionMode`, `selectionOnDrag`, …).
+- **Copy / cut / paste.** `api.copy()` / `cut()` / `paste(at?)`, plus Ctrl+C /
+  Ctrl+X / Ctrl+V and Ctrl+D (duplicate). Paste preserves the wiring *between*
+  the copied nodes, offsets the result, and selects it. Backed by the new pure
+  helper `cloneSubgraph(nodes, edges, { makeId, offset })`, which remaps every id
+  (and any in-set `parentId`) and drops edges that would dangle.
+- **Reconnectable edges.** Drag an edge endpoint to rewire it. The new endpoint
+  is validated by the same `isValidConnection` rule from 0.18.0, so a
+  type-incompatible reconnect is refused, and the edge keeps its id + label.
+- New exported, reusable pure graph-ops (for hosts building custom editors and
+  for the agent bridge, so both share one implementation): `cloneSubgraph`,
+  `reconnectEdge`, `alignNodes`, `distributeNodes` (+ the `AlignEdge` type).
+
+### Changed
+
+- Nothing breaking — all additions.
+
 ## [0.19.0] — 2026-07-23
 
 The first of five releases in the capability push (`.ai/plans/fancy-flow-g3-g15-execution-plan.md`) — the **trust layer** everything else builds on.

@@ -16,6 +16,11 @@ export {
   type FlowEditorAction,
   type FlowEditorBuiltins,
   type FlowEditorSlots,
+  cloneSubgraph,
+  reconnectEdge,
+  alignNodes,
+  distributeNodes,
+  type AlignEdge,
 } from "./components/FlowEditor";
 export { NodePalette, paletteDropHandlers, type NodePaletteProps } from "./components/NodePalette";
 export {

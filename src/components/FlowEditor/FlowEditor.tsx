@@ -31,7 +31,17 @@ import { useFlowRun, applyStatusesToNodes } from "../../runtime/use-flow-run";
 import { exportWorkflow, importWorkflow, workflowToBlob, type WorkflowMetadata, type WorkflowSchema } from "../../schema";
 import { buildNodeTypes, defaultConfigFor, getNodeKind, listNodeKinds, onNodeKindsChanged } from "../../registry";
 import type { ExecutorRegistry, FlowGraph, FlowNode } from "../../types";
-import { duplicateNode as cloneNode, removeEdges, removeNodes, setEdgeLabel } from "./graph-ops";
+import {
+  duplicateNode as cloneNode,
+  cloneSubgraph,
+  reconnectEdge,
+  alignNodes,
+  distributeNodes,
+  removeEdges,
+  removeNodes,
+  setEdgeLabel,
+  type AlignEdge,
+} from "./graph-ops";
 import {
   FlowEditorProvider,
   type FlowEditorAction,
@@ -296,6 +306,102 @@ function FlowEditorInner({
     [flow, onEdgeDelete, confirmDelete],
   );
 
+  // ── Multi-selection + clipboard (Release 2) ──
+  // xyflow owns the real multi-selection (box / shift-click) on `node.selected`;
+  // we read it rather than tracking a parallel list.
+  const selectedNodes = useMemo(() => flow.nodes.filter((n) => n.selected), [flow.nodes]);
+  const selectedIds = useMemo(() => selectedNodes.map((n) => n.id), [selectedNodes]);
+
+  const clipboard = useRef<FlowGraph | null>(null);
+
+  const copySelection = useCallback(() => {
+    const sel = flow.nodes.filter((n) => n.selected);
+    if (sel.length === 0) return;
+    const ids = new Set(sel.map((n) => n.id));
+    const edges = flow.edges.filter((e: Edge) => ids.has(e.source) && ids.has(e.target));
+    clipboard.current = { nodes: sel.map((n) => ({ ...n })), edges: edges.map((e) => ({ ...e })) };
+  }, [flow]);
+
+  const pasteClipboard = useCallback(
+    (at?: { x: number; y: number }) => {
+      const clip = clipboard.current;
+      if (!clip || clip.nodes.length === 0) return;
+      const { nodes: clones, edges: cloneEdges } = cloneSubgraph(clip.nodes, clip.edges, { makeId: newNodeId, offset: 40 });
+      let placed = clones;
+      if (at) {
+        const minX = Math.min(...clones.map((n) => n.position.x));
+        const minY = Math.min(...clones.map((n) => n.position.y));
+        placed = clones.map((n) => ({ ...n, position: { x: n.position.x - minX + at.x, y: n.position.y - minY + at.y } }));
+      }
+      flow.setGraph({
+        nodes: [...flow.nodes.map((n) => ({ ...n, selected: false })), ...placed.map((n) => ({ ...n, selected: true }))],
+        edges: [...flow.edges, ...cloneEdges],
+      });
+    },
+    [flow],
+  );
+
+  const duplicateSelected = useCallback(() => {
+    const sel = flow.nodes.filter((n) => n.selected);
+    if (sel.length === 0) return;
+    const ids = new Set(sel.map((n) => n.id));
+    const internal = flow.edges.filter((e: Edge) => ids.has(e.source) && ids.has(e.target));
+    const { nodes: clones, edges: cloneEdges } = cloneSubgraph(sel, internal, { makeId: newNodeId, offset: 40 });
+    flow.setGraph({
+      nodes: [...flow.nodes.map((n) => ({ ...n, selected: false })), ...clones.map((n) => ({ ...n, selected: true }))],
+      edges: [...flow.edges, ...cloneEdges],
+    });
+  }, [flow]);
+
+  const alignSelected = useCallback(
+    (edge: AlignEdge) => {
+      const sel = flow.nodes.filter((n) => n.selected);
+      if (sel.length < 2) return;
+      const byId = new Map(alignNodes(sel, edge).map((n) => [n.id, n] as const));
+      flow.setNodes((all: FlowNode[]) => all.map((n) => byId.get(n.id) ?? n));
+    },
+    [flow],
+  );
+
+  const distributeSelected = useCallback(
+    (axis: "h" | "v") => {
+      const sel = flow.nodes.filter((n) => n.selected);
+      if (sel.length < 3) return;
+      const byId = new Map(distributeNodes(sel, axis).map((n) => [n.id, n] as const));
+      flow.setNodes((all: FlowNode[]) => all.map((n) => byId.get(n.id) ?? n));
+    },
+    [flow],
+  );
+
+  const onReconnect = useCallback(
+    (oldEdge: Edge, conn: Connection) => flow.setEdges((eds: Edge[]) => reconnectEdge(eds, oldEdge, conn)),
+    [flow],
+  );
+
+  // Clipboard + duplicate shortcuts. (Undo/redo live in the effect above.)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "c") copySelection();
+      else if (key === "x") {
+        e.preventDefault();
+        copySelection();
+        deleteNodes(selectedIds);
+      } else if (key === "v") {
+        e.preventDefault();
+        pasteClipboard();
+      } else if (key === "d") {
+        e.preventDefault();
+        duplicateSelected();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [copySelection, pasteClipboard, duplicateSelected, deleteNodes, selectedIds]);
+
   const api: FlowEditorApi = useMemo(() => {
     const toWorkflow = () => exportWorkflow({ nodes: flow.nodes, edges: flow.edges }, metadata);
 
@@ -307,6 +413,8 @@ function FlowEditorInner({
       selected,
       selectedEdgeId,
       selectedEdge,
+      selectedIds,
+      selectedNodes,
       running: runner.running,
       statuses: runner.statuses,
 
@@ -330,6 +438,16 @@ function FlowEditorInner({
       },
       setGraph: (graph) => flow.setGraph(graph),
 
+      duplicateSelected,
+      alignSelected,
+      distributeSelected,
+      copy: copySelection,
+      cut: () => {
+        copySelection();
+        deleteNodes(selectedIds);
+      },
+      paste: pasteClipboard,
+
       run: () => runner.run({ nodes: flow.nodes, edges: flow.edges }, executors),
       cancel: runner.cancel,
       reset: runner.reset,
@@ -345,7 +463,7 @@ function FlowEditorInner({
       canUndo: hist.canUndo,
       canRedo: hist.canRedo,
     };
-  }, [flow, selectedId, selected, selectedEdgeId, selectedEdge, runner, executors, metadata, addNode, deleteNodes, deleteEdges, hist, rf]);
+  }, [flow, selectedId, selected, selectedEdgeId, selectedEdge, selectedIds, selectedNodes, runner, executors, metadata, addNode, deleteNodes, deleteEdges, duplicateSelected, alignSelected, distributeSelected, copySelection, pasteClipboard, hist, rf]);
 
   useImperativeHandle(apiRef, () => api, [api]);
 
@@ -421,6 +539,10 @@ function FlowEditorInner({
           onNodesChange={flow.onNodesChange}
           onEdgesChange={flow.onEdgesChange}
           onConnect={flow.onConnect}
+          // Drag an edge endpoint to rewire it; the new endpoint is validated by
+          // the same isValidConnection rule (G2), so a bad reconnect is refused.
+          onReconnect={onReconnect}
+          edgesReconnectable
           // Snapshot the pre-drag graph once so a drag is a single undo step.
           onNodeDragStart={hist.onNodeDragStart}
           onNodeClick={handleNodeClick}

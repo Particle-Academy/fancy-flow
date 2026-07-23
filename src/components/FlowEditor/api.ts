@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Edge } from "@xyflow/react";
 import type { FlowGraph, FlowNode, NodeRunStatus } from "../../types";
 import type { WorkflowSchema } from "../../schema";
+import type { AlignEdge } from "./graph-ops";
 
 /**
  * Everything the editor knows and can do, handed to every extension point.
@@ -26,6 +27,10 @@ export type FlowEditorApi = {
   selectedEdgeId: string | null;
   /** Currently selected edge, or null. */
   selectedEdge: Edge | null;
+  /** All multi-selected node ids (xyflow box / shift selection). */
+  selectedIds: string[];
+  /** All multi-selected nodes. */
+  selectedNodes: FlowNode[];
   /** True while a run is in flight. */
   running: boolean;
   /** Per-node run status, keyed by node id. */
@@ -55,6 +60,22 @@ export type FlowEditorApi = {
   duplicateNode: (id: string) => string | null;
   /** Replace the whole graph. */
   setGraph: (graph: FlowGraph) => void;
+
+  // ── Bulk (multi-selection) ───────────────────────────────────────────
+  /** Duplicate the current multi-selection, preserving edges between them. */
+  duplicateSelected: () => void;
+  /** Align the multi-selection to a shared edge/center of its bounding box. */
+  alignSelected: (edge: AlignEdge) => void;
+  /** Evenly distribute the multi-selection's gaps along an axis (needs 3+). */
+  distributeSelected: (axis: "h" | "v") => void;
+
+  // ── Clipboard ────────────────────────────────────────────────────────
+  /** Copy the current selection to the editor clipboard. */
+  copy: () => void;
+  /** Copy then delete the current selection. */
+  cut: () => void;
+  /** Paste the clipboard (optionally at a flow position) and select the result. */
+  paste: (at?: { x: number; y: number }) => void;
 
   // ── Run ──────────────────────────────────────────────────────────────
   run: () => void;
