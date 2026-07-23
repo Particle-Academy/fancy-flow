@@ -7,3 +7,5 @@ export {
   type FlowRunFeedEntry,
 } from "./use-flow-run";
 export { useFlowState, type UseFlowStateReturn } from "./use-flow-state";
+export { useFlowHistory, type UseFlowHistoryReturn } from "./use-flow-history";
+export { createHistory, type HistoryController } from "./history";

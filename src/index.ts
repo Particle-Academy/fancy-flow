@@ -120,12 +120,16 @@ export {
   runFlow,
   useFlowRun,
   useFlowState,
+  useFlowHistory,
+  createHistory,
   applyStatusesToNodes,
   type RunOptions,
   type RunResult,
   type UseFlowRunReturn,
   type UseFlowRunOptions,
   type UseFlowStateReturn,
+  type UseFlowHistoryReturn,
+  type HistoryController,
   type FlowRunFeedEntry,
 } from "./runtime";
 

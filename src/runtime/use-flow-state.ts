@@ -15,6 +15,13 @@ export type UseFlowStateReturn = {
   edges: FlowEdge[];
   setNodes: React.Dispatch<React.SetStateAction<FlowNode[]>>;
   setEdges: React.Dispatch<React.SetStateAction<FlowEdge[]>>;
+  /**
+   * Replace nodes AND edges atomically in a single commit. Use this for any op
+   * that touches both (delete-with-edge-prune, undo/redo restore, setGraph):
+   * calling `setNodes` then `setEdges` is NOT atomic in controlled mode (each
+   * closes over a stale `value`), so the second write clobbers the first.
+   */
+  setGraph: (graph: FlowGraph) => void;
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
@@ -40,7 +47,13 @@ export function useFlowState(initial: FlowGraph): UseFlowStateReturn {
     setEdges((es) => addEdge(connection, es) as Edge[]);
   }, []);
 
+  const setGraph = useCallback((graph: FlowGraph) => {
+    // Two useState writes in one event are batched, so this IS atomic here.
+    setNodes(graph.nodes);
+    setEdges(graph.edges);
+  }, []);
+
   const toGraph = useCallback(() => ({ nodes, edges }), [nodes, edges]);
 
-  return { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onConnect, toGraph };
+  return { nodes, edges, setNodes, setEdges, setGraph, onNodesChange, onEdgesChange, onConnect, toGraph };
 }

@@ -71,6 +71,18 @@ export type FlowEditorApi = {
 
   // ── Viewport ─────────────────────────────────────────────────────────
   fitView: () => void;
+
+  // ── History ──
+  /** Undo the last committing edit (add / delete / connect / config / drag /
+   *  import). Transient interactions (a drag in progress, selection) are not
+   *  their own steps. */
+  undo: () => void;
+  /** Redo the last undone edit. */
+  redo: () => void;
+  /** True when there is an edit to undo. */
+  canUndo: boolean;
+  /** True when there is an undone edit to redo. */
+  canRedo: boolean;
 };
 
 /**
@@ -98,6 +110,8 @@ export type FlowEditorAction = {
 export type FlowEditorBuiltins = {
   run?: boolean;
   delete?: boolean;
+  /** Undo/redo toolbar buttons. Default true. */
+  history?: boolean;
   /** Right-click a node for Delete / Duplicate. Default true. */
   contextMenu?: boolean;
   /** Right-click a connection for Label / Delete. Default true. */

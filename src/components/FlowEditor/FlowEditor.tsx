@@ -26,6 +26,7 @@ import { NodeConfigPanel } from "../NodeConfigPanel";
 import { FlowRunControls } from "../FlowRunControls";
 import { FlowRunFeed } from "../FlowRunFeed";
 import { useFlowState } from "../../runtime/use-flow-state";
+import { useFlowHistory } from "../../runtime/use-flow-history";
 import { useFlowRun, applyStatusesToNodes } from "../../runtime/use-flow-run";
 import { exportWorkflow, importWorkflow, workflowToBlob, type WorkflowMetadata, type WorkflowSchema } from "../../schema";
 import { buildNodeTypes, defaultConfigFor, getNodeKind, listNodeKinds, onNodeKindsChanged } from "../../registry";
@@ -76,6 +77,14 @@ export type FlowEditorProps = {
   onDelete?: (ids: string[]) => void;
   /** Called after connections are broken, with the deleted edge ids. */
   onEdgeDelete?: (ids: string[]) => void;
+  /**
+   * Stage destructive edits for human confirmation. When set, every delete path
+   * — keyboard, panel, context menu, and `api.deleteNodes`/`deleteEdges` —
+   * calls this first; return false to veto. Default: delete immediately. This
+   * realizes the component contract's "agents propose, humans confirm" on the
+   * canvas.
+   */
+  confirmDelete?: (targets: { nodes: FlowNode[]; edges: Edge[] }) => boolean | Promise<boolean>;
   className?: string;
   style?: CSSProperties;
 };
@@ -119,6 +128,7 @@ function FlowEditorInner({
   onSelectionChange,
   onDelete,
   onEdgeDelete,
+  confirmDelete,
   apiRef,
 }: FlowEditorProps & { apiRef?: React.ForwardedRef<FlowEditorApi> }) {
   const internal = useFlowState(initial);
@@ -129,7 +139,11 @@ function FlowEditorInner({
   // local edits go through onChange. Internal state is unused but the hook
   // still has to run (rules of hooks).
   const controlled = value !== undefined;
-  const flow = controlled ? makeControlledFlowAdapter(value!, onChange) : internal;
+  const baseFlow = controlled ? makeControlledFlowAdapter(value!, onChange) : internal;
+  // Wrap the sink with the commit/undo pipeline — one interception point for
+  // every committing mutation, whichever mode we're in.
+  const hist = useFlowHistory(baseFlow);
+  const flow = hist.flow;
 
   // Re-render when registry kinds change so the palette + nodeTypes reflect it.
   const [, force] = useState(0);
@@ -201,6 +215,26 @@ function FlowEditorInner({
     };
   }, [menu, labelEdit]);
 
+  // Editor keyboard shortcuts. Ignored while a field is focused, so Ctrl+Z does
+  // native text-undo inside inputs/textareas rather than reverting the graph.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        hist.undo();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        hist.redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hist]);
+
   // Uncontrolled: notify host on every graph mutation. Controlled mode
   // already notifies via the adapter on each setNodes/setEdges call.
   useEffect(() => {
@@ -231,15 +265,35 @@ function FlowEditorInner({
   /** Delete nodes AND every edge attached to them — an orphaned edge would
    *  otherwise survive the node it connected. */
   const deleteNodes = useCallback(
-    (ids: string[]) => {
+    async (ids: string[]) => {
       if (ids.length === 0) return;
+      const targets = flow.nodes.filter((n) => ids.includes(n.id));
+      if (targets.length === 0) return;
+      if (confirmDelete) {
+        const attached = flow.edges.filter((e: Edge) => ids.includes(e.source) || ids.includes(e.target));
+        if (!(await confirmDelete({ nodes: targets, edges: attached }))) return;
+      }
       const doomed = new Set(ids);
-      flow.setNodes((all: FlowNode[]) => removeNodes({ nodes: all, edges: [] }, ids).nodes);
-      flow.setEdges((all: Edge[]) => removeNodes({ nodes: [], edges: all }, ids).edges);
+      // Atomic: prune edges + remove nodes in ONE commit — one undo step, and
+      // correct in controlled mode where two sequential writes would clobber.
+      flow.setGraph(removeNodes({ nodes: flow.nodes, edges: flow.edges }, ids));
       setSelectedId((cur) => (cur !== null && doomed.has(cur) ? null : cur));
       onDelete?.(ids);
     },
-    [flow, onDelete],
+    [flow, onDelete, confirmDelete],
+  );
+
+  const deleteEdges = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const targets = flow.edges.filter((e: Edge) => ids.includes(e.id));
+      if (targets.length === 0) return;
+      if (confirmDelete && !(await confirmDelete({ nodes: [], edges: targets }))) return;
+      flow.setEdges((all: Edge[]) => removeEdges(all, ids));
+      setSelectedEdgeId((cur) => (cur !== null && ids.includes(cur) ? null : cur));
+      onEdgeDelete?.(ids);
+    },
+    [flow, onEdgeDelete, confirmDelete],
   );
 
   const api: FlowEditorApi = useMemo(() => {
@@ -263,18 +317,8 @@ function FlowEditorInner({
       updateNode: (next) => flow.setNodes((all: FlowNode[]) => all.map((x) => (x.id === next.id ? next : x))),
       deleteNodes,
       deleteSelected: () => deleteNodes(selectedId ? [selectedId] : []),
-      deleteEdges: (ids) => {
-        if (ids.length === 0) return;
-        flow.setEdges((all: Edge[]) => removeEdges(all, ids));
-        setSelectedEdgeId((cur) => (cur !== null && ids.includes(cur) ? null : cur));
-        onEdgeDelete?.(ids);
-      },
-      deleteSelectedEdge: () => {
-        if (!selectedEdgeId) return;
-        flow.setEdges((all: Edge[]) => removeEdges(all, [selectedEdgeId]));
-        setSelectedEdgeId(null);
-        onEdgeDelete?.([selectedEdgeId]);
-      },
+      deleteEdges,
+      deleteSelectedEdge: () => deleteEdges(selectedEdgeId ? [selectedEdgeId] : []),
       setEdgeLabel: (id, label) => flow.setEdges((all: Edge[]) => setEdgeLabel(all, id, label)),
       duplicateNode: (id) => {
         const src = flow.nodes.find((n) => n.id === id);
@@ -284,10 +328,7 @@ function FlowEditorInner({
         setSelectedId(copy.id);
         return copy.id;
       },
-      setGraph: (graph) => {
-        flow.setNodes(graph.nodes);
-        flow.setEdges(graph.edges);
-      },
+      setGraph: (graph) => flow.setGraph(graph),
 
       run: () => runner.run({ nodes: flow.nodes, edges: flow.edges }, executors),
       cancel: runner.cancel,
@@ -295,15 +336,16 @@ function FlowEditorInner({
 
       toWorkflow,
       exportWorkflow: () => downloadWorkflow(toWorkflow(), metadata),
-      importWorkflow: () =>
-        pickWorkflow((graph) => {
-          flow.setNodes(graph.nodes);
-          flow.setEdges(graph.edges);
-        }),
+      importWorkflow: () => pickWorkflow((graph) => flow.setGraph(graph)),
 
       fitView: () => rf.fitView({ padding: 0.2 }),
+
+      undo: hist.undo,
+      redo: hist.redo,
+      canUndo: hist.canUndo,
+      canRedo: hist.canRedo,
     };
-  }, [flow, selectedId, selected, runner, executors, metadata, addNode, deleteNodes, rf]);
+  }, [flow, selectedId, selected, selectedEdgeId, selectedEdge, runner, executors, metadata, addNode, deleteNodes, deleteEdges, hist, rf]);
 
   useImperativeHandle(apiRef, () => api, [api]);
 
@@ -322,6 +364,29 @@ function FlowEditorInner({
       {startActions.map((a) => renderAction(a, api))}
       {builtins.run !== false && (
         <FlowRunControls running={api.running} onRun={api.run} onCancel={api.cancel} onReset={api.reset} />
+      )}
+      {builtins.history !== false && (
+        <>
+          <span className="ff-editor__sep" />
+          <button
+            className="ff-editor__btn"
+            data-action="undo"
+            title="Undo (Ctrl+Z)"
+            disabled={!api.canUndo}
+            onClick={api.undo}
+          >
+            ↶ Undo
+          </button>
+          <button
+            className="ff-editor__btn"
+            data-action="redo"
+            title="Redo (Ctrl+Shift+Z)"
+            disabled={!api.canRedo}
+            onClick={api.redo}
+          >
+            ↷ Redo
+          </button>
+        </>
       )}
       {(builtins.export !== false || builtins.import !== false) && (
         <span className="ff-editor__sep" />
@@ -356,12 +421,20 @@ function FlowEditorInner({
           onNodesChange={flow.onNodesChange}
           onEdgesChange={flow.onEdgesChange}
           onConnect={flow.onConnect}
+          // Snapshot the pre-drag graph once so a drag is a single undo step.
+          onNodeDragStart={hist.onNodeDragStart}
           onNodeClick={handleNodeClick}
           onNodeContextMenu={builtins.contextMenu === false ? undefined : handleNodeContextMenu}
           onEdgeClick={handleEdgeClick}
           onEdgeContextMenu={builtins.edgeContextMenu === false ? undefined : handleEdgeContextMenu}
           onEdgesDelete={(deleted: Edge[]) => onEdgeDelete?.(deleted.map((e) => e.id))}
           onNodesDelete={(deleted) => onDelete?.(deleted.map((n) => n.id))}
+          // Stage the native (keyboard) delete path when a confirm gate is wired.
+          onBeforeDelete={
+            confirmDelete
+              ? async ({ nodes, edges }) => confirmDelete({ nodes: nodes as FlowNode[], edges })
+              : undefined
+          }
           // Both keys delete, so muscle memory from either platform works.
           deleteKeyCode={["Delete", "Backspace"]}
           height="100%"
@@ -548,6 +621,8 @@ function makeControlledFlowAdapter(
       const nextEdges = typeof next === "function" ? (next as any)(value.edges) : next;
       apply({ nodes: value.nodes, edges: nextEdges });
     },
+    // Atomic both-at-once commit — the reason this exists (see UseFlowStateReturn).
+    setGraph: (graph) => apply(graph),
     onNodesChange: (changes) => {
       apply({ nodes: applyNodeChanges(changes, value.nodes) as any, edges: value.edges });
     },

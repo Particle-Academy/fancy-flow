@@ -12,6 +12,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-07-23
+
+The first of five releases in the capability push (`.ai/plans/fancy-flow-g3-g15-execution-plan.md`) — the **trust layer** everything else builds on.
+
+### Added
+
+- **Undo / redo.** Every *committing* edit — add, delete, connect, config change,
+  drag, import — is now reversible. `FlowEditorApi` gains `undo()` / `redo()` /
+  `canUndo` / `canRedo`; the toolbar shows Undo/Redo buttons (`builtins.history`,
+  default on) and Ctrl+Z / Ctrl+Shift+Z (also Ctrl+Y) work (ignored while a form
+  field is focused, so native text-undo still works there). Granularity is
+  intentional: a delete of a node **and its edges** undoes as one step, a drag is
+  one step, and transient interactions (a drag in progress, selection) are not
+  their own steps.
+  - New building blocks, exported from the root and `fancy-flow/runtime`:
+    `createHistory()` — a pure, React-free snapshot controller — and
+    `useFlowHistory(flow)` — the commit/undo pipeline that wraps whichever
+    mutation sink is active (uncontrolled hook or controlled adapter), giving the
+    two-sink architecture the single interception point it lacked.
+- **Staged deletes (`<FlowEditor confirmDelete>`).** When set, every delete path
+  — keyboard (`onBeforeDelete`), the panel button, the context menu, and
+  `api.deleteNodes` / `deleteEdges` — calls the gate first; a `false` return
+  vetoes. Default is unchanged (delete immediately). This realizes the component
+  contract's "agents propose, humans confirm" on the canvas itself.
+
+### Changed
+
+- **`UseFlowStateReturn` gains `setGraph(graph)`** — an atomic nodes+edges commit.
+  Undo/redo restore and node-delete now go through it, which **fixes a
+  controlled-mode bug**: `setNodes` then `setEdges` each closed over a stale
+  `value`, so an op touching both (a delete) silently lost the nodes half.
+  **What a consumer must DO:** nothing — unless you hand-implemented a
+  `UseFlowStateReturn`, in which case add a `setGraph` (write nodes+edges in one
+  commit; in React just call both setters).
+
 ## [0.18.0] — 2026-07-23
 
 ### Added
