@@ -323,20 +323,14 @@ function FlowEditorInner({
       {builtins.run !== false && (
         <FlowRunControls running={api.running} onRun={api.run} onCancel={api.cancel} onReset={api.reset} />
       )}
-      {(builtins.delete !== false || builtins.export !== false || builtins.import !== false) && (
+      {(builtins.export !== false || builtins.import !== false) && (
         <span className="ff-editor__sep" />
       )}
-      {builtins.delete !== false && (
-        <button
-          className="ff-editor__btn"
-          data-action="delete"
-          onClick={api.deleteSelected}
-          disabled={api.selected === null}
-          title="Delete the selected node (Del / Backspace)"
-        >
-          ✕ Delete
-        </button>
-      )}
+      {/* Node deletion is not a toolbar button — it lives in NodeConfigPanel
+          (see below), so the affordance is a property of the reusable panel
+          rather than duplicated chrome that drifts. Keyboard Del/Backspace and
+          the right-click menu still delete. `builtins.delete` gates the panel
+          button. */}
       {builtins.export !== false && (
         <button className="ff-editor__btn" data-action="export" onClick={api.exportWorkflow}>↓ Export</button>
       )}
@@ -471,7 +465,15 @@ function FlowEditorInner({
           slots.panel(api)
         ) : (
           <div className="ff-editor__panel-wrap">
-            <NodeConfigPanel className="ff-editor__panel" node={api.selected} onChange={api.updateNode} />
+            <NodeConfigPanel
+              className="ff-editor__panel"
+              node={api.selected}
+              onChange={api.updateNode}
+              // The delete affordance lives IN the panel (one source of truth),
+              // not a private FlowEditor toolbar button — so a dev composing
+              // their own editor from NodeConfigPanel gets it for free.
+              onDelete={builtins.delete === false ? undefined : (n) => api.deleteNodes([n.id])}
+            />
             {slots.panelFooter && <div className="ff-editor__panel-footer">{slots.panelFooter(api)}</div>}
           </div>
         ))}

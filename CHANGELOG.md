@@ -12,6 +12,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-07-23
+
+### Changed
+
+- **Node delete moved from the `FlowEditor` toolbar into `NodeConfigPanel`.**
+  Deleting a node is a property of the node editor panel now, not a bespoke
+  toolbar button — so a developer composing their own editor from the exported
+  `NodeConfigPanel` gets the delete affordance for free, and `FlowEditor` stays
+  a thin composition of the same primitives (no drift between the two).
+
+  `NodeConfigPanel` gains an `onDelete?: (node) => void` prop (and an optional
+  `deleteLabel`); when set, it renders a "Delete node" button at the foot of the
+  panel while a node is selected. `FlowEditor` wires it to delete the selected
+  node, still gated by `builtins.delete`.
+
+  **What a consumer must DO:** if you relied on the toolbar's `✕ Delete` button
+  (or a `[data-action="delete"]` selector on it), it's gone — the button is now
+  `[data-action="delete-node"]` inside the panel. Keyboard `Del`/`Backspace`,
+  the right-click menu, and `api.deleteSelected()` are unchanged, so most
+  consumers need do nothing.
+
+### Fixed
+
+- **Node cards no longer dump raw JSON.** A non-primitive config value (a
+  `repeater` list, a `keyvalue` object) was rendered with `JSON.stringify`, so a
+  User Input node showed `Fields: [{"key":"answer",…}]` on its card. Values are
+  now summarised for a glance — an array shows its item names (or a count), an
+  object shows a field count — and never as JSON.
+
 ## [0.16.0] — 2026-07-20
 
 All of this comes from the MOIC Suite consumer's review of 0.15.0 — the only

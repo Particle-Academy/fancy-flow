@@ -9,6 +9,15 @@ export type NodeConfigPanelProps = {
   node: FlowNode | null;
   /** Called when the user edits the node label, description, or config. */
   onChange: (next: FlowNode) => void;
+  /**
+   * Called when the user deletes the node from the panel. When provided, the
+   * panel renders a "Delete node" button while a node is selected — so the
+   * delete affordance lives WITH the panel (a dev composing their own editor
+   * gets it for free), rather than in a host toolbar it has to re-implement.
+   */
+  onDelete?: (node: FlowNode) => void;
+  /** Label for the delete button. Default "Delete node". */
+  deleteLabel?: string;
   /** Optional header content (e.g. close button). */
   header?: ReactNode;
   /** Optional credential picker hook — host renders the picker. */
@@ -38,6 +47,8 @@ export type NodeConfigPanelProps = {
 export function NodeConfigPanel({
   node,
   onChange,
+  onDelete,
+  deleteLabel = "Delete node",
   header,
   renderCredentialField,
   renderDocumentField,
@@ -62,6 +73,19 @@ export function NodeConfigPanel({
       <aside className={["ff-panel", className ?? ""].filter(Boolean).join(" ")} style={style}>
         {header}
         <p className="ff-panel__empty">Unknown kind: {kindName}</p>
+        {onDelete && (
+          <div className="ff-panel__actions">
+            <button
+              type="button"
+              className="ff-panel__delete"
+              data-action="delete-node"
+              onClick={() => onDelete(node)}
+              title="Delete this node (Del / Backspace)"
+            >
+              ✕ {deleteLabel}
+            </button>
+          </div>
+        )}
       </aside>
     );
   }
@@ -148,6 +172,20 @@ export function NodeConfigPanel({
           {issues.map((iss) => (
             <p key={iss.key} className="ff-panel__issue">⚠ {iss.message}</p>
           ))}
+        </div>
+      )}
+
+      {onDelete && (
+        <div className="ff-panel__actions">
+          <button
+            type="button"
+            className="ff-panel__delete"
+            data-action="delete-node"
+            onClick={() => onDelete(node)}
+            title="Delete this node (Del / Backspace)"
+          >
+            ✕ {deleteLabel}
+          </button>
         </div>
       )}
     </aside>

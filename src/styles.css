@@ -381,6 +381,24 @@
 .dark .ff-panel__kind-desc { color: #a1a1aa; }
 .ff-panel__divider { border: 0; border-top: 1px solid #e4e4e7; margin: 4px 0; }
 .dark .ff-panel__divider { border-top-color: #3f3f46; }
+
+/* Delete lives at the foot of the panel, separated from the config fields, so
+   it is always reachable while a node is selected but never mistaken for one. */
+.ff-panel__actions { margin-top: auto; padding-top: 12px; }
+.ff-panel__delete {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #dc2626;
+  background: transparent;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ff-panel__delete:hover { background: #fef2f2; border-color: #dc2626; }
+.dark .ff-panel__delete { color: #f87171; border-color: #7f1d1d; }
+.dark .ff-panel__delete:hover { background: rgba(127,29,29,0.25); border-color: #f87171; }
 .ff-panel__field { display: flex; flex-direction: column; gap: 4px; }
 .ff-panel__label { font-size: 12px; font-weight: 500; }
 .ff-panel__hint { font-size: 11px; color: #71717a; margin: 0; }

@@ -125,13 +125,39 @@ function DefaultBody({ config, kind }: { config: Record<string, unknown>; kind?:
   );
 }
 
-function previewValue(v: unknown): string {
-  if (typeof v === "string") return v.length > 30 ? v.slice(0, 27) + "…" : v;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  try {
-    const j = JSON.stringify(v);
-    return j.length > 30 ? j.slice(0, 27) + "…" : j;
-  } catch {
-    return "[object]";
+const truncate = (s: string, n = 30): string => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+/** A short, human name for one item in a repeater/list value. */
+function itemLabel(item: unknown): string {
+  if (item && typeof item === "object") {
+    const o = item as Record<string, unknown>;
+    const name = o.label ?? o.name ?? o.key ?? o.title ?? o.id;
+    if (typeof name === "string" && name) return name;
+    if (typeof name === "number") return String(name);
+    return "item";
   }
+  return String(item ?? "");
+}
+
+/**
+ * A node card's job is to read at a glance, not to be a data dump — so a value
+ * is summarised, never `JSON.stringify`d. An array becomes its item names (or a
+ * count), an object becomes a field count. Raw JSON on a card was the specific
+ * thing to kill: `Fields: [{"key":"answer",…}]` reads as noise.
+ */
+export function previewValue(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return truncate(v);
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "none";
+    const names = v.slice(0, 3).map(itemLabel).filter(Boolean).join(", ");
+    const rest = v.length > 3 ? `, +${v.length - 3}` : "";
+    return names ? truncate(names + rest) : `${v.length} item${v.length === 1 ? "" : "s"}`;
+  }
+  if (typeof v === "object") {
+    const keys = Object.keys(v as object);
+    return keys.length === 0 ? "empty" : `${keys.length} field${keys.length === 1 ? "" : "s"}`;
+  }
+  return "…";
 }
