@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo } from "react";
 import type { FlowNode } from "../../types";
-import { getNodeKind, validateConfig } from "../../registry/registry";
+import { categoryAccent, getNodeKind, validateConfig } from "../../registry/registry";
 import { getRichInputAdapter } from "../../registry/rich-input";
 import { ConfigFieldRenderer } from "./ConfigFieldRenderer";
 
@@ -115,9 +115,15 @@ export function NodeConfigPanel({
     <aside className={["ff-panel", className ?? ""].filter(Boolean).join(" ")} style={style}>
       {header}
       <header className="ff-panel__header">
-        <span className="ff-panel__kind-tag">{kind.label}</span>
-        {kind.description && <p className="ff-panel__kind-desc">{kind.description}</p>}
+        <span className="ff-panel__head-icon" style={{ background: kind.accent ?? categoryAccent(kind.category) }} aria-hidden>
+          {kind.icon}
+        </span>
+        <span className="ff-panel__head-text">
+          <span className="ff-panel__head-kind">{kind.label}</span>
+          <span className="ff-panel__head-name">{node.data.label || kind.label}</span>
+        </span>
       </header>
+      {kind.description && <p className="ff-panel__kind-desc">{kind.description}</p>}
 
       <div className="ff-panel__field">
         <label className="ff-panel__label">Label</label>

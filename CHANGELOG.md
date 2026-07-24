@@ -12,6 +12,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-07-24
+
+**Editor redesign + a themeable token layer.** The `<FlowEditor>` chrome is
+refreshed to a cleaner, unified look, and every surface now resolves from a
+`--ff-*` CSS custom-property layer so a host can retheme the whole editor without
+fighting specificity.
+
+### Added
+
+- **`--ff-*` theme tokens.** Colors, surfaces, borders, radii, shadows, and the
+  accent all come from custom properties defined on the component roots (with a
+  light default set + a single dark override block). Retheme by setting them
+  anywhere up the tree, e.g. `.ff-editor { --ff-accent: #ec4899; --ff-radius: 16px; }`.
+  Dark mode still honors a `.dark` / `[data-theme="dark"]` ancestor and OS
+  `prefers-color-scheme` (with the `.ff-canvas--light` opt-out).
+- **Run feed header.** `<FlowRunFeed>` now renders a header (title + live event
+  count + a "running" badge) above the scrolling body. New props: `showHeader`
+  (default true), `title` (default "Run feed"), `running`. `<FlowEditor>` passes
+  `running` automatically.
+- **Richer config-panel header.** The `<NodeConfigPanel>` header now shows the
+  kind's icon in an accent chip alongside the kind label and the node's name.
+
+### Changed
+
+- **The default editor look changed** — a unified bordered shell (palette ·
+  canvas + toolbar + run feed · inspector share one frame), recessed palette /
+  panel / feed surfaces, a themed (no longer hard-black) run feed, and refined
+  buttons/inputs. **What a consumer must DO:** nothing to keep working; if you
+  had overridden the old hard-coded `ff-*` colors, move those overrides to the
+  `--ff-*` tokens (cleaner, and they cascade). Class names are unchanged.
+- The run feed's scroll container is now `.ff-run-feed__body` (was the
+  `.ff-run-feed` root). Only matters if you targeted the root's scroll directly.
+
 ## [0.26.0] — 2026-07-24
 
 **User Input actually pauses for input now.** The editor gained a built-in

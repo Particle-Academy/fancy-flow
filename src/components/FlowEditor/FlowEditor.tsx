@@ -777,7 +777,7 @@ function FlowEditorInner({
           />
         )}
         {showFeed &&
-          (slots.feed ? slots.feed(api) : <FlowRunFeed entries={runner.feed} className="ff-editor__feed" />)}
+          (slots.feed ? slots.feed(api) : <FlowRunFeed entries={runner.feed} running={api.running} className="ff-editor__feed" />)}
         {prompt && <HumanPrompt request={prompt} onCancel={() => { setPrompt(null); runner.cancel(); }} />}
       </div>
       {showPanel &&
