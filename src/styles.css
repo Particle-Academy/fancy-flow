@@ -553,6 +553,58 @@
 }
 .ff-lane__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Notes (annotation category) — a resizable sticky-note. Portless + visual-only;
+   the engine skips it, so it never reaches a runner. Fill/border come from the
+   note's color (inline style); this is layout + typography only. */
+.ff-note {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ff-note--selected { box-shadow: 0 0 0 1px currentColor; }
+.ff-note__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ff-note__body {
+  flex: 1;
+  min-height: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #3f3f46;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.dark .ff-note__body { color: #e4e4e7; }
+@media (prefers-color-scheme: dark) {
+  .ff-note__body:not(.ff-canvas--light *) { color: #e4e4e7; }
+}
+.ff-note__placeholder { color: #a1a1aa; font-style: italic; }
+.ff-note__input {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: inherit;
+}
+
 /* Reactive output (G12) — a node's live computed value. */
 .ff-node__output {
   margin: 0;

@@ -12,6 +12,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-07-24
+
+**Notes on the canvas.** A first-class `note` kind for documenting a flow —
+sticky-note annotations that describe what each part does, for the people and
+agents reading the graph. Notes are **visual-only and never reach a runner**.
+
+### Added
+
+- **`note` kind (`@particle-academy/note`, aliases `note` / `@fancy/note`).** A
+  resizable sticky note with a `title`, `text`, and `color` (amber / sky /
+  violet / emerald / rose / slate). Portless — nothing wires to it. Rendered by
+  a new `NoteNode`; drag "Note" from the palette's new **Notes** section, or
+  double-click a note on the canvas to edit it in place (edits go through the
+  editor's undo pipeline). A note authored outside a `<FlowEditor>` (a read-only
+  viewer) renders as static text.
+- **New `annotation` node category.** Notes/labels/markup live here, separate
+  from `layout` (lanes/pools). Both are visual-only; the palette groups
+  annotations under **Notes**. `categoryAccent("annotation")` is a sticky yellow.
+
+### Changed
+
+- **The engine skips annotations, so a note's text never reaches a runner.** A
+  note's config (its text) stays in the exported `WorkflowSchema` purely for
+  people, editors, and MCP tools — `runFlow` walks straight past any node in the
+  `annotation` category (and, as before, any node typed `note`). A note has no
+  ports, so it can't feed data into another node either. **What a consumer must
+  DO:** nothing — this only adds a skip for a category that didn't exist before.
+
+### Notes
+
+- Agents author notes through the existing bridge with **no change needed**:
+  `flow_add_node` / `flow_update_node` handle the `note` kind like any other
+  registered kind (title/text/color validate against its `configSchema`), and
+  because notes are portless there is nothing to connect.
+- A note's `title` / `text` / `color` round-trip through
+  `exportWorkflow` / `importWorkflow` (they ride in `config`), as do its resized
+  `width` / `height`.
+
 ## [0.24.0] — 2026-07-23
 
 Release 5 — **data & polish**. Completes the G1–G15 capability push.

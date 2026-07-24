@@ -1,6 +1,6 @@
 {
   "name": "@particle-academy/fancy-flow",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
   "repository": {
     "type": "git",

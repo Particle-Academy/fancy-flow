@@ -96,15 +96,20 @@ export async function runFlow(
         }
       }
 
-      // Note + layout (lane/pool) nodes are visual only — never executed. Edges
-      // cross lanes freely, so grouping never affects topology.
+      // Notes/annotations + layout (lane/pool) nodes are visual only — never
+      // executed and never fed to runners. Their config (a note's text, a lane's
+      // title) stays in the document for editors + MCP tools, but the engine
+      // walks straight past them. Edges cross lanes freely, so grouping never
+      // affects topology.
       const visualKind = getNodeKind(node.type ?? "");
-      if (node.type === "note" || visualKind?.category === "layout") {
+      const isLayout = visualKind?.category === "layout";
+      const isAnnotation = node.type === "note" || visualKind?.category === "annotation";
+      if (isLayout || isAnnotation) {
         onEvent({
           type: "node-status",
           nodeId: node.id,
           status: "idle",
-          text: visualKind?.category === "layout" ? "lane" : "annotation",
+          text: isLayout ? "lane" : "annotation",
         });
         continue;
       }

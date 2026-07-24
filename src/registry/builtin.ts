@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { registerNodeKind } from "./registry";
 import { RichInputPreview } from "./rich-input";
 import { LaneNode } from "../components/nodes/LaneNode";
+import { NoteNode } from "../components/nodes/NoteNode";
 import { llmRouterExecutor } from "./llm-router";
 import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
 import type { PortDescriptor } from "../types";
@@ -660,6 +661,35 @@ const KINDS: NodeKindDefinition[] = [
     defaultConfig: { title: "Lane", orientation: "horizontal" },
     resizable: { minWidth: 160, minHeight: 72 },
     component: LaneNode,
+  },
+  {
+    // Note — a sticky-note annotation. Portless + visual-only: the runtime skips
+    // the `annotation` category, so a note's text NEVER reaches a runner — it
+    // rides in the document purely for people, editors, and MCP tools. Uses its
+    // own renderer (NoteNode); double-click on the canvas to edit in place.
+    name: "@particle-academy/note",
+    aliases: ["note", "@fancy/note"],
+    category: "annotation",
+    label: "Note",
+    description: "A sticky note that documents the canvas. Never runs — editor + agent only.",
+    icon: "🗒",
+    inputs: [],
+    outputs: [],
+    configSchema: [
+      { type: "text", key: "title", label: "Title", placeholder: "Optional heading" },
+      { type: "textarea", key: "text", label: "Note", rows: 5, placeholder: "What does this part of the flow do?" },
+      { type: "select", key: "color", label: "Color", default: "amber", options: [
+        { value: "amber", label: "Amber" },
+        { value: "sky", label: "Sky" },
+        { value: "violet", label: "Violet" },
+        { value: "emerald", label: "Emerald" },
+        { value: "rose", label: "Rose" },
+        { value: "slate", label: "Slate" },
+      ] },
+    ],
+    defaultConfig: { text: "", color: "amber" },
+    resizable: { minWidth: 140, minHeight: 80 },
+    component: NoteNode,
   },
 ];
 

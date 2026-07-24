@@ -13,6 +13,7 @@ export type NodeCategory =
   | "human"
   | "output"
   | "layout"
+  | "annotation"
   | "custom";
 
 /**
