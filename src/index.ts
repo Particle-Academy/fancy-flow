@@ -38,6 +38,7 @@ export {
   OutputNode,
   NoteNode,
   SubgraphNode,
+  LaneNode,
   NodeShell,
   defaultNodeTypes,
   type NodeShellProps,

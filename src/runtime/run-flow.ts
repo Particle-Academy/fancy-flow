@@ -96,9 +96,16 @@ export async function runFlow(
         }
       }
 
-      // Note nodes are annotations — never executed.
-      if (node.type === "note") {
-        onEvent({ type: "node-status", nodeId: node.id, status: "idle", text: "annotation" });
+      // Note + layout (lane/pool) nodes are visual only — never executed. Edges
+      // cross lanes freely, so grouping never affects topology.
+      const visualKind = getNodeKind(node.type ?? "");
+      if (node.type === "note" || visualKind?.category === "layout") {
+        onEvent({
+          type: "node-status",
+          nodeId: node.id,
+          status: "idle",
+          text: visualKind?.category === "layout" ? "lane" : "annotation",
+        });
         continue;
       }
 

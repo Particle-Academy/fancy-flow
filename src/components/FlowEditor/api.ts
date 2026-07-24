@@ -69,6 +69,14 @@ export type FlowEditorApi = {
   /** Evenly distribute the multi-selection's gaps along an axis (needs 3+). */
   distributeSelected: (axis: "h" | "v") => void;
 
+  // ── Swimlanes ────────────────────────────────────────────────────────
+  /** Add a swimlane, stacked with existing lanes. Returns the new lane id. */
+  addLane: (orientation?: "horizontal" | "vertical", title?: string) => string | null;
+  /** Put a node inside a lane (sets parentId + a lane-relative position). */
+  assignToLane: (nodeId: string, laneId: string) => void;
+  /** Remove a node from its lane (restores its absolute position). */
+  removeFromLane: (nodeId: string) => void;
+
   // ── Clipboard ────────────────────────────────────────────────────────
   /** Copy the current selection to the editor clipboard. */
   copy: () => void;
@@ -133,6 +141,8 @@ export type FlowEditorBuiltins = {
   delete?: boolean;
   /** Undo/redo toolbar buttons. Default true. */
   history?: boolean;
+  /** "Add lane" toolbar button. Default true. */
+  addLane?: boolean;
   /** Right-click a node for Delete / Duplicate. Default true. */
   contextMenu?: boolean;
   /** Right-click a connection for Label / Delete. Default true. */

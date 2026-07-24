@@ -15,6 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { defaultNodeTypes } from "../nodes";
 import { createConnectionValidator, type ConnectionValidatorOptions } from "../../registry/connection";
+import { sortNodesParentFirst } from "../FlowEditor/graph-ops";
 import type { FlowNode } from "../../types";
 
 export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "edges" | "height"> & {
@@ -100,12 +101,16 @@ export function FlowCanvas({
     [edgeTypes],
   );
 
+  // xyflow requires a parent node to precede its children in the array; grouping
+  // (swimlanes) can produce any order, so normalize it here at the boundary.
+  const orderedNodes = useMemo(() => sortNodesParentFirst(nodes), [nodes]);
+
   return (
     <div className={["ff-canvas", className ?? ""].filter(Boolean).join(" ")} style={{ height, ...style }}>
       {toolbar && <div className="ff-canvas__toolbar">{toolbar}</div>}
       <div className="ff-canvas__surface">
         <ReactFlow
-          nodes={nodes}
+          nodes={orderedNodes}
           edges={edges}
           nodeTypes={mergedNodeTypes}
           edgeTypes={mergedEdgeTypes}

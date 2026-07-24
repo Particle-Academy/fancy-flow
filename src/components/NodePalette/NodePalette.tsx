@@ -11,7 +11,7 @@ export type NodePaletteProps = {
   style?: CSSProperties;
 };
 
-const CATEGORY_ORDER: NodeCategory[] = ["trigger", "logic", "data", "ai", "io", "human", "output", "custom"];
+const CATEGORY_ORDER: NodeCategory[] = ["trigger", "logic", "data", "ai", "io", "human", "output", "layout", "custom"];
 const CATEGORY_LABELS: Record<NodeCategory, string> = {
   trigger: "Triggers",
   logic: "Logic",
@@ -20,6 +20,7 @@ const CATEGORY_LABELS: Record<NodeCategory, string> = {
   io: "Connectors",
   human: "Human",
   output: "Output",
+  layout: "Layout",
   custom: "Custom",
 };
 

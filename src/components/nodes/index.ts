@@ -7,6 +7,7 @@ import { NoteNode } from "./NoteNode";
 import { SubgraphNode } from "./SubgraphNode";
 
 export { TriggerNode, ActionNode, DecisionNode, OutputNode, NoteNode, SubgraphNode };
+export { LaneNode } from "./LaneNode";
 export { NodeShell, type NodeShellProps } from "./NodeShell";
 
 /**

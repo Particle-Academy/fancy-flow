@@ -122,6 +122,89 @@ export function alignNodes(nodes: FlowNode[], edge: AlignEdge): FlowNode[] {
   });
 }
 
+/**
+ * Order nodes so every parent precedes its children — xyflow misrenders (and
+ * warns) when a child appears before its `parentId` in the array. Stable
+ * otherwise. Apply at the render boundary once grouping is in play.
+ */
+export function sortNodesParentFirst<T extends { id: string; parentId?: string }>(nodes: T[]): T[] {
+  const byId = new Map(nodes.map((n) => [n.id, n] as const));
+  const seen = new Set<string>();
+  const out: T[] = [];
+  const visit = (n: T) => {
+    if (seen.has(n.id)) return;
+    const pid = (n as any).parentId as string | undefined;
+    if (pid && byId.has(pid) && !seen.has(pid)) visit(byId.get(pid)!);
+    seen.add(n.id);
+    out.push(n);
+  };
+  for (const n of nodes) visit(n);
+  return out;
+}
+
+/** Absolute position of a node, accounting for one level of parent nesting. */
+function absolutePosition(node: FlowNode, nodes: FlowNode[]): { x: number; y: number } {
+  const pid = (node as any).parentId as string | undefined;
+  if (!pid) return node.position;
+  const parent = nodes.find((n) => n.id === pid);
+  return parent ? { x: node.position.x + parent.position.x, y: node.position.y + parent.position.y } : node.position;
+}
+
+/**
+ * Put a node inside a lane/container: set `parentId` + `extent:'parent'` and
+ * convert its position to be relative to the lane. Idempotent-safe; a no-op if
+ * either id is missing or they're the same node.
+ */
+export function assignToLane(nodes: FlowNode[], nodeId: string, laneId: string): FlowNode[] {
+  if (nodeId === laneId) return nodes;
+  const node = nodes.find((n) => n.id === nodeId);
+  const lane = nodes.find((n) => n.id === laneId);
+  if (!node || !lane) return nodes;
+  const abs = absolutePosition(node, nodes);
+  const laneAbs = absolutePosition(lane, nodes);
+  const rel = { x: abs.x - laneAbs.x, y: abs.y - laneAbs.y };
+  return nodes.map((n) => (n.id === nodeId ? ({ ...n, parentId: laneId, extent: "parent", position: rel } as FlowNode) : n));
+}
+
+/** Take a node out of its lane: drop `parentId`/`extent`, restore absolute position. */
+export function removeFromLane(nodes: FlowNode[], nodeId: string): FlowNode[] {
+  const node = nodes.find((n) => n.id === nodeId);
+  if (!node || !(node as any).parentId) return nodes;
+  const abs = absolutePosition(node, nodes);
+  return nodes.map((n) => {
+    if (n.id !== nodeId) return n;
+    const { parentId: _p, extent: _e, ...rest } = n as any;
+    return { ...rest, position: abs } as FlowNode;
+  });
+}
+
+/**
+ * Stack lanes into contiguous rows (horizontal) or columns (vertical) — the
+ * "fixed rows/columns" behavior. `isLane` picks which nodes are lanes; they're
+ * ordered by their current cross-axis position and repacked from the first
+ * lane's origin. Each lane keeps its own size (independently resizable).
+ */
+export function stackLanes(
+  nodes: FlowNode[],
+  isLane: (n: FlowNode) => boolean,
+  opts: { orientation?: "horizontal" | "vertical"; gap?: number } = {},
+): FlowNode[] {
+  const orientation = opts.orientation ?? "horizontal";
+  const gap = opts.gap ?? 12;
+  const vertical = orientation === "vertical";
+  const lanes = nodes.filter(isLane).sort((a, b) => (vertical ? a.position.x - b.position.x : a.position.y - b.position.y));
+  if (lanes.length === 0) return nodes;
+  const originX = lanes[0].position.x;
+  const originY = lanes[0].position.y;
+  const moves = new Map<string, { x: number; y: number }>();
+  let cursor = vertical ? originX : originY;
+  for (const lane of lanes) {
+    moves.set(lane.id, vertical ? { x: cursor, y: originY } : { x: originX, y: cursor });
+    cursor += (vertical ? ((lane as any).width ?? 320) : ((lane as any).height ?? 160)) + gap;
+  }
+  return nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n));
+}
+
 /** Evenly distribute a selection's gaps along an axis (needs 3+ nodes). */
 export function distributeNodes(nodes: FlowNode[], axis: "h" | "v"): FlowNode[] {
   if (nodes.length < 3) return nodes;

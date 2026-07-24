@@ -102,11 +102,13 @@ import { kindIds, listNodeKinds } from "./registry";
 export function buildNodeTypes(): NodeTypes {
   const map: NodeTypes = {};
   for (const k of listNodeKinds()) {
-    // Key on every id the kind answers to, not just the canonical one. xyflow
-    // looks the renderer up by `node.type` BEFORE RegistryNode gets a chance to
-    // resolve aliases, so a graph still carrying pre-namespace types would fall
-    // through to the unknown-node placeholder.
-    for (const id of kindIds(k)) map[id] = RegistryNode;
+    // A kind may bring its own full renderer (lanes/containers); otherwise the
+    // default card. Key on every id the kind answers to, not just the canonical
+    // one — xyflow looks the renderer up by `node.type` BEFORE RegistryNode gets
+    // a chance to resolve aliases, so a graph carrying a pre-namespace type would
+    // otherwise fall through to the unknown-node placeholder.
+    const renderer = k.component ?? RegistryNode;
+    for (const id of kindIds(k)) map[id] = renderer;
   }
   return map;
 }

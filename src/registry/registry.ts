@@ -185,6 +185,7 @@ export function categoryAccent(category: string): string {
     case "io":      return "#3b82f6";
     case "human":   return "#ec4899";
     case "output":  return "#a855f7";
+    case "layout":  return "#64748b";
     default:        return "#71717a";
   }
 }

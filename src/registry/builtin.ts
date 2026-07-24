@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { registerNodeKind } from "./registry";
 import { RichInputPreview } from "./rich-input";
+import { LaneNode } from "../components/nodes/LaneNode";
 import { llmRouterExecutor } from "./llm-router";
 import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
 import type { PortDescriptor } from "../types";
@@ -638,6 +639,27 @@ const KINDS: NodeKindDefinition[] = [
         options: [{ value: "info", label: "info" }, { value: "warn", label: "warn" }, { value: "error", label: "error" }] },
       { type: "expression", key: "message", label: "Message", required: true, example: "{{ $json }}" },
     ],
+  },
+  {
+    // Swimlane — a portless, resizable container. Child nodes are parented into
+    // it; it never runs (the runtime skips the `layout` category). Uses its own
+    // renderer (LaneNode) instead of the default card.
+    name: "@particle-academy/lane",
+    aliases: ["lane", "@fancy/lane"],
+    category: "layout",
+    label: "Lane",
+    description: "A resizable swimlane — drop nodes into it to group them.",
+    icon: "▤",
+    inputs: [],
+    outputs: [],
+    configSchema: [
+      { type: "text", key: "title", label: "Title", default: "Lane" },
+      { type: "select", key: "orientation", label: "Orientation", default: "horizontal",
+        options: [{ value: "horizontal", label: "Row" }, { value: "vertical", label: "Column" }] },
+    ],
+    defaultConfig: { title: "Lane", orientation: "horizontal" },
+    resizable: { minWidth: 160, minHeight: 72 },
+    component: LaneNode,
   },
 ];
 

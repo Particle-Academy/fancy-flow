@@ -525,3 +525,34 @@
 }
 .dark .react-flow__resize-control.line { border-color: rgba(255, 255, 255, 0.18); }
 .dark .react-flow__resize-control.handle { border-color: #1c1917; }
+
+/* Swimlanes (G6) — a resizable, titled container band. Child nodes are parented
+   into it and render on top; this is just the background, so it fills the node's
+   width/height and sits behind its children (xyflow orders a parent before its
+   children). */
+.ff-lane {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  background: rgba(100, 116, 139, 0.06);
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ff-lane--selected { border-style: solid; }
+.ff-lane__header {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  border-radius: 7px 7px 0 0;
+}
+.ff-lane__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dark .ff-lane { background: rgba(148, 163, 184, 0.08); border-color: #3f3f46; }
+@media (prefers-color-scheme: dark) {
+  .ff-lane:not(.ff-canvas--light *) { background: rgba(148, 163, 184, 0.08); border-color: #3f3f46; }
+}

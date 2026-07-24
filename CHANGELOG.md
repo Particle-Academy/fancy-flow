@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-07-23
+
+Release 4a — **true swimlanes** (the headline). Auto-layout (G5) follows in 0.23.0.
+
+### Added
+
+- **Swimlanes.** A new `@particle-academy/lane` kind — a resizable, titled
+  container (a `layout`-category node with its own `LaneNode` renderer). **Drop a
+  node onto a lane to file it there** (`parentId` + `extent:'parent'`, converted
+  to a lane-relative position); **drag it out to unfile it**. Lanes resize on the
+  canvas; children render on top and move with the lane.
+  - `FlowEditorApi`: `addLane(orientation?, title?)`, `assignToLane(nodeId, laneId)`,
+    `removeFromLane(nodeId)`. Toolbar "▤ Lane" builtin (`builtins.addLane`).
+  - **`NodeKindDefinition.component`** — a kind can now supply its OWN full
+    renderer (not just a card body); `buildNodeTypes` uses it. This is the escape
+    hatch lanes/containers need.
+  - New `layout` `NodeCategory` (+ accent) and pure graph-ops: `sortNodesParentFirst`
+    (applied at the FlowCanvas boundary — xyflow requires parents before children),
+    `assignToLane`, `removeFromLane`, `stackLanes`.
+  - **Runtime:** lanes are visual-only — never executed; edges cross lanes freely,
+    so grouping never affects topology.
+  - **Persistence:** lane size + each child's `parentId`/`extent` round-trip via
+    the 0.21 schema fields.
+
+### Notes
+
+- Auto-layout (dagre) lands next in **0.23.0**; lane auto-arrange builds on it.
+
 ## [0.21.0] — 2026-07-23
 
 Release 3 — **node chrome & persistence** — the groundwork swimlanes (0.22) need.

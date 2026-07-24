@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import type { NodeExecutor, PortDescriptor } from "../types";
+import type { ComponentType, ReactNode } from "react";
+import type { NodeProps } from "@xyflow/react";
+import type { FlowNode, NodeExecutor, PortDescriptor } from "../types";
 import type { PauseAwaiting } from "./pause";
 
 /** Categories used by the palette for grouping. */
@@ -11,6 +12,7 @@ export type NodeCategory =
   | "io"
   | "human"
   | "output"
+  | "layout"
   | "custom";
 
 /**
@@ -285,4 +287,12 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
    * menu. Call `useFlowEditor()` inside it to reach the editor api.
    */
   toolbar?: (ctx: { nodeId: string; config: TConfig; selected: boolean }) => ReactNode;
+
+  /**
+   * Full custom node renderer. When set, `buildNodeTypes` uses this component
+   * for the kind INSTEAD of the default `RegistryNode` card — the escape hatch
+   * for nodes that aren't cards (lanes / containers / groups). Receives
+   * xyflow's `NodeProps`.
+   */
+  component?: ComponentType<NodeProps<FlowNode>>;
 };

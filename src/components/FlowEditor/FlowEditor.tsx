@@ -37,6 +37,8 @@ import {
   reconnectEdge,
   alignNodes,
   distributeNodes,
+  assignToLane as assignToLaneOp,
+  removeFromLane as removeFromLaneOp,
   removeEdges,
   removeNodes,
   setEdgeLabel,
@@ -378,6 +380,55 @@ function FlowEditorInner({
     [flow],
   );
 
+  // ── Swimlanes (Release 4) ──
+  const isLaneNode = useCallback(
+    (n: FlowNode) => getNodeKind((n.data as any)?.kind ?? n.type)?.category === "layout",
+    [],
+  );
+
+  const addLane = useCallback(
+    (orientation: "horizontal" | "vertical" = "horizontal", title?: string): string => {
+      const vertical = orientation === "vertical";
+      const lanes = flow.nodes.filter(isLaneNode);
+      const w = vertical ? 280 : 680;
+      const h = vertical ? 480 : 168;
+      const end = lanes.reduce(
+        (m, l) =>
+          Math.max(m, vertical ? l.position.x + ((l as any).width ?? w) : l.position.y + ((l as any).height ?? h)),
+        0,
+      );
+      const id = newNodeId();
+      const name = title ?? `Lane ${lanes.length + 1}`;
+      const node = {
+        id,
+        type: "@particle-academy/lane",
+        position: vertical ? { x: lanes.length ? end + 12 : 0, y: 0 } : { x: 0, y: lanes.length ? end + 12 : 0 },
+        width: w,
+        height: h,
+        data: { kind: "@particle-academy/lane", label: name, config: { title: name, orientation } } as any,
+      } as FlowNode;
+      flow.setNodes((all: FlowNode[]) => [...all, node]);
+      setSelectedId(id);
+      return id;
+    },
+    [flow, isLaneNode],
+  );
+
+  // Drop a node onto a lane to file it there; drag it out to unfile it.
+  const handleNodeDragStop = useCallback(
+    (_e: MouseEvent | TouchEvent, node: FlowNode) => {
+      if (isLaneNode(node)) return; // v1: lanes don't nest inside lanes
+      const overLane = rf.getIntersectingNodes(node).find((n) => isLaneNode(n as FlowNode));
+      const currentParent = (node as any).parentId as string | undefined;
+      if (overLane && overLane.id !== currentParent) {
+        flow.setNodes((all: FlowNode[]) => assignToLaneOp(all, node.id, overLane.id));
+      } else if (!overLane && currentParent) {
+        flow.setNodes((all: FlowNode[]) => removeFromLaneOp(all, node.id));
+      }
+    },
+    [rf, flow, isLaneNode],
+  );
+
   // Clipboard + duplicate shortcuts. (Undo/redo live in the effect above.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -448,6 +499,10 @@ function FlowEditorInner({
       },
       paste: pasteClipboard,
 
+      addLane,
+      assignToLane: (nodeId, laneId) => flow.setNodes((all: FlowNode[]) => assignToLaneOp(all, nodeId, laneId)),
+      removeFromLane: (nodeId) => flow.setNodes((all: FlowNode[]) => removeFromLaneOp(all, nodeId)),
+
       run: () => runner.run({ nodes: flow.nodes, edges: flow.edges }, executors),
       cancel: runner.cancel,
       reset: runner.reset,
@@ -463,7 +518,7 @@ function FlowEditorInner({
       canUndo: hist.canUndo,
       canRedo: hist.canRedo,
     };
-  }, [flow, selectedId, selected, selectedEdgeId, selectedEdge, selectedIds, selectedNodes, runner, executors, metadata, addNode, deleteNodes, deleteEdges, duplicateSelected, alignSelected, distributeSelected, copySelection, pasteClipboard, hist, rf]);
+  }, [flow, selectedId, selected, selectedEdgeId, selectedEdge, selectedIds, selectedNodes, runner, executors, metadata, addNode, deleteNodes, deleteEdges, duplicateSelected, alignSelected, distributeSelected, copySelection, pasteClipboard, addLane, hist, rf]);
 
   useImperativeHandle(apiRef, () => api, [api]);
 
@@ -506,6 +561,14 @@ function FlowEditorInner({
           </button>
         </>
       )}
+      {builtins.addLane !== false && (
+        <>
+          <span className="ff-editor__sep" />
+          <button className="ff-editor__btn" data-action="add-lane" title="Add a swimlane" onClick={() => api.addLane()}>
+            ▤ Lane
+          </button>
+        </>
+      )}
       {(builtins.export !== false || builtins.import !== false) && (
         <span className="ff-editor__sep" />
       )}
@@ -545,6 +608,8 @@ function FlowEditorInner({
           edgesReconnectable
           // Snapshot the pre-drag graph once so a drag is a single undo step.
           onNodeDragStart={hist.onNodeDragStart}
+          // Drop a node onto a lane to file it there (or drag it out to unfile).
+          onNodeDragStop={handleNodeDragStop}
           onNodeClick={handleNodeClick}
           onNodeContextMenu={builtins.contextMenu === false ? undefined : handleNodeContextMenu}
           onEdgeClick={handleEdgeClick}
