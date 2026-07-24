@@ -502,6 +502,18 @@ function FlowEditorInner({
       addLane,
       assignToLane: (nodeId, laneId) => flow.setNodes((all: FlowNode[]) => assignToLaneOp(all, nodeId, laneId)),
       removeFromLane: (nodeId) => flow.setNodes((all: FlowNode[]) => removeFromLaneOp(all, nodeId)),
+      // dagre is loaded lazily so it stays out of the eager bundle — consumers
+      // who never tidy pay nothing for it.
+      autoLayout: (opts) => {
+        void import("../../layout").then(({ autoLayout }) =>
+          flow.setGraph({ nodes: autoLayout({ nodes: flow.nodes, edges: flow.edges }, opts), edges: flow.edges }),
+        );
+      },
+      tidyLane: (laneId) => {
+        void import("../../layout").then(({ autoLayout }) =>
+          flow.setGraph({ nodes: autoLayout({ nodes: flow.nodes, edges: flow.edges }, { scope: laneId }), edges: flow.edges }),
+        );
+      },
 
       run: () => runner.run({ nodes: flow.nodes, edges: flow.edges }, executors),
       cancel: runner.cancel,
@@ -568,6 +580,11 @@ function FlowEditorInner({
             ▤ Lane
           </button>
         </>
+      )}
+      {builtins.autoLayout !== false && (
+        <button className="ff-editor__btn" data-action="auto-layout" title="Tidy — auto-arrange" onClick={() => api.autoLayout()}>
+          ⤢ Tidy
+        </button>
       )}
       {(builtins.export !== false || builtins.import !== false) && (
         <span className="ff-editor__sep" />

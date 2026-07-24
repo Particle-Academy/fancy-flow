@@ -12,6 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-07-23
+
+Release 4b — **auto-layout**, completing the swimlanes work (R4).
+
+### Added
+
+- **Auto-layout / "Tidy".** One click arranges the graph into a readable DAG via
+  **dagre** — **bundled but lazy-loaded**, so consumers who never tidy pay
+  nothing for it (verified: dagre is code-split out of the eager bundle), and it
+  runs headlessly.
+  - New `fancy-flow/layout` subpath: `autoLayout(graph, options)` →
+    repositioned nodes (`direction` LR/TB/RL/BT, `nodeSep`, `rankSep`, `scope`).
+  - `FlowEditorApi`: `autoLayout(options?)` and **`tidyLane(laneId)`** — a
+    lane-scoped arrange that tidies just one swimlane's children. Both go through
+    the commit pipeline, so they're a single undo step.
+  - Toolbar "⤢ Tidy" builtin (`builtins.autoLayout`).
+  - `AutoLayoutOptions` / `AutoLayoutDirection` types re-exported from the root
+    (the `autoLayout` value lives on `fancy-flow/layout` to keep dagre lazy).
+
 ## [0.22.0] — 2026-07-23
 
 Release 4a — **true swimlanes** (the headline). Auto-layout (G5) follows in 0.23.0.

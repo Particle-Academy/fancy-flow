@@ -140,6 +140,10 @@ export {
   type FlowRunFeedEntry,
 } from "./runtime";
 
+// Auto-layout types (the value `autoLayout` lives on the `fancy-flow/layout`
+// subpath so dagre stays out of the eager bundle; it's also on `api.autoLayout`).
+export type { AutoLayoutOptions, AutoLayoutDirection } from "./layout";
+
 // Domain types
 export type {
   FlowNode,

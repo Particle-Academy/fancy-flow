@@ -4,6 +4,7 @@ import type { Edge } from "@xyflow/react";
 import type { FlowGraph, FlowNode, NodeRunStatus } from "../../types";
 import type { WorkflowSchema } from "../../schema";
 import type { AlignEdge } from "./graph-ops";
+import type { AutoLayoutOptions } from "../../layout";
 
 /**
  * Everything the editor knows and can do, handed to every extension point.
@@ -76,6 +77,10 @@ export type FlowEditorApi = {
   assignToLane: (nodeId: string, laneId: string) => void;
   /** Remove a node from its lane (restores its absolute position). */
   removeFromLane: (nodeId: string) => void;
+  /** Auto-arrange the graph (or a lane's children) into a tidy DAG layout. */
+  autoLayout: (options?: AutoLayoutOptions) => void;
+  /** Tidy just one lane's children. */
+  tidyLane: (laneId: string) => void;
 
   // ── Clipboard ────────────────────────────────────────────────────────
   /** Copy the current selection to the editor clipboard. */
@@ -143,6 +148,8 @@ export type FlowEditorBuiltins = {
   history?: boolean;
   /** "Add lane" toolbar button. Default true. */
   addLane?: boolean;
+  /** "Tidy" (auto-layout) toolbar button. Default true. */
+  autoLayout?: boolean;
   /** Right-click a node for Delete / Duplicate. Default true. */
   contextMenu?: boolean;
   /** Right-click a connection for Label / Delete. Default true. */
