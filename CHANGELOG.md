@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-07-23
+
+Release 5 — **data & polish**. Completes the G1–G15 capability push.
+
+### Added
+
+- **Reactive data flow (G12).** Set `reactive: true` on a kind and, during a
+  run, its computed output is written back into `data.output` — the card shows
+  the value live ("computing flows"). `useFlowRun` now tracks `outputs`; new
+  `applyOutputsToNodes(nodes, outputs)` (chained after `applyStatusesToNodes`).
+  Default off — non-reactive kinds are untouched.
+- **First-class `colorMode` (G13).** `<FlowCanvas colorMode="light" | "dark" | "system">`
+  is forwarded to React Flow's own chrome AND stamped as the shared `.dark` /
+  light-opt-out class, so the kit's `ff-` styles theme in lockstep off one signal.
+- **Helper lines + snap (G15).** `<FlowCanvas showHelperLines>` — alignment
+  guides appear while dragging a node and it snaps to aligned edges. New pure
+  `getHelperLines(change, nodes)` + a `HelperLines` overlay (ViewportPortal, so
+  it tracks pan/zoom).
+
+### Notes
+
+- This is the final release of the capability push (`.ai/plans/fancy-flow-g3-g15-execution-plan.md`):
+  G1 (agent-bridge hardening, PR) + G2–G15 all shipped.
+
 ## [0.23.0] — 2026-07-23
 
 Release 4b — **auto-layout**, completing the swimlanes work (R4).

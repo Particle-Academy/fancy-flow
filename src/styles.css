@@ -552,6 +552,22 @@
   border-radius: 7px 7px 0 0;
 }
 .ff-lane__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Reactive output (G12) — a node's live computed value. */
+.ff-node__output {
+  margin: 0;
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: #059669;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dark .ff-node__output { color: #34d399; }
+
+/* Alignment guide lines (G15). */
+.ff-helper-line { background: #3b82f6; }
 .dark .ff-lane { background: rgba(148, 163, 184, 0.08); border-color: #3f3f46; }
 @media (prefers-color-scheme: dark) {
   .ff-lane:not(.ff-canvas--light *) { background: rgba(148, 163, 184, 0.08); border-color: #3f3f46; }

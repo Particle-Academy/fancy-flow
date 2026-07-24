@@ -295,4 +295,12 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
    * xyflow's `NodeProps`.
    */
   component?: ComponentType<NodeProps<FlowNode>>;
+
+  /**
+   * Opt this kind into reactive data flow: during a run, a node's computed
+   * output is written back into its `data.output`, so its card reflects the
+   * value live ("computing flows"). Default off — non-reactive kinds are
+   * untouched, so this is purely additive.
+   */
+  reactive?: boolean;
 };

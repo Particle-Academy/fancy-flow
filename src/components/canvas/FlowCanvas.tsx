@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useMemo, useRef } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -16,6 +16,8 @@ import "@xyflow/react/dist/style.css";
 import { defaultNodeTypes } from "../nodes";
 import { createConnectionValidator, type ConnectionValidatorOptions } from "../../registry/connection";
 import { sortNodesParentFirst } from "../FlowEditor/graph-ops";
+import { getHelperLines } from "./helper-lines";
+import { HelperLines } from "./HelperLines";
 import type { FlowNode } from "../../types";
 
 export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "edges" | "height"> & {
@@ -37,6 +39,8 @@ export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "ed
    * disable. An `isValidConnection` you pass yourself always takes precedence.
    */
   validateConnections?: boolean | ConnectionValidatorOptions;
+  /** Show alignment guide lines while dragging, and snap to them. Default off. */
+  showHelperLines?: boolean;
   /** Optional toolbar / palette etc. rendered above the canvas. */
   toolbar?: ReactNode;
   className?: string;
@@ -67,6 +71,9 @@ export function FlowCanvas({
   height = 600,
   validateConnections = true,
   isValidConnection,
+  colorMode,
+  showHelperLines = false,
+  onNodesChange,
   toolbar,
   nodeTypes,
   edgeTypes,
@@ -105,13 +112,47 @@ export function FlowCanvas({
   // (swimlanes) can produce any order, so normalize it here at the boundary.
   const orderedNodes = useMemo(() => sortNodesParentFirst(nodes), [nodes]);
 
+  // Helper lines: on a single-node drag, snap to aligned edges + show guides.
+  const [helperLines, setHelperLines] = useState<{ horizontal?: number; vertical?: number }>({});
+  const handleNodesChange = useCallback(
+    (changes: any[]) => {
+      if (showHelperLines) {
+        const pos = changes.filter((c) => c.type === "position" && c.position);
+        if (pos.length === 1 && pos[0].dragging) {
+          const lines = getHelperLines(pos[0], nodesRef.current);
+          if (lines.snapPosition.x !== undefined) pos[0].position.x = lines.snapPosition.x;
+          if (lines.snapPosition.y !== undefined) pos[0].position.y = lines.snapPosition.y;
+          setHelperLines({ horizontal: lines.horizontal, vertical: lines.vertical });
+        } else {
+          setHelperLines({});
+        }
+      }
+      onNodesChange?.(changes as any);
+    },
+    [showHelperLines, onNodesChange],
+  );
+
   return (
-    <div className={["ff-canvas", className ?? ""].filter(Boolean).join(" ")} style={{ height, ...style }}>
+    <div
+      className={[
+        "ff-canvas",
+        // colorMode drives BOTH react-flow's chrome (below) and our `ff-` styles
+        // via the shared `.dark` class / light opt-out — one theme signal.
+        colorMode === "dark" ? "dark" : "",
+        colorMode === "light" ? "ff-canvas--light" : "",
+        className ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{ height, ...style }}
+    >
       {toolbar && <div className="ff-canvas__toolbar">{toolbar}</div>}
       <div className="ff-canvas__surface">
         <ReactFlow
           nodes={orderedNodes}
           edges={edges}
+          onNodesChange={handleNodesChange}
+          colorMode={colorMode}
           nodeTypes={mergedNodeTypes}
           edgeTypes={mergedEdgeTypes}
           fitView
@@ -131,6 +172,7 @@ export function FlowCanvas({
           )}
           {showControls && <Controls className="ff-controls" position="bottom-right" />}
           {showMinimap && <MiniMap className="ff-minimap" pannable zoomable />}
+          {showHelperLines && <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />}
         </ReactFlow>
       </div>
     </div>

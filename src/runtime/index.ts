@@ -2,6 +2,7 @@ export { runFlow, type RunOptions, type RunResult } from "./run-flow";
 export {
   useFlowRun,
   applyStatusesToNodes,
+  applyOutputsToNodes,
   type UseFlowRunReturn,
   type UseFlowRunOptions,
   type FlowRunFeedEntry,

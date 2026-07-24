@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { runFlow, type RunOptions, type RunResult } from "./run-flow";
+import { getNodeKind } from "../registry/registry";
 import type {
   ExecutorRegistry,
   FlowGraph,
@@ -21,6 +22,8 @@ export type UseFlowRunReturn = {
   statuses: Record<string, NodeRunStatus>;
   /** Per-node status text (e.g. error message). */
   statusText: Record<string, string | undefined>;
+  /** Latest computed output value per node (for reactive kinds). */
+  outputs: Record<string, unknown>;
   /** Live event log (capped to last N). */
   feed: FlowRunFeedEntry[];
   /** Whether a run is currently in progress. */
@@ -48,6 +51,7 @@ export type UseFlowRunOptions = {
 export function useFlowRun({ maxFeed = 200 }: UseFlowRunOptions = {}): UseFlowRunReturn {
   const [statuses, setStatuses] = useState<Record<string, NodeRunStatus>>({});
   const [statusText, setStatusText] = useState<Record<string, string | undefined>>({});
+  const [outputs, setOutputs] = useState<Record<string, unknown>>({});
   const [feed, setFeed] = useState<FlowRunFeedEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [lastResult, setLastResult] = useState<RunResult | null>(null);
@@ -62,6 +66,7 @@ export function useFlowRun({ maxFeed = 200 }: UseFlowRunOptions = {}): UseFlowRu
           appendFeed({ level: "status", text: `${e.nodeId} → ${e.status}${e.text ? ` (${e.text})` : ""}`, nodeId: e.nodeId });
           break;
         case "node-output":
+          setOutputs((o) => ({ ...o, [e.nodeId]: e.value }));
           appendFeed({ level: "info", text: `${e.nodeId}.${e.portId} = ${preview(e.value)}`, nodeId: e.nodeId, detail: e.value });
           break;
         case "log":
@@ -100,6 +105,7 @@ export function useFlowRun({ maxFeed = 200 }: UseFlowRunOptions = {}): UseFlowRu
       for (const n of graph.nodes) idleStatuses[n.id] = "idle";
       setStatuses(idleStatuses);
       setStatusText({});
+      setOutputs({});
       setRunning(true);
       try {
         const result = await runFlow(graph, executors, handleEvent, { ...options, signal: controller.signal });
@@ -118,11 +124,28 @@ export function useFlowRun({ maxFeed = 200 }: UseFlowRunOptions = {}): UseFlowRu
   const reset = useCallback(() => {
     setStatuses({});
     setStatusText({});
+    setOutputs({});
     setFeed([]);
     setLastResult(null);
   }, []);
 
-  return { statuses, statusText, feed, running, lastResult, run, cancel, reset };
+  return { statuses, statusText, outputs, feed, running, lastResult, run, cancel, reset };
+}
+
+/**
+ * Write each reactive kind's latest run output into its `data.output`, so its
+ * card can render the computed value live. Non-reactive kinds are returned
+ * untouched. Pair with `applyStatusesToNodes` before rendering.
+ */
+export function applyOutputsToNodes<TNode extends { id: string; type?: string; data: any }>(
+  nodes: TNode[],
+  outputs: Record<string, unknown>,
+): TNode[] {
+  return nodes.map((n) => {
+    const kind = getNodeKind((n.data as any)?.kind ?? n.type ?? "");
+    if (!kind?.reactive || !(n.id in outputs)) return n;
+    return { ...n, data: { ...n.data, output: outputs[n.id] } };
+  });
 }
 
 /** Merge runtime statuses into nodes for rendering. */

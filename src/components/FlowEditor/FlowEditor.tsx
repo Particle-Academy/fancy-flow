@@ -27,7 +27,7 @@ import { FlowRunControls } from "../FlowRunControls";
 import { FlowRunFeed } from "../FlowRunFeed";
 import { useFlowState } from "../../runtime/use-flow-state";
 import { useFlowHistory } from "../../runtime/use-flow-history";
-import { useFlowRun, applyStatusesToNodes } from "../../runtime/use-flow-run";
+import { useFlowRun, applyStatusesToNodes, applyOutputsToNodes } from "../../runtime/use-flow-run";
 import { exportWorkflow, importWorkflow, workflowToBlob, type WorkflowMetadata, type WorkflowSchema } from "../../schema";
 import { buildNodeTypes, defaultConfigFor, getNodeKind, listNodeKinds, onNodeKindsChanged } from "../../registry";
 import type { ExecutorRegistry, FlowGraph, FlowNode } from "../../types";
@@ -163,8 +163,12 @@ function FlowEditorInner({
   const nodeTypes = useMemo(() => buildNodeTypes(), [listNodeKinds().length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderedNodes = useMemo(
-    () => applyStatusesToNodes(flow.nodes, runner.statuses, runner.statusText),
-    [flow.nodes, runner.statuses, runner.statusText],
+    () =>
+      applyOutputsToNodes(
+        applyStatusesToNodes(flow.nodes, runner.statuses, runner.statusText),
+        runner.outputs,
+      ),
+    [flow.nodes, runner.statuses, runner.statusText, runner.outputs],
   );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);

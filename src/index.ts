@@ -130,6 +130,7 @@ export {
   useFlowHistory,
   createHistory,
   applyStatusesToNodes,
+  applyOutputsToNodes,
   type RunOptions,
   type RunResult,
   type UseFlowRunReturn,

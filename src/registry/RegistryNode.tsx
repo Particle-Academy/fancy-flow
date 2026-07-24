@@ -74,6 +74,10 @@ function RegistryNodeInner(props: NodeProps<FlowNode>) {
 
       {data.statusText && <p className="ff-node__status-text">{data.statusText}</p>}
 
+      {(data as any).output !== undefined && (
+        <p className="ff-node__output" title="Latest output">→ {previewValue((data as any).output)}</p>
+      )}
+
       {inputs.map((p, i) => (
         <Handle
           key={p.id}
