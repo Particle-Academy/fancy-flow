@@ -12,6 +12,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-07-24
+
+**User Input actually pauses for input now.** The editor gained a built-in
+human-input modal, so a run through a `user_input` / `human_approval` node stops
+and asks — no host wiring required.
+
+### Added
+
+- **Built-in human-input modal.** When a run reaches a `user_input` node,
+  `<FlowEditor>` opens a form built from that node's `fields` config and BLOCKS
+  the run until the person submits (the executor returns a Promise the engine
+  awaits — the same pattern the headless runner already supported). A
+  `human_approval` node opens an Approve / Deny modal and routes on the choice.
+  These ship as **default executors** and are fully overridable — pass your own
+  `user_input` / `human_approval` executor and it wins. An unconfigured User
+  Input node (empty `fields`) still works: it falls back to a single text field.
+  New `HumanPrompt` component + `humanInputFields()` helper are exported for hosts
+  building their own run harness.
+
+### Fixed
+
+- **Config-less node cards no longer read "— configure in the panel".** A kind
+  with no `configSchema` (Manual trigger, Output, …) has nothing to configure, so
+  its card now renders as just its header instead of nagging to configure it. The
+  prompt still shows for kinds that HAVE fields but none are filled in yet.
+
+### Notes
+
+- **What a consumer must DO:** nothing. If you already pass a `user_input` or
+  `human_approval` executor it keeps winning; if you didn't, those nodes now
+  prompt the user in-editor instead of erroring with "No executor registered".
+
 ## [0.25.0] — 2026-07-24
 
 **Notes on the canvas.** A first-class `note` kind for documenting a flow —

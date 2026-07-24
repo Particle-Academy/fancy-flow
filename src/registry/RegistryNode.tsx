@@ -123,6 +123,10 @@ function portStyle(i: number, total: number): React.CSSProperties {
  */
 function DefaultBody({ config, kind }: { config: Record<string, unknown>; kind?: import("./types").ConfigField[] }) {
   const fields = kind ?? [];
+  // A kind with no config schema has nothing to configure — don't nag with a
+  // "configure in the panel" prompt (that's only for a kind that HAS fields but
+  // none are filled in yet). Triggers, Output, etc. render as just their header.
+  if (fields.length === 0) return null;
   const visible = fields
     .map((f) => ({ field: f, value: config[f.key] }))
     .filter(({ value }) => value !== undefined && value !== "" && value !== null);

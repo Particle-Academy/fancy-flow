@@ -51,6 +51,7 @@ import {
   type FlowEditorBuiltins,
   type FlowEditorSlots,
 } from "./api";
+import { HumanPrompt, humanInputFields, type HumanPromptRequest } from "./HumanPrompt";
 
 export type FlowEditorProps = {
   initial?: FlowGraph;
@@ -146,6 +147,43 @@ function FlowEditorInner({
   const internal = useFlowState(initial);
   const runner = useFlowRun();
   const rf = useReactFlow();
+
+  // In-editor human-input: when a run reaches a `user_input` / `human_approval`
+  // node, open a modal and BLOCK the run until the person submits. These are
+  // DEFAULT executors — a host that passes its own `user_input` / `human_approval`
+  // executor overrides them (host executors are spread last below).
+  const [prompt, setPrompt] = useState<HumanPromptRequest | null>(null);
+  const humanExecutors = useMemo<ExecutorRegistry>(
+    () => ({
+      user_input: ({ node }) =>
+        new Promise((resolve) => {
+          const cfg = (((node as any).data?.config ?? {}) as Record<string, unknown>);
+          setPrompt({
+            kind: "input",
+            title: (typeof cfg.title === "string" && cfg.title) || "Your input",
+            submitLabel: typeof cfg.submitLabel === "string" ? cfg.submitLabel : undefined,
+            fields: humanInputFields(cfg),
+            resolve: (values) => { setPrompt(null); resolve(values); },
+          });
+        }),
+      human_approval: ({ node }) =>
+        new Promise((resolve) => {
+          const cfg = (((node as any).data?.config ?? {}) as Record<string, unknown>);
+          setPrompt({
+            kind: "approval",
+            title: (typeof cfg.title === "string" && cfg.title) || "Approve action",
+            description: typeof cfg.description === "string" ? cfg.description : undefined,
+            resolve: (approved) => { setPrompt(null); resolve({ branch: approved ? "approved" : "denied" }); },
+          });
+        }),
+    }),
+    [],
+  );
+  const runExecutors = useMemo(() => ({ ...humanExecutors, ...executors }), [humanExecutors, executors]);
+  // Close the modal if the run ends (finished or cancelled) while it's open.
+  useEffect(() => {
+    if (!runner.running) setPrompt(null);
+  }, [runner.running]);
 
   // When `value` is provided we run in controlled mode: host owns nodes/edges,
   // local edits go through onChange. Internal state is unused but the hook
@@ -519,7 +557,7 @@ function FlowEditorInner({
         );
       },
 
-      run: () => runner.run({ nodes: flow.nodes, edges: flow.edges }, executors),
+      run: () => runner.run({ nodes: flow.nodes, edges: flow.edges }, runExecutors),
       cancel: runner.cancel,
       reset: runner.reset,
 
@@ -534,7 +572,7 @@ function FlowEditorInner({
       canUndo: hist.canUndo,
       canRedo: hist.canRedo,
     };
-  }, [flow, selectedId, selected, selectedEdgeId, selectedEdge, selectedIds, selectedNodes, runner, executors, metadata, addNode, deleteNodes, deleteEdges, duplicateSelected, alignSelected, distributeSelected, copySelection, pasteClipboard, addLane, hist, rf]);
+  }, [flow, selectedId, selected, selectedEdgeId, selectedEdge, selectedIds, selectedNodes, runner, runExecutors, metadata, addNode, deleteNodes, deleteEdges, duplicateSelected, alignSelected, distributeSelected, copySelection, pasteClipboard, addLane, hist, rf]);
 
   useImperativeHandle(apiRef, () => api, [api]);
 
@@ -740,6 +778,7 @@ function FlowEditorInner({
         )}
         {showFeed &&
           (slots.feed ? slots.feed(api) : <FlowRunFeed entries={runner.feed} className="ff-editor__feed" />)}
+        {prompt && <HumanPrompt request={prompt} onCancel={() => { setPrompt(null); runner.cancel(); }} />}
       </div>
       {showPanel &&
         (slots.panel ? (
