@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { registerBuiltinKinds } from "../src/registry/builtin";
 import { getNodeKind } from "../src/registry/registry";
 import { resolvePortSpec } from "../src/registry/ports";
@@ -10,6 +13,17 @@ import type { ExecutorRegistry, FlowGraph, RunEvent } from "../src/types";
 
 const node = (id: string, type: string, data: Record<string, unknown> = {}) =>
   ({ id, type, position: { x: 0, y: 0 }, data }) as FlowGraph["nodes"][number];
+
+const SRC = fileURLToPath(new URL("../src", import.meta.url));
+
+/**
+ * Module specifiers that mean "an LLM provider SDK". `ai` and `@ai-sdk/*` are
+ * the Vercel AI SDK; the rest are the usual suspects. Anchored so it matches a
+ * package NAME, not any substring — `ai` must not match `fancy-ai-utils`, and
+ * the old pattern's bare `/prism/` would have matched a file called `prism.ts`.
+ */
+const PROVIDER_RE =
+  /^(ai|openai|anthropic|cohere|mistralai|langchain|ollama|groq|replicate|prism)$|^@(ai-sdk|anthropic-ai|google)\//i;
 const edge = (id: string, source: string, target: string, sourceHandle?: string) =>
   ({ id, source, target, sourceHandle }) as FlowGraph["edges"][number];
 
@@ -102,7 +116,50 @@ describe("llm_router — a shuttle, not an engine", () => {
     // The dependency argument for keeping this in core: it must stay a shuttle.
     const pkg = await import("../package.json");
     const deps = Object.keys((pkg as any).default?.dependencies ?? (pkg as any).dependencies ?? {});
-    expect(deps.some((d) => /openai|anthropic|prism|langchain/i.test(d))).toBe(false);
+    expect(deps.some((d) => PROVIDER_RE.test(d))).toBe(false);
+  });
+
+  // A provider MAY appear as a peer — that is how the opt-in `/llm/vercel-ai`
+  // adapter reaches the Vercel AI SDK — but it must be OPTIONAL, or installing
+  // fancy-flow would force every consumer to install an SDK they never call.
+  it("declares any provider peer as optional", async () => {
+    const pkg = ((await import("../package.json")) as any).default ?? (await import("../package.json"));
+    const peers = Object.keys(pkg.peerDependencies ?? {});
+    const meta = pkg.peerDependenciesMeta ?? {};
+    for (const peer of peers.filter((p) => PROVIDER_RE.test(p))) {
+      expect(meta[peer]?.optional, `${peer} must be an OPTIONAL peer`).toBe(true);
+    }
+  });
+
+  // The assertion that actually protects the architecture. The old version only
+  // read `dependencies` and only matched openai|anthropic|prism|langchain — so
+  // it could never have caught `ai`, and it said nothing about where a provider
+  // is imported. Core staying a shuttle is a property of the SOURCE: only the
+  // opt-in adapter under src/llm/ may touch an SDK.
+  it("confines every provider import to the opt-in src/llm/ adapters", () => {
+    const offenders: string[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.tsx?$/.test(entry.name)) continue;
+
+        const rel = relative(SRC, full).replace(/\\/g, "/");
+        if (rel.startsWith("llm/")) continue; // the sanctioned home
+
+        const source = readFileSync(full, "utf8");
+        for (const m of source.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+          if (PROVIDER_RE.test(m[1]!)) offenders.push(`${rel} imports ${m[1]}`);
+        }
+      }
+    };
+    walk(SRC);
+
+    expect(offenders, "a provider SDK leaked outside src/llm/").toEqual([]);
   });
 });
 
