@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **postcss bumped to 8.5.23** (was 8.5.15), clearing
+  [GHSA-r28c-9q8g-f849](https://github.com/advisories/GHSA-r28c-9q8g-f849) —
+  path traversal in previous-source-map auto-loading (`sourceMappingURL`) that
+  can disclose arbitrary `.map` files. postcss is a **build-time transitive** of
+  `tsup` and `vite`, both devDependencies; it is not part of the published
+  bundle. **Consumers need to do nothing** — this only changes this repo's
+  lockfile. Fixed by an in-range update, not an `overrides` pin: every parent
+  (`tsup ^8.4.12`, `vite ^8.5.6`, `postcss-load-config >=8.0.9`) already
+  admitted the patched version.
+
 ## [0.27.0] — 2026-07-24
 
 **Editor redesign + a themeable token layer.** The `<FlowEditor>` chrome is
