@@ -54,6 +54,44 @@ describe("runFlow — decision merge points (#1)", () => {
     expect(ran).not.toContain("branchB"); // the not-taken branch stays skipped
   });
 
+  // Running is not enough — the merge point has to RECEIVE the live branch's
+  // value. A skipped branch has no port value, and assigning its `undefined`
+  // used to clobber whatever the branch that fired had already put on the same
+  // handle. Ordering the inactive edge LAST is what made it bite.
+  it("hands the merge point the value from the branch that actually fired", async () => {
+    const graph: FlowGraph = {
+      nodes: [
+        node("decision", "decision", { outputs: [{ id: "a" }, { id: "b" }] }),
+        node("branchA", "carry"),
+        node("branchB", "carry"),
+        node("shared", "sink"),
+      ],
+      edges: [
+        edge("e1", "decision", "branchA", "a"),
+        edge("e2", "decision", "branchB", "b"),
+        edge("e3", "branchA", "shared"), // active branch first…
+        edge("e4", "branchB", "shared"), // …inactive branch LAST — the clobber
+      ],
+    };
+
+    let seen: unknown = "never ran";
+    const executors: ExecutorRegistry = {
+      decision: () => ({ branch: "a" }),
+      carry: ({ node }) => ({ from: node.id }),
+      sink: ({ inputs }) => {
+        seen = (inputs as Record<string, unknown>).in;
+        return { ok: true };
+      },
+    };
+
+    const result = await runFlow(graph, executors);
+
+    expect(result.ok).toBe(true);
+    // Before the fix this was `undefined`: branchB never emitted, but its edge
+    // still overwrote branchA's value — a silently empty merge point.
+    expect(seen).toEqual({ from: "branchA" });
+  });
+
   // Two independent sources both feed one node — a genuine AND-join. The fix
   // (run on ANY active incoming, given topological order) must NOT regress this.
   it("still runs a genuine parallel join when both inputs are active", async () => {

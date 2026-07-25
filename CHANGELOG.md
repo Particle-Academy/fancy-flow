@@ -12,6 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.1] — 2026-07-24
+
+### Fixed
+
+- **A merge point downstream of a decision received `undefined` instead of the
+  live branch's value.** `#1` stopped the shared continuation node being
+  *skipped*; it could still arrive with **nothing**. Inputs were collected by
+  assigning every incoming edge in order, and a branch that never fired has no
+  port value — so its `undefined` overwrote whatever the branch that *did* fire
+  had already put on the same handle. Whether it bit depended purely on edge
+  order: inactive-edge-last lost the value, inactive-edge-first kept it.
+
+  This is the quiet kind: the run still reports `ok`, the merge node still
+  executes, and it just silently operates on nothing. Any graph where two or
+  more mutually-exclusive branches rejoin — decision/switch fan-in, the
+  canonical "route, then continue" shape — was exposed.
+
+  **Consumers need do nothing** — no API change, and a genuine parallel AND-join
+  (where both inputs really are active) behaves exactly as before; there is a
+  test pinning that. If you had worked around this by reordering edges or by
+  re-deriving state inside the merge node, that workaround is now unnecessary.
+
 ### Security
 
 - **postcss bumped to 8.5.23** (was 8.5.15), clearing

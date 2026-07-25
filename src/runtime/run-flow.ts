@@ -207,8 +207,17 @@ function collectInputs(
   const inputs: Record<string, unknown> = { ...(initial[node.id] ?? {}) };
   for (const e of incoming) {
     const portId = e.targetHandle ?? "in";
-    const val = portValues.get(`${e.source}:${e.sourceHandle ?? "out"}`);
-    inputs[portId] = val;
+    const key = `${e.source}:${e.sourceHandle ?? "out"}`;
+    // A branch that never fired has no entry in portValues. Assigning its
+    // `undefined` would CLOBBER the value the branch that DID fire already
+    // contributed on this same handle — emptying every merge point downstream
+    // of a decision, silently, with the run still reporting success.
+    //
+    // This is the other half of the merge-point bug above: that fix stopped the
+    // shared continuation node being skipped, but it still arrived with nothing
+    // whenever a later inactive edge happened to be last in `incoming`.
+    if (!portValues.has(key)) continue;
+    inputs[portId] = portValues.get(key);
   }
   return inputs;
 }
