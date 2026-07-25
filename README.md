@@ -2,7 +2,9 @@
 
 [![Fancified](art/fancified.svg)](https://particle.academy)
 
-A headless workflow **engine**, plus an optional React Flow **editor** — six built-in node kits, tokenized theme, and topological execution with per-node status events. The editor is for *designing* graphs; running them is a separate concern, so `fancy-flow/engine` executes a graph with **zero React** on a server, worker, or CLI. React Flow is bundled — consumers `npm install fancy-flow` and get nothing extra.
+A headless workflow **engine**, plus an optional React Flow **editor** — 27 built-in node kinds and a node marketplace, a themeable `--ff-*` token layer, and topological execution with per-node status events. The editor is for *designing* graphs; running them is a separate concern, so `fancy-flow/engine` executes a graph with **zero React** on a server, worker, or CLI. React Flow is bundled — consumers `npm install fancy-flow` and get nothing extra.
+
+On AI it is a **shuttle, not an engine**: core declares a `registerLlmClient` contract and never imports a provider SDK. Opt-in adapters ship on their own subpaths — [`./llm/vercel-ai`](#llm-adapters) (Vercel AI SDK, optional `ai` peer) and [`./llm/prism`](#llm-adapters) (a Prism-backed endpoint you own, no SDK at all). A PHP runtime twin, [`fancy-flow-php`](https://github.com/Particle-Academy/fancy-flow-php), executes the same graphs server-side.
 
 ## Install
 
@@ -290,22 +292,65 @@ function MyEditor() {
 }
 ```
 
-## Node kit (v0.1)
+## Node kinds
 
-| Kind | Purpose | Default ports |
-|---|---|---|
-| `trigger` | Entry point | outputs only (`out`) |
-| `action` | Work-doing node | `in` → `out` |
-| `decision` | Branching | `in` → `true` / `false` (configurable) |
-| `output` | Terminal | `in` only |
-| `note` | Annotation | none |
-| `subgraph` | Collapse a group | facade ports |
+27 builtins, grouped by category. Ids are namespaced (`@particle-academy/<name>`)
+and every bare name below is a permanent alias, so graphs saved against either
+keep resolving.
+
+| Category | Kinds |
+|---|---|
+| `trigger` | `manual_trigger`, `webhook_trigger`, `schedule_trigger` |
+| `logic` | `branch`, `switch_case`, `merge`, `for_each`, `wait`, `transform`, `subflow` |
+| `human` | `user_input`, `rich_user_input`, `human_approval`, `notify` |
+| `ai` | `llm_call`, `llm_router`, `tool_use`, `embed_search` |
+| `data` | `variable`, `memory_store`, `data_store` |
+| `io` | `api_request`, `webhook_out` |
+| `output` | `output`, `log` |
+| `layout` / `annotation` | `lane`, `note` — visual only, never executed |
+
+Don't hand-copy this list into generated graphs — it moves. Enumerate at
+runtime with `getNodeKind()` / the registry, or ask the Fancy MCP's `list_nodes`.
 
 Custom nodes plug in via xyflow's standard `nodeTypes` prop:
 
 ```tsx
 <FlowCanvas nodeTypes={{ ...defaultNodeTypes, myNode: MyCustomNode }} ... />
 ```
+
+## LLM adapters
+
+`llm_router` (alias `llm_branch`) asks a model to pick one of a node's declared
+ports. Core ships the **routing**, never a provider: it declares a
+`registerLlmClient` contract and imports no SDK, so a flow with no AI node pays
+nothing. Two adapters ship opt-in, on their own subpaths.
+
+**Prism** — no SDK to install. POSTs the routing question to a route you own,
+which answers it with Prism, keeping keys and provider config server-side:
+
+```ts
+import { usePrismForLlmBranch } from "@particle-academy/fancy-flow/llm/prism";
+
+usePrismForLlmBranch({ endpoint: "/api/flow/llm-route" });
+```
+
+The endpoint receives an `LlmRouteRequest` and answers `{ port, reason? }` — the
+same shape `fancy-flow-php` models, so one route serves both the editor's preview
+runs and server-side execution.
+
+**Vercel AI SDK** — for a JS-side model. `ai` is an *optional* peer, required
+only by this subpath:
+
+```ts
+import { anthropic } from "@ai-sdk/anthropic";
+import { useVercelAiForLlmBranch } from "@particle-academy/fancy-flow/llm/vercel-ai";
+
+useVercelAiForLlmBranch({ model: anthropic("claude-sonnet-4-5") });
+```
+
+Neither is required — `registerLlmClient()` takes any implementation, including a
+hand-rolled fetch. Both constrain the model to the declared ports rather than
+parsing prose, and a port that was never declared throws instead of routing.
 
 ## Runtime
 
@@ -403,13 +448,17 @@ resume.
 
 ## Status
 
-`v0.1` — editor + runner + node kit. Roadmap:
+Shipping. Since this list was last written, all of the following landed:
+auto-layout (`dagre`), edge labels, subflows, swimlanes, undo/redo, canvas
+notes, a built-in User Input modal, a `--ff-*` theme token layer, the node
+marketplace manifest + golden-fixture contract, two LLM adapters, and the agent
+bridge (`registerFlowBridge` in `@particle-academy/agent-integrations`).
 
-- Subgraph expand/collapse interactions
-- Edge labels (config metadata)
-- Auto-layout (`dagre` integration)
+Still open:
+
 - Persistence helpers (zod schema)
-- Agent bridge (in `@particle-academy/agent-integrations` — coming next)
+- Marketplace **content** — the pipeline is complete end to end and the registry
+  is deliberately empty; what belongs in it hasn't been scoped yet
 
 ## License
 
