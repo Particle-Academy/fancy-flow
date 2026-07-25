@@ -1,6 +1,6 @@
 {
   "name": "@particle-academy/fancy-flow",
-  "version": "0.27.1",
+  "version": "0.28.0",
   "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
   "repository": {
     "type": "git",
@@ -102,6 +102,16 @@
       "require": {
         "types": "./dist/llm/vercel-ai.d.cts",
         "default": "./dist/llm/vercel-ai.cjs"
+      }
+    },
+    "./llm/prism": {
+      "import": {
+        "types": "./dist/llm/prism.d.ts",
+        "default": "./dist/llm/prism.js"
+      },
+      "require": {
+        "types": "./dist/llm/prism.d.cts",
+        "default": "./dist/llm/prism.cjs"
       }
     }
   },

@@ -12,6 +12,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-07-25
+
+### Added
+
+- **`./llm/prism` — a Prism-backed LLM adapter**
+  ([#3](https://github.com/Particle-Academy/fancy-flow/issues/3)). Until now the
+  only shipped adapter was `./llm/vercel-ai`, which made the Vercel AI SDK the
+  de-facto default for anyone wiring up `llm_branch` — awkward in a stack that
+  standardises on Prism and already executes LLM nodes through it server-side
+  via `fancy-flow-php`.
+
+  Prism is PHP, so there is nothing to import and **no SDK to install**: the
+  adapter POSTs the routing question to a route you own, and that route answers
+  it with `Prism\Prism`. Provider config, keys, fallbacks and token accounting
+  stay in one place.
+
+  ```ts
+  import { usePrismForLlmBranch } from "@particle-academy/fancy-flow/llm/prism";
+
+  usePrismForLlmBranch({ endpoint: "/api/flow/llm-route" });
+  ```
+
+  The endpoint receives the `LlmRouteRequest` as JSON and answers
+  `{ port, reason? }` — the same shape `fancy-flow-php` already models, so **one
+  route serves both** the editor's preview runs and server-side execution.
+  Sends Laravel's `X-XSRF-TOKEN` and `credentials: "same-origin"` by default,
+  since a session-authenticated POST fails on CSRF otherwise.
+
+  It is the lighter of the two adapters: `/llm/vercel-ai` needs `ai` as an
+  optional peer, this one needs only `fetch`. Verified in the build — the
+  emitted `dist/llm/prism.js` imports nothing but fancy-flow's own chunk.
+
+  A port the endpoint returns that was never declared **throws** rather than
+  routing, because emitting on a port with no edge ends the branch silently
+  while the run still reports success.
+
+  **Consumers need do nothing** — `/llm/vercel-ai` is unchanged and core still
+  imports no provider. Pick whichever adapter matches your stack, or keep using
+  `registerLlmClient()` directly.
+
+### Fixed
+
+- **The "no provider SDK in core" guard now guards.** It read only
+  `dependencies` and matched only `/openai|anthropic|prism|langchain/`, so it
+  could never have caught the Vercel AI SDK (`ai`) and said nothing about
+  *where* a provider is imported. It now also requires any provider peer to be
+  optional, and asserts every provider import stays inside `src/llm/` — the
+  property that actually encodes "core is a shuttle". No shipped code changed;
+  core was, and is, clean.
+
 ## [0.27.1] — 2026-07-24
 
 ### Fixed
