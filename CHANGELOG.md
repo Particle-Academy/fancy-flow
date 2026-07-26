@@ -12,6 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-07-26
+
+### Changed
+
+- **BREAKING (node manifests): a runtime declares `files`, not `entry` /
+  `package`.** Marketplace nodes are **vendored**, not installed —
+  `fancy-cli add node` copies a node's source into the project the way it copies
+  a component's, so it lands in the app readable, editable and diffable rather
+  than hidden in `node_modules` or `vendor`. `entry` and `package` described an
+  npm/Composer install that no longer happens, and a manifest carrying them is
+  now rejected rather than claiming an install path nothing honours.
+
+  ```jsonc
+  "ui": ["ui"],                                    // the React surface, always copied
+  "runtimes": {
+    "ts":  { "files": ["js"],  "engine": ">=0.30.0" },
+    "php": { "files": ["php"], "engine": ">=0.9.0" }
+  }
+  ```
+
+  `ui` is a new top-level field, deliberately outside `runtimes`: the editor is
+  React on **every** host, so a Laravel project needs the React kind and does not
+  need the TypeScript executor. Fold the two together and a PHP host either loses
+  its palette entry or gains a second implementation of a node it runs once.
+
+  **What you must DO:** nothing unless you authored a node manifest — the
+  registry served none before this. If you did, replace each runtime's `entry` /
+  `package` with `files`, and move the surface to a top-level `ui`. The PHP twin
+  changed in lockstep (`fancy-flow-php` 0.9.1); the two validators must agree or
+  a manifest one accepts the other refuses.
+
 ## [0.31.0] — 2026-07-26
 
 ### Changed
@@ -1113,7 +1144,8 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.31.0...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.32.0...HEAD
+[0.32.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.1...v0.30.0
 [0.29.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.0...v0.29.1

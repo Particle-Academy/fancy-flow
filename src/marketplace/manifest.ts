@@ -37,16 +37,18 @@ export type NodeRuntimeId = "ts" | "php" | (string & {});
 /**
  * How one runtime provides this node, and which engine version it needs.
  *
- * `entry` and `package` are both here because the two ecosystems install
- * differently — a module path within the package for TS, a Composer
- * requirement for PHP — and pretending otherwise just moves the problem into
- * the CLI. Exactly one is required.
+ * `files` are source directories, not a dependency: a node is **vendored**, so
+ * `fancy-cli add node` copies them into the project the way it copies a
+ * component's source. One node, one source, readable and editable in the app
+ * rather than hidden in `node_modules` or `vendor`.
+ *
+ * This spec covers a runtime's BACKEND only. The surface lives in the
+ * manifest's `ui`, because the editor is React on every host — a Laravel
+ * project needs the React kind and does not need the TypeScript executor.
  */
 export type NodeRuntimeSpec = {
-  /** Module path within the package (TS-style runtimes). */
-  entry?: string;
-  /** Dependency requirement resolved by that ecosystem (PHP/Composer-style). */
-  package?: string;
+  /** This backend's source directories, relative to the node. */
+  files: string[];
   /** Semver range of THIS runtime's engine. Required — see the module note. */
   engine: string;
 };
@@ -97,7 +99,16 @@ export type NodePackageManifest = {
    * the way import canonicalises kind ids.
    */
   configVersion?: number;
-  /** Per-runtime entrypoints and engine ranges. */
+  /**
+   * The node's SURFACE — its React kind — as source directories.
+   *
+   * Copied whichever backend the consumer picks, because the editor is React on
+   * every host. Kept out of `runtimes` deliberately: fold the two together and
+   * a PHP project either loses its palette entry or gains a TypeScript executor
+   * it will never run.
+   */
+  ui?: string[];
+  /** Per-runtime backend source and engine ranges. */
   runtimes: Partial<Record<NodeRuntimeId, NodeRuntimeSpec>>;
   /**
    * Host capabilities this node needs, and whether each is mandatory.
@@ -278,7 +289,7 @@ function validateAliases(aliases: unknown, problems: ManifestProblem[]): void {
 
 function validateRuntimes(runtimes: unknown, problems: ManifestProblem[]): void {
   if (typeof runtimes !== "object" || runtimes === null || Array.isArray(runtimes)) {
-    problems.push(err("runtimes", "Required — an object of runtime id to { entry | package, engine }."));
+    problems.push(err("runtimes", "Required — an object of runtime id to { files, engine }."));
     return;
   }
 
@@ -290,19 +301,32 @@ function validateRuntimes(runtimes: unknown, problems: ManifestProblem[]): void 
 
   for (const [runtime, spec] of entries) {
     if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
-      problems.push(err(`runtimes.${runtime}`, "Must be an object of { entry | package, engine }."));
+      problems.push(err(`runtimes.${runtime}`, "Must be an object of { files, engine }."));
       continue;
     }
 
     const s = spec as Record<string, unknown>;
-    const hasEntry = typeof s.entry === "string" && s.entry.trim() !== "";
-    const hasPackage = typeof s.package === "string" && s.package.trim() !== "";
+    const files = Array.isArray(s.files) ? s.files : null;
 
-    if (!hasEntry && !hasPackage) {
-      problems.push(err(`runtimes.${runtime}`, "Needs `entry` (a module path) or `package` (a dependency requirement)."));
+    if (!files || files.length === 0 || files.some((f) => typeof f !== "string" || f.trim() === "")) {
+      problems.push(
+        err(
+          `runtimes.${runtime}`,
+          "Needs `files` — the node source directories this runtime's backend lives in, relative to the node.",
+        ),
+      );
     }
-    if (hasEntry && hasPackage) {
-      problems.push(err(`runtimes.${runtime}`, "Declare `entry` or `package`, not both — which one is authoritative is otherwise ambiguous."));
+    if (s.entry !== undefined || s.package !== undefined) {
+      // Nodes are VENDORED, not installed: the CLI copies a node's source into
+      // the project the way it copies a component's. `entry` / `package`
+      // described an npm/Composer install that no longer happens, and leaving
+      // them readable would let a manifest claim an install path nothing honours.
+      problems.push(
+        err(
+          `runtimes.${runtime}`,
+          "`entry` / `package` are gone — nodes are copied into a project, not installed from a registry. Declare `files` instead.",
+        ),
+      );
     }
     if (typeof s.engine !== "string" || s.engine.trim() === "") {
       problems.push(

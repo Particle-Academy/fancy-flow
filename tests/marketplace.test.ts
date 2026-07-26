@@ -18,8 +18,8 @@ const valid = {
   name: "@acme/fancy-flow-salesforce",
   kind: "@acme/salesforce_upsert",
   runtimes: {
-    ts: { entry: "dist/executor.js", engine: "^0.15" },
-    php: { package: "acme/fancy-flow-salesforce:^0.1", engine: "^0.7" },
+    ts: { files: ["js"], engine: "^0.15" },
+    php: { files: ["php"], engine: "^0.7" },
   },
   fixtures: "fixtures/salesforce_upsert.json",
 };
@@ -97,20 +97,26 @@ describe("per-runtime engine ranges", () => {
   });
 
   it("requires an engine range on every runtime", () => {
-    const result = validateNodeManifest({ ...valid, runtimes: { ts: { entry: "dist/x.js" } } });
+    const result = validateNodeManifest({ ...valid, runtimes: { ts: { files: ["js"] } } });
     expect(result.ok).toBe(false);
     expect(result.problems.find((p) => p.field === "runtimes.ts.engine")?.message).toMatch(/too old to run it/);
   });
 
-  it("needs entry or package, and refuses both", () => {
+  it("needs `files`, and refuses the retired install fields", () => {
+    // A runtime with no source directories names a backend that isn't there.
     const missing = validateNodeManifest({ ...valid, runtimes: { ts: { engine: "^0.15" } } });
-    expect(missing.problems.find((p) => p.field === "runtimes.ts")?.message).toMatch(/module path/);
+    expect(missing.problems.find((p) => p.field === "runtimes.ts")?.message).toMatch(/files/);
+    expect(missing.ok).toBe(false);
 
-    const both = validateNodeManifest({
+    // `entry` / `package` described an npm/Composer install that no longer
+    // happens — nodes are copied in. Left readable, a manifest could claim an
+    // install path nothing honours.
+    const retired = validateNodeManifest({
       ...valid,
-      runtimes: { ts: { entry: "a.js", package: "a/b:^1", engine: "^0.15" } },
+      runtimes: { ts: { entry: "a.js", files: ["js"], engine: "^0.15" } },
     });
-    expect(both.problems.find((p) => p.field === "runtimes.ts")?.message).toMatch(/not both/);
+    expect(retired.problems.find((p) => p.field === "runtimes.ts")?.message).toMatch(/copied into a project/);
+    expect(retired.ok).toBe(false);
   });
 });
 
@@ -150,7 +156,7 @@ describe("runtime support", () => {
     // The exact gap MOIC hit: the node installs, appears in the palette, and
     // then cannot run — with nothing visible beforehand.
     const problems = checkRuntimeSupport(
-      { kind: "@acme/x", runtimes: { ts: { entry: "dist/x.js", engine: "^0.15" } } },
+      { kind: "@acme/x", runtimes: { ts: { files: ["js"], engine: "^0.15" } } },
       ["php"],
     );
     expect(problems[0].level).toBe("error");
