@@ -555,3 +555,46 @@ describe("fixture stubs, resume, events, legacy ids", () => {
     expect(failed.failures[0].message).toMatch(/expected an emitted event/);
   });
 });
+
+describe("fixture comparison", () => {
+  // It used to be JSON.stringify equality, which compared key ORDER as if it
+  // were meaning. A node that spreads its input before its own fields produced
+  // a different order than the fixture author wrote, and the case failed with a
+  // message showing two identical-looking objects.
+  const kind = "@acme/order_test";
+
+  const caseWith = (expected: unknown): FixtureFile => ({
+    kind,
+    cases: [{ name: "value", expect: { ports: ["out"], value: expected } }],
+  });
+
+  it("ignores key order", async () => {
+    const result = await runFixtures(caseWith({ applied: true, id: 41 }), () => ({ id: 41, applied: true }));
+
+    expect(result.failures).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("ignores key order in nested objects and keeps array order significant", async () => {
+    const ok = await runFixtures(
+      caseWith({ effect: { op: "add", target: "card" }, tags: ["a", "b"] }),
+      () => ({ tags: ["a", "b"], effect: { target: "card", op: "add" } }),
+    );
+    expect(ok.ok).toBe(true);
+
+    const reordered = await runFixtures(caseWith({ tags: ["a", "b"] }), () => ({ tags: ["b", "a"] }));
+    expect(reordered.ok).toBe(false);
+  });
+
+  it("still fails on a genuine difference", async () => {
+    const result = await runFixtures(caseWith({ id: 41 }), () => ({ id: 42 }));
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("treats an undefined value as absent, the way a fixture file must", async () => {
+    const result = await runFixtures(caseWith({ id: 41 }), () => ({ id: 41, name: undefined }));
+
+    expect(result.ok).toBe(true);
+  });
+});

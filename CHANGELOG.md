@@ -12,6 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.1] — 2026-07-26
+
+### Fixed
+
+- **Golden fixtures no longer fail on key order.** `runFixtures` compared
+  expected and actual values with `JSON.stringify(a) === JSON.stringify(b)`,
+  which treats key **order** as if it were meaning. A node that spreads its
+  input before its own fields — `{ ...incoming, applied: true }`, an ordinary
+  thing to write — produced a different order than the fixture author wrote, and
+  the case failed with a message showing two identical-looking objects. Found
+  while writing the first third-party node package against this contract.
+
+  Comparison is now structural: key order is ignored, array order still matters,
+  and an `undefined` value still counts as absent (a fixture file can't express
+  `undefined`, so that had to stay).
+
+  **What you must DO:** nothing. Fixtures that passed still pass; some that
+  failed for no good reason now pass. If you worked around this by hand-ordering
+  a fixture's keys to match your executor, you can stop.
+
 ## [0.29.0] — 2026-07-25
 
 ### Added
@@ -1027,7 +1047,8 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.1...HEAD
+[0.29.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.27.1...v0.28.0
 [0.27.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.27.0...v0.27.1

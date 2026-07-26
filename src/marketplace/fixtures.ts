@@ -202,8 +202,46 @@ function buildGraph(kindId: string, testCase: FixtureCase): { graph: FlowGraph; 
   return { graph: { nodes, edges } as FlowGraph, ports: effective };
 }
 
+/**
+ * Structural comparison, insensitive to key ORDER.
+ *
+ * This was `JSON.stringify(a) === JSON.stringify(b)`, which compares key order
+ * as if it were meaning. A node spreading its input before its own fields
+ * (`{ ...incoming, applied: true }`) produced a different key order than the
+ * fixture author wrote, and the case failed with a message showing two
+ * identical-looking objects — the worst kind of failure to debug, and one that
+ * says nothing about the node.
+ *
+ * `undefined`-valued keys are still ignored, matching what JSON did and what a
+ * fixture file (which cannot express `undefined`) can round-trip.
+ */
 function deepEqual(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  if (Object.is(a, b)) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+
+    return a.every((item, index) => deepEqual(item, b[index]));
+  }
+
+  const left = definedEntries(a as Record<string, unknown>);
+  const right = definedEntries(b as Record<string, unknown>);
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+
+  return keys.every(
+    (key) => Object.prototype.hasOwnProperty.call(right, key) && deepEqual(left[key], right[key]),
+  );
+}
+
+function definedEntries(value: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== undefined) out[key] = item;
+  }
+
+  return out;
 }
 
 /**
