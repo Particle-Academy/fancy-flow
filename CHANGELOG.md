@@ -12,6 +12,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-07-26
+
+### Changed
+
+- **BREAKING (feel, not API): the mouse wheel now zooms the canvas by default.**
+  It used to scroll the page, with zoom parked on Shift+wheel. That is the wrong
+  default for a canvas — every other node editor zooms on wheel, and the old
+  behaviour made the canvas feel inert under the one gesture people reach for
+  first.
+
+  ```tsx
+  <FlowEditor canvasProps={{ zoomOnWheel: false }} />   // back to the old feel
+  ```
+
+  With `zoomOnWheel={false}` the bare wheel scrolls the page again and
+  **Shift+wheel** zooms — the sensible choice for a canvas embedded mid-page,
+  where a reader scrolling past would otherwise get trapped.
+
+  **What you must DO:** nothing, unless your canvas sits inside a scrolling page
+  and you want the reader to scroll past it — then pass `zoomOnWheel={false}`.
+  No prop was removed, and anything you passed explicitly still wins.
+
+### Fixed
+
+- **A zooming wheel no longer scrolls the page at the same time.** In the old
+  Shift+wheel mode `preventScrolling` was `false`, so a zoom gesture zoomed the
+  canvas *and* scrolled the page underneath it — the canvas jumped and the page
+  moved, which reads as a broken component rather than a wrong setting.
+
+  Both modes now hold the line: with wheel-zoom on, `preventScrolling` does it;
+  with it off, a capture-phase handler swallows only the modified gesture, so
+  the bare wheel still scrolls the page and Shift+wheel zooms without moving it.
+  The three props only make sense as a set, so they are now produced together by
+  an exported `wheelZoomProps()` — which is what the tests assert against, since
+  mounting a canvas to check them would be testing d3-zoom through jsdom.
+
 ## [0.30.0] — 2026-07-26
 
 ### Added
@@ -1077,7 +1113,8 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.30.0...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.31.0...HEAD
+[0.31.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.1...v0.30.0
 [0.29.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.28.0...v0.29.0

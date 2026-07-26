@@ -1,4 +1,12 @@
-import { type CSSProperties, type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  type WheelEvent as ReactWheelEvent,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ReactFlow,
   Background,
@@ -19,6 +27,47 @@ import { sortNodesParentFirst } from "../FlowEditor/graph-ops";
 import { getHelperLines } from "./helper-lines";
 import { HelperLines } from "./HelperLines";
 import type { FlowNode } from "../../types";
+
+/**
+ * With wheel-zoom off, Shift+wheel still zooms — and must not ALSO scroll the
+ * page while it does. React Flow's own `preventScrolling` is all-or-nothing, so
+ * the modifier case is handled here: swallow the gesture that zooms, leave the
+ * one that doesn't alone.
+ *
+ * Capture phase, so it lands before React Flow's own wheel handling.
+ */
+function preventScrollWhileZooming(event: ReactWheelEvent<HTMLDivElement>): void {
+  if (event.shiftKey) event.preventDefault();
+}
+
+/**
+ * The three React Flow props that together decide what the wheel does.
+ *
+ * Extracted because they only make sense as a set, and getting the set wrong is
+ * invisible in a screenshot: the canvas looks fine and feels broken. This is
+ * the unit worth testing — mounting a canvas to assert it would be testing
+ * d3-zoom through jsdom.
+ *
+ * - **on** (default): no modifier needed, and the page never scrolls under a
+ *   wheel that is zooming.
+ * - **off**: zoom moves to Shift+wheel and the bare wheel goes back to the
+ *   page. `preventScrolling` alone cannot express that — left true it swallows
+ *   the bare wheel (page frozen, nothing zooms), left false it lets Shift+wheel
+ *   zoom *and* scroll at once — so the handler covers the modifier case.
+ */
+export function wheelZoomProps(zoomOnWheel: boolean): {
+  zoomActivationKeyCode: string | null;
+  preventScrolling: boolean;
+  onWheelCapture?: (event: ReactWheelEvent<HTMLDivElement>) => void;
+} {
+  return zoomOnWheel
+    ? { zoomActivationKeyCode: null, preventScrolling: true }
+    : {
+        zoomActivationKeyCode: "Shift",
+        preventScrolling: false,
+        onWheelCapture: preventScrollWhileZooming,
+      };
+}
 
 export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "edges" | "height"> & {
   nodes: FlowNode[];
@@ -41,6 +90,18 @@ export type FlowCanvasProps = Omit<ReactFlowProps<FlowNode, Edge>, "nodes" | "ed
   validateConnections?: boolean | ConnectionValidatorOptions;
   /** Show alignment guide lines while dragging, and snap to them. Default off. */
   showHelperLines?: boolean;
+  /**
+   * A bare mouse wheel over the canvas zooms it. Default **true**.
+   *
+   * Turn it off for a canvas embedded mid-page, where a reader scrolling past
+   * would otherwise get trapped zooming. With it off the wheel scrolls the page
+   * and **Shift+wheel** zooms instead.
+   *
+   * Either way, a wheel gesture that zooms never also scrolls the page — the
+   * two happening at once is the thing that makes an embedded canvas feel
+   * broken.
+   */
+  zoomOnWheel?: boolean;
   /** Optional toolbar / palette etc. rendered above the canvas. */
   toolbar?: ReactNode;
   className?: string;
@@ -73,6 +134,7 @@ export function FlowCanvas({
   isValidConnection,
   colorMode,
   showHelperLines = false,
+  zoomOnWheel = true,
   onNodesChange,
   toolbar,
   nodeTypes,
@@ -159,11 +221,10 @@ export function FlowCanvas({
           fitViewOptions={DEFAULT_FIT_VIEW}
           defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
           proOptions={{ hideAttribution: true }}
-          // Embedded-in-a-page friendly: a bare wheel scrolls the PAGE (so the
-          // canvas never traps the scroll), and Shift+wheel zooms the canvas.
-          // Drag still pans. All overridable via props.
-          zoomActivationKeyCode="Shift"
-          preventScrolling={false}
+          // Wheel zooms by default; `zoomOnWheel={false}` moves that onto
+          // Shift+wheel and gives the bare wheel back to the page. The three
+          // props only make sense as a set — see wheelZoomProps.
+          {...wheelZoomProps(zoomOnWheel)}
           isValidConnection={resolvedIsValidConnection}
           {...rest}
         >
