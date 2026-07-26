@@ -12,6 +12,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-07-26
+
+### Added
+
+- **`/engine` now exports the kind registry, React-free.** A headless consumer
+  has to register node kinds and could not: the only door in was
+  `@particle-academy/fancy-flow/registry`, whose barrel re-exports the
+  `RegistryNode` component — so importing it to call one function dragged React
+  into a queue worker, a CLI, or a node package's CI. The first marketplace
+  package hit exactly this, failing a clean install with `Cannot find package
+  'react'`.
+
+  `registerNodeKind`, `getNodeKind`, `resolveKindId`, `kindIds`,
+  `listNodeKinds`, `defaultConfigFor` and `validateConfig` are now available
+  from `/engine`, alongside the `NodeKindDefinition` / `ConfigField` types:
+
+  ```ts
+  import { registerNodeKind, runFlow } from "@particle-academy/fancy-flow/engine";
+  ```
+
+  These are the **same** functions the editor uses — one registry with two doors
+  into it, not a headless copy that can drift. A test now asserts against the
+  built `dist/engine.js` that no React or `@xyflow/react` import survives
+  bundling, because a source-level check would not have caught this either.
+
+  **What you must DO:** nothing. `/registry` is unchanged and every existing
+  import keeps working. If you were importing `/registry` from server or CLI
+  code purely to register a kind, you can move that import to `/engine` and drop
+  React from those dependencies.
+
 ## [0.29.1] — 2026-07-26
 
 ### Fixed
@@ -1047,7 +1077,8 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.1...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.1...v0.30.0
 [0.29.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.27.1...v0.28.0

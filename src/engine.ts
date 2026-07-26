@@ -61,6 +61,30 @@ export type {
 } from "./types";
 
 /**
+ * The kind registry, React-free.
+ *
+ * Re-exported here because a headless consumer has to register kinds and could
+ * not: `@particle-academy/fancy-flow/registry` re-exports `RegistryNode`, so
+ * importing it to call one function drags React into a queue worker, a CLI, or
+ * a node package's CI. Found when the first marketplace package's fixtures
+ * failed on a clean install with "Cannot find package 'react'".
+ *
+ * Imported straight from the module rather than the barrel, for that same
+ * reason. These are the identical functions the editor uses — one registry,
+ * two doors into it, not a headless copy that can drift.
+ */
+export {
+  registerNodeKind,
+  getNodeKind,
+  resolveKindId,
+  kindIds,
+  listNodeKinds,
+  defaultConfigFor,
+  validateConfig,
+} from "./registry/registry";
+export type { NodeKindDefinition, ConfigField, NodeCategory, PortSpec } from "./registry/types";
+
+/**
  * The human-pause contract.
  *
  * Exported from the headless entry because the code that needs it most is a

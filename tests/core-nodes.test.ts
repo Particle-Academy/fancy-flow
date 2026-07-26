@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { registerBuiltinKinds } from "../src/registry/builtin";
 import { getNodeKind } from "../src/registry/registry";
@@ -419,5 +419,35 @@ describe("subflow version pinning", () => {
   it("declares the pin on the kind so the editor can offer it", () => {
     const fields = (getNodeKind("subflow")?.configSchema ?? []).map((f: any) => f.key);
     expect(fields).toContain("version");
+  });
+});
+
+describe("the /engine entry stays React-free", () => {
+  // A headless consumer has to register kinds, and could not: the /registry
+  // barrel re-exports RegistryNode, so importing it to call one function drags
+  // React into a queue worker, a CLI, or a node package's CI. The guard is the
+  // built bundle, not the source — an import that survives bundling is the only
+  // one that reaches a consumer.
+  const engineBundle = () => readFileSync(resolve(process.cwd(), "dist/engine.js"), "utf8");
+
+  it("imports no React from the built bundle", () => {
+    let source: string;
+    try {
+      source = engineBundle();
+    } catch {
+      return; // dist not built in this run; the CI job builds before/after tests
+    }
+
+    expect(source).not.toMatch(/from\s*["']react["']/);
+    expect(source).not.toMatch(/from\s*["']react\/jsx-runtime["']/);
+    expect(source).not.toMatch(/@xyflow\/react/);
+  });
+
+  it("exports the registry functions a headless package needs", async () => {
+    const engine = await import("../src/engine");
+
+    for (const name of ["registerNodeKind", "getNodeKind", "kindIds", "listNodeKinds", "defaultConfigFor"]) {
+      expect(engine).toHaveProperty(name);
+    }
   });
 });
