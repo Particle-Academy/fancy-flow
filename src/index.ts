@@ -125,6 +125,7 @@ export {
 // Runtime (also: fancy-flow/runtime)
 export {
   runFlow,
+  runCohort,
   useFlowRun,
   useFlowState,
   useFlowHistory,
@@ -133,6 +134,10 @@ export {
   applyOutputsToNodes,
   type RunOptions,
   type RunResult,
+  type CohortGuard,
+  type CohortOptions,
+  type CohortPolicy,
+  type CohortResult,
   type UseFlowRunReturn,
   type UseFlowRunOptions,
   type UseFlowStateReturn,

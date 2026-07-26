@@ -23,6 +23,23 @@
  * authors in `<FlowEditor>` runs unchanged on the server.
  */
 export { runFlow, type RunOptions, type RunResult } from "./runtime/run-flow";
+
+/**
+ * Trigger collision — the runs one event fires, as a group.
+ *
+ * `runFlow` runs one graph, so a host that fans one webhook out to several flows
+ * loops it, and a loop has no answer for the flow that deletes the record they
+ * were all fired for: the rest resolve `ok: true` having done nothing. Reach for
+ * `runCohort` whenever the fan-out shares state.
+ */
+export {
+  runCohort,
+  type CohortGuard,
+  type CohortOptions,
+  type CohortPolicy,
+  type CohortResult,
+} from "./runtime/run-cohort";
+
 export type {
   FlowGraph,
   FlowNode,

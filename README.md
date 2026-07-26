@@ -398,6 +398,44 @@ is the parity-tested runtime twin — same `WorkflowSchema` JSON in, same output
 out — and adds queued durable runs with resume-from-checkpoint plus human
 approval / `user_input` pauses.
 
+### One trigger, several flows
+
+`runFlow` runs one graph. When a single webhook, schedule, or record change fires
+**several** flows, don't loop it — `runCohort` treats them as a group:
+
+```ts
+import { runCohort } from "@particle-academy/fancy-flow/engine";
+
+const results = await runCohort([enrich, archive, notify], executors, undefined, {
+  initialInputs: { t: { deal } },
+  guard: async () => Boolean(await findDeal(deal.id)),
+  reason: () => `deal ${deal.id} no longer exists`,
+});
+```
+
+A loop — or worse, a `Promise.all` — has no answer for the case that actually
+bites: `archive` deletes the deal, and `notify` then runs against state that is
+no longer there and resolves `ok: true`, having done nothing. Nothing throws.
+
+`runCohort` runs the flows in declared order, one at a time, and re-checks
+`guard` immediately before each — not at dispatch, because the hazard is exactly
+what changed in between. A flow whose guard doesn't pass comes back
+`skipped: true` with the reason rather than running:
+
+```ts
+results[2]; // { ok: false, skipped: true, skippedReason: "deal 41 no longer exists", index: 2 }
+```
+
+Policies: `serial-guarded` (default), `serial` (ordered, unguarded), `parallel`
+(all at once — only when the fan-out shares no state). A guard that throws
+**fails closed** and skips. A flow that *fails* does not cancel the cohort —
+"the flow before me threw" is not an answer to "is my input still there", and
+the guard is asked either way.
+
+The Laravel twin is `FancyFlow::dispatchCohort()` in `fancy-flow-php`: the same
+contract across a queue, where each run is durable and hands on to its successor
+when it settles.
+
 ### Pausing for a human
 
 A workflow that waits for a person is not a failure, but it travels the same

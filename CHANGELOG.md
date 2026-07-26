@@ -12,6 +12,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-07-25
+
+### Added
+
+- **`runCohort()` — the runs one trigger fires, as a group.** `runFlow` runs one
+  graph, so a host that fans a single webhook, schedule, or record change out to
+  several flows loops it — and a loop has no answer for the case that actually
+  bites: one of those flows deletes or mutates the record they were **all** fired
+  for. The rest then run against state that is no longer there and resolve
+  `ok: true`, having done nothing. Nothing throws, nothing is logged, and the
+  run list says success.
+
+  `runCohort` runs the flows in the order you declared, one at a time, and
+  re-checks a `guard` immediately before each — not at dispatch, because the
+  whole hazard is what changed in between. A flow whose guard does not pass comes
+  back `skipped: true` with a reason instead of running.
+
+  ```ts
+  import { runCohort } from "@particle-academy/fancy-flow/engine";
+
+  const results = await runCohort([enrich, archive, notify], executors, undefined, {
+    initialInputs: { t: { deal } },
+    guard: async () => Boolean(await findDeal(deal.id)),
+    reason: () => `deal ${deal.id} no longer exists`,
+  });
+  ```
+
+  If `archive` deletes the deal, `notify` is skipped with that reason rather than
+  notifying about nothing.
+
+  Three policies: `serial-guarded` (default), `serial` (ordered, unguarded), and
+  `parallel` (all at once — correct only when the fan-out shares no state). A
+  guard that throws **fails closed** and skips: a skip is visible and re-runnable,
+  a run over missing state is neither. A flow that *fails* does not cancel the
+  cohort — "the flow before me threw" is not an answer to "is my input still
+  there", and the guard gets asked either way.
+
+  Exported from the root, `/runtime`, and `/engine`. The Laravel twin is
+  `FancyFlow::dispatchCohort()` in `fancy-flow-php` 0.9.0, which is the same
+  contract across a queue: same policies, same guard semantics, same fail-closed
+  rule, with each run durable and handing on to its successor when it settles.
+
+  **Nothing to do** — `runFlow` is untouched and every existing call keeps its
+  exact behaviour. Reach for `runCohort` when a fan-out shares state.
+
 ## [0.28.0] — 2026-07-25
 
 ### Added
@@ -982,7 +1027,21 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.28.0...v0.29.0
+[0.28.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.27.1...v0.28.0
+[0.27.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.27.0...v0.27.1
+[0.27.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.26.0...v0.27.0
+[0.26.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.25.0...v0.26.0
+[0.25.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.24.0...v0.25.0
+[0.24.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.18.0...v0.19.0
+[0.18.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.14.0...v0.15.0

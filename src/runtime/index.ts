@@ -1,5 +1,12 @@
 export { runFlow, type RunOptions, type RunResult } from "./run-flow";
 export {
+  runCohort,
+  type CohortGuard,
+  type CohortOptions,
+  type CohortPolicy,
+  type CohortResult,
+} from "./run-cohort";
+export {
   useFlowRun,
   applyStatusesToNodes,
   applyOutputsToNodes,
