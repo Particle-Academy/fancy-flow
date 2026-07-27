@@ -12,6 +12,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.1] — 2026-07-27
+
+### Fixed
+
+- **Every control in `<NodeConfigPanel>` was unlabelled and unaddressable.** The
+  editor's source contained **zero `htmlFor`, zero control `id`s and zero
+  `aria-label`s** — labels sat beside their inputs without being attached to
+  them. Clicking a label focused nothing, and a screen reader announced the
+  package's primary authoring surface as a column of unlabelled boxes.
+
+  It also failed the suite's own **Human+ contract**, which asks that every
+  interactive element carry a stable identity so an agent targets it instead of
+  guessing at the DOM.
+
+  Each control now carries an `id` its `<label htmlFor>` points at, plus a
+  `data-ff-field` handle **keyed by the field** — so it survives a reordered
+  schema, and an agent that stored a handle keeps writing to the same input.
+  Ids are per-panel-instance, so two panels on one page cannot steal each
+  other's label clicks.
+
+  **Nothing to do.** No prop changed and no markup moved; controls gained
+  attributes.
+
+  `ConfigFieldRenderer` takes an optional `id`, supplied by the caller rather
+  than generated internally so the panel's label can point at it. A custom
+  `renderPanel` is unaffected.
+
+- **`vitest.config.ts` collected only `.test.ts`, never `.test.tsx`** — so not
+  one of the package's 21 React components *could* have a rendering test. A file
+  testing a component would have been collected by nothing and counted as
+  passing by omission. That is how the above shipped: nothing in the repo could
+  see rendered output. `.tsx` is now included, and the 12 new tests fail against
+  the previous code.
+
+### Notes
+
+These were **not** converted to react-fancy inputs, and the reason is worth
+recording. fancy-flow themes itself through the `--ff-*` token layer a host
+overrides on `.ff-editor`; react-fancy's primitives are hardcoded Tailwind
+palette classes that read no custom properties, so a `<Button>` inside
+`.ff-editor` would ignore `--ff-accent`. Converting would have broken a
+documented theming contract, and forced react-fancy plus Tailwind on every
+editor consumer, to fix a labelling bug. Hosts that *want* react-fancy controls
+already have `renderPanel`.
+
 ## [0.33.0] — 2026-07-26
 
 ### Added

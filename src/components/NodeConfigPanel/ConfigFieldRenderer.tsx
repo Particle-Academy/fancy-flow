@@ -10,6 +10,17 @@ export type ConfigFieldRendererProps = {
   field: ConfigField;
   value: unknown;
   onChange: (value: unknown) => void;
+  /**
+   * DOM id for the control this renders.
+   *
+   * Supplied by the caller rather than generated here so the panel's `<label>`
+   * can point at it — a label beside a control is not a label attached to one.
+   * Also the agent-facing handle: the Human+ contract asks that every
+   * interactive element have a stable identity so an agent targets it instead
+   * of guessing at the DOM, and until this existed nothing in the editor had
+   * one.
+   */
+  id?: string;
   renderCredentialField?: (props: {
     credentialType: string;
     value: unknown;
@@ -30,20 +41,27 @@ export type ConfigFieldRendererProps = {
 };
 
 /**
- * ConfigFieldRenderer — dispatches to the right input element per field
- * type. Plain HTML inputs styled via the package's CSS so the package
- * stays standalone (no react-fancy import required).
+ * ConfigFieldRenderer — dispatches to the right input element per field type.
  *
- * Hosts that want to use react-fancy form components can supply their
- * own field renderers via the kind's `renderPanel`.
+ * Plain HTML inputs styled via the package's CSS so the package stays
+ * standalone (no react-fancy import required) and every surface stays themeable
+ * through the `--ff-*` token layer. Hosts that want react-fancy form components
+ * can supply their own field renderers via the kind's `renderPanel`.
+ *
+ * Each control carries the caller's `id` and a `data-ff-field` handle keyed by
+ * the field, so a label can point at it and an agent can find it by name.
  */
 export function ConfigFieldRenderer({
   field,
   value,
   onChange,
+  id,
   renderCredentialField,
   renderDocumentField,
 }: ConfigFieldRendererProps) {
+  /** Applied to whichever control this field renders. */
+  const handle = { id, "data-ff-field": field.key } as const;
+
   switch (field.type) {
     case "text": {
       // Declaring `choices` turns a text field into a picker without changing
@@ -53,6 +71,7 @@ export function ConfigFieldRenderer({
       }
       return (
         <input
+          {...handle}
           className="ff-panel__input"
           type="text"
           value={(value as string) ?? ""}
@@ -65,6 +84,7 @@ export function ConfigFieldRenderer({
     case "textarea":
       return (
         <textarea
+          {...handle}
           className="ff-panel__input ff-panel__input--textarea"
           rows={field.rows ?? 4}
           value={(value as string) ?? ""}
@@ -76,6 +96,7 @@ export function ConfigFieldRenderer({
     case "number":
       return (
         <input
+          {...handle}
           className="ff-panel__input"
           type="number"
           value={(value as number) ?? ""}
@@ -90,6 +111,7 @@ export function ConfigFieldRenderer({
       return (
         <label className="ff-panel__switch">
           <input
+            {...handle}
             type="checkbox"
             checked={!!value}
             onChange={(e) => onChange(e.target.checked)}
@@ -101,6 +123,7 @@ export function ConfigFieldRenderer({
     case "select":
       return (
         <select
+          {...handle}
           className="ff-panel__input"
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
@@ -118,6 +141,7 @@ export function ConfigFieldRenderer({
     case "expression":
       return (
         <textarea
+          {...handle}
           className="ff-panel__input ff-panel__input--expression"
           rows={2}
           value={(value as string) ?? ""}

@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useId, useMemo } from "react";
 import type { FlowNode } from "../../types";
 import { categoryAccent, getNodeKind, validateConfig } from "../../registry/registry";
 import { getRichInputAdapter } from "../../registry/rich-input";
@@ -55,6 +55,21 @@ export function NodeConfigPanel({
   className,
   style,
 }: NodeConfigPanelProps) {
+  // One prefix per mounted panel, so two panels on a page (a split view, a
+  // comparison) cannot mint the same id and steal each other's label clicks.
+  // `useId` runs before the early returns below because hooks must — React
+  // rejects a hook called conditionally.
+  const uid = useId();
+
+  /**
+   * A stable DOM id for one field's control.
+   *
+   * The field KEY is in the id rather than an index, so the handle survives
+   * reordering the schema, and an agent reading `data-ff-field` finds the same
+   * element the label points at.
+   */
+  const fieldId = (key: string) => `${uid}-${key}`;
+
   if (!node) {
     return (
       <aside className={["ff-panel", "ff-panel--empty", className ?? ""].filter(Boolean).join(" ")} style={style}>
@@ -126,8 +141,10 @@ export function NodeConfigPanel({
       {kind.description && <p className="ff-panel__kind-desc">{kind.description}</p>}
 
       <div className="ff-panel__field">
-        <label className="ff-panel__label">Label</label>
+        <label className="ff-panel__label" htmlFor={fieldId("label")}>Label</label>
         <input
+          id={fieldId("label")}
+          data-ff-field="label"
           className="ff-panel__input"
           value={node.data.label ?? ""}
           onChange={(e) => setLabel(e.target.value)}
@@ -136,8 +153,10 @@ export function NodeConfigPanel({
       </div>
 
       <div className="ff-panel__field">
-        <label className="ff-panel__label">Description</label>
+        <label className="ff-panel__label" htmlFor={fieldId("description")}>Description</label>
         <textarea
+          id={fieldId("description")}
+          data-ff-field="description"
           className="ff-panel__input ff-panel__input--textarea"
           rows={2}
           value={node.data.description ?? ""}
@@ -156,12 +175,13 @@ export function NodeConfigPanel({
           {(kind.configSchema ?? []).length > 0 && <hr className="ff-panel__divider" />}
           {(kind.configSchema ?? []).map((field) => (
             <div key={field.key} className="ff-panel__field">
-              <label className="ff-panel__label">
+              <label className="ff-panel__label" htmlFor={fieldId(field.key)}>
                 {field.label}
                 {field.required && <span className="ff-panel__required" aria-hidden> *</span>}
               </label>
               {field.description && <p className="ff-panel__hint">{field.description}</p>}
               <ConfigFieldRenderer
+                id={fieldId(field.key)}
                 field={field}
                 value={config[field.key]}
                 onChange={(v) => setConfigValue(field.key, v)}
