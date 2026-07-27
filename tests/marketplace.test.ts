@@ -604,3 +604,62 @@ describe("fixture comparison", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+/**
+ * Fancy dependencies — the suite packages a node's source imports.
+ *
+ * Modelled apart from plain npm deps because the suite is polyglot AND
+ * vendorable: naming `@particle-academy/fancy-screens` can only ever offer
+ * `npm install`, which is the wrong answer in a Laravel app whose editor is
+ * vendored source.
+ */
+describe("fancy dependencies", () => {
+  const dep = { package: "fancy-screens", npm: "@particle-academy/fancy-screens" };
+
+  it("accepts a package that exists on one ecosystem only", () => {
+    // fancy-screens is npm-only, laravel-fms is Composer-only. Requiring both
+    // would make half the suite undeclarable.
+    expect(validateNodeManifest({ ...valid, fancyDependencies: [dep] }).ok).toBe(true);
+    expect(
+      validateNodeManifest({ ...valid, fancyDependencies: [{ package: "laravel-fms", composer: "particle-academy/laravel-fms" }] }).ok,
+    ).toBe(true);
+  });
+
+  it("rejects a bare string", () => {
+    // A slug alone cannot say whether the package is on npm, on Composer, or
+    // both — so the CLI could not offer an install route for it.
+    const result = validateNodeManifest({ ...valid, fancyDependencies: ["fancy-screens"] });
+
+    expect(result.ok).toBe(false);
+    expect(result.problems[0].field).toBe("fancyDependencies[0]");
+  });
+
+  it("rejects an entry naming neither ecosystem", () => {
+    expect(validateNodeManifest({ ...valid, fancyDependencies: [{ package: "fancy-screens" }] }).ok).toBe(false);
+  });
+
+  it("rejects a pinned version, in the name or in a field", () => {
+    // The rule this whole shape exists to enforce: the suite ships additively
+    // and often, and a node that pins holds a consumer on an old surface for a
+    // constraint nobody ever revisits.
+    expect(
+      validateNodeManifest({ ...valid, fancyDependencies: [{ ...dep, npm: "@particle-academy/fancy-screens@^0.4" }] }).ok,
+    ).toBe(false);
+    expect(validateNodeManifest({ ...valid, fancyDependencies: [{ ...dep, version: "^0.4" }] }).ok).toBe(false);
+    expect(validateNodeManifest({ ...valid, fancyDependencies: [{ ...dep, composer: "particle-academy/fancy-flow-php:^0.9" }] }).ok).toBe(false);
+  });
+
+  it("does not mistake the npm scope for a version", () => {
+    // The `@` in `@particle-academy/…` is the one false positive a naive
+    // version check produces, and it would reject every first-party package.
+    expect(validateNodeManifest({ ...valid, fancyDependencies: [dep] }).problems).toEqual([]);
+  });
+
+  it("rejects a requirement that is neither required nor optional", () => {
+    expect(validateNodeManifest({ ...valid, fancyDependencies: [{ ...dep, requirement: "maybe" }] }).ok).toBe(false);
+  });
+
+  it("stays optional — most nodes depend on nothing but the engine", () => {
+    expect(validateNodeManifest(valid).ok).toBe(true);
+  });
+});

@@ -12,6 +12,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-07-26
+
+### Added
+
+- **Node manifests can declare `fancyDependencies`** — the Fancy suite packages a
+  node's source imports, so `fancy-cli` can tell a consumer what a node needs and
+  offer the routes that actually exist.
+
+  Kept separate from a plain npm dependency because the suite is polyglot and
+  vendorable: the same capability ships on npm, on Composer, and as source you
+  copy in. A bare `dependencies: ["@particle-academy/fancy-screens"]` can only
+  ever produce `npm install`, which is the wrong answer in a Laravel app whose
+  editor is vendored.
+
+  ```json
+  "fancyDependencies": [
+    {
+      "package": "fancy-screens",
+      "npm": "@particle-academy/fancy-screens",
+      "reason": "renders the generated schema",
+      "requirement": "required"
+    }
+  ]
+  ```
+
+  **Nothing here carries a version, and the validator rejects one** — in the
+  name (`…/fancy-screens@^0.4`), in a `composer` entry (`…:^0.9`), or as a
+  `version` key. The suite ships additively and often, so a node that pinned at
+  authoring time would be holding a project back a year later for a constraint
+  nobody revisits. Compatibility stays in `runtimes[].engine`, where it is
+  checked against the thing a node actually depends on.
+
+  Additive: the field is optional, and every existing manifest keeps validating
+  unchanged. **Nothing to do** unless you are publishing a node that imports a
+  suite package.
+
 ## [0.32.0] — 2026-07-26
 
 ### Changed

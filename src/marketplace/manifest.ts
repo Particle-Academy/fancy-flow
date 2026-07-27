@@ -71,6 +71,44 @@ export type CapabilityRequirement = "required" | "optional";
  */
 export type SideEffects = "none" | "idempotent" | "unsafe-to-replay";
 
+/**
+ * A Fancy suite package this node's source imports.
+ *
+ * Separate from a plain npm dependency because the suite is polyglot and
+ * vendorable: the same capability ships as an npm package, a Composer package,
+ * or source you copy in, and which of those a consumer wants depends on the
+ * host — so the node names the *package*, and the CLI offers the routes that
+ * exist. A bare `dependencies: ["@particle-academy/fancy-screens"]` can only
+ * ever offer `npm install`, which is the wrong answer in a Laravel app whose
+ * editor is vendored.
+ *
+ * ## No versions, deliberately
+ *
+ * Nothing here carries a range, and the validator rejects one. A pinned
+ * marketplace node freezes a consumer on an old surface: the suite ships
+ * additively and often, and a node that pinned `^0.4` at authoring time would
+ * be holding a project back a year later for a constraint nobody revisits.
+ * Compatibility is expressed where it can actually be checked — `runtimes[].engine`
+ * against the *engine*, which is the contract a node really depends on.
+ */
+export type FancyDependency = {
+  /** Suite slug — what `/packages/<slug>` documents. */
+  package: string;
+  /** npm name, when the suite ships one. */
+  npm?: string;
+  /** Composer name, when the suite ships one. */
+  composer?: string;
+  /**
+   * Why the node needs it, in a few words.
+   *
+   * Printed at install. Without it the CLI can only present a bare name and a
+   * command, which reads as an unexplained demand for a second package.
+   */
+  reason?: string;
+  /** Whether the node fails without it, or merely does less. Defaults to required. */
+  requirement?: CapabilityRequirement;
+};
+
 export type NodePackageManifest = {
   /** Must equal `NODE_MANIFEST_SCHEMA_VERSION`. */
   schemaVersion: number;
@@ -117,6 +155,8 @@ export type NodePackageManifest = {
    * rather than the node silently no-opping or crashing mid-run.
    */
   capabilities?: Record<string, CapabilityRequirement>;
+  /** Fancy suite packages this node's source imports. See {@link FancyDependency}. */
+  fancyDependencies?: FancyDependency[];
   /**
    * Path to this node's golden fixtures, relative to the package root.
    *
@@ -244,6 +284,7 @@ export function validateNodeManifest(input: unknown): ManifestValidation {
   }
 
   validateCapabilities(m.capabilities, problems);
+  validateFancyDependencies(m.fancyDependencies, problems);
 
   if (m.sideEffects !== undefined && !SIDE_EFFECTS.includes(m.sideEffects as string)) {
     problems.push(err("sideEffects", `Must be one of: ${SIDE_EFFECTS.join(", ")}.`));
@@ -334,6 +375,68 @@ function validateRuntimes(runtimes: unknown, problems: ManifestProblem[]): void 
       );
     }
   }
+}
+
+/**
+ * Anything that looks like a version range, in a field that must not carry one.
+ *
+ * Covers the two shapes an author actually writes: a range appended to the name
+ * (`@particle-academy/fancy-screens@^0.4`, `fancy-screens:^1`) and a bare
+ * `version` key alongside it.
+ */
+const VERSIONED = /(?:@|:)\s*[\^~>=<]*\s*\d/;
+
+function validateFancyDependencies(deps: unknown, problems: ManifestProblem[]): void {
+  if (deps === undefined) return;
+
+  if (!Array.isArray(deps)) {
+    problems.push(err("fancyDependencies", "Must be an array of { package, npm?, composer?, reason?, requirement? }."));
+    return;
+  }
+
+  deps.forEach((entry, index) => {
+    const at = `fancyDependencies[${index}]`;
+
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      problems.push(err(at, "Must be an object naming a suite package, not a bare string — a slug alone cannot say whether the package exists on npm, on Composer, or both."));
+      return;
+    }
+
+    const dep = entry as Record<string, unknown>;
+
+    if (typeof dep.package !== "string" || dep.package.trim() === "") {
+      problems.push(err(`${at}.package`, "Required — the suite slug, e.g. `fancy-screens`."));
+    }
+
+    if (dep.npm === undefined && dep.composer === undefined) {
+      problems.push(
+        err(at, "Needs at least one of `npm` or `composer`. Naming neither leaves the CLI with a package it cannot offer any way to install."),
+      );
+    }
+
+    // Versions are rejected rather than ignored. A node that pins holds a
+    // consumer on an old surface for a constraint nobody revisits, and the
+    // engine range in `runtimes` is where compatibility can actually be checked.
+    for (const field of ["package", "npm", "composer"] as const) {
+      const value = dep[field];
+      if (typeof value === "string" && VERSIONED.test(value.replace(/^@[a-z0-9._-]+\//i, ""))) {
+        problems.push(
+          err(
+            `${at}.${field}`,
+            "Must not carry a version range — the suite ships additively and a pin here freezes a consumer on an old surface. Express engine compatibility in `runtimes[].engine` instead.",
+          ),
+        );
+      }
+    }
+
+    if (dep.version !== undefined) {
+      problems.push(err(`${at}.version`, "Not a field. Fancy dependencies are unversioned — see `runtimes[].engine` for the constraint that is actually checked."));
+    }
+
+    if (dep.requirement !== undefined && !REQUIREMENTS.includes(dep.requirement as string)) {
+      problems.push(err(`${at}.requirement`, `Must be "required" or "optional".`));
+    }
+  });
 }
 
 function validateCapabilities(capabilities: unknown, problems: ManifestProblem[]): void {
