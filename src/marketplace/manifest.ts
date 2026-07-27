@@ -383,8 +383,27 @@ function validateRuntimes(runtimes: unknown, problems: ManifestProblem[]): void 
  * Covers the two shapes an author actually writes: a range appended to the name
  * (`@particle-academy/fancy-screens@^0.4`, `fancy-screens:^1`) and a bare
  * `version` key alongside it.
+ *
+ * ## Why the operators are `(?:[\^~>=<]+\s*)?` and not `[\^~>=<]*\s*`
+ *
+ * The obvious spelling — `(?:@|:)\s*[\^~>=<]*\s*\d` — is a ReDoS
+ * (CWE-1333, CodeQL js/polynomial-redos). Because the operator class can match
+ * nothing, a run of n spaces can be divided between the two `\s*` in n+1 ways,
+ * and a value with no trailing digit makes the engine try all of them: cost is
+ * O(n²), and `npm: "@" + " ".repeat(32000)` measured ~730ms on one core. A
+ * manifest is third-party data — read off a marketplace package or a registry
+ * response, by a validator whose whole job is to be pointed at input nobody
+ * here wrote — so that is reachable, not hypothetical.
+ *
+ * Reaching the second whitespace run only *through* a non-empty operator run
+ * removes the ambiguity while matching exactly the same strings: with no
+ * operators the group is skipped and a single `\s*` consumes the gap; with
+ * operators, each `\s*` owns one distinct side of them. Equivalence was checked
+ * exhaustively over every string up to length 4 in the relevant alphabet plus
+ * 400k longer random ones — zero divergence. See the ReDoS test in
+ * `tests/marketplace.test.ts`.
  */
-const VERSIONED = /(?:@|:)\s*[\^~>=<]*\s*\d/;
+const VERSIONED = /(?:@|:)\s*(?:[\^~>=<]+\s*)?\d/;
 
 function validateFancyDependencies(deps: unknown, problems: ManifestProblem[]): void {
   if (deps === undefined) return;

@@ -663,3 +663,63 @@ describe("fancy dependencies", () => {
     expect(validateNodeManifest(valid).ok).toBe(true);
   });
 });
+
+/**
+ * The version-pin check runs against strings this repo did not write — a
+ * manifest comes off a marketplace package or a registry response — so the
+ * pattern doing the checking is reachable, hostile input, and its WORST case is
+ * part of its contract, not an implementation detail.
+ *
+ * The original `(?:@|:)\s*[\^~>=<]*\s*\d` was quadratic: with the operator
+ * class able to match nothing, n spaces split between the two `\s*` in n+1
+ * ways, all of which get tried when no digit follows. These tests pin both
+ * halves of the fix — the blowup is gone, and the language did not move.
+ */
+describe("fancy dependencies: the pin check cannot be used to hang the validator", () => {
+  const dep = { package: "fancy-screens", npm: "@particle-academy/fancy-screens" };
+
+  it("validates a pathological name in bounded time", () => {
+    // Quadratic in n. At n=32k the old pattern took ~730ms; at 200k it is
+    // minutes. The budget is deliberately loose — a slow CI box should still
+    // clear it by two orders of magnitude, while the old pattern cannot.
+    const evil = `@${" ".repeat(200_000)}`;
+
+    const started = performance.now();
+    const result = validateNodeManifest({ ...valid, fancyDependencies: [{ ...dep, npm: evil }] });
+    const elapsed = performance.now() - started;
+
+    expect(elapsed).toBeLessThan(500);
+    // And it is still the RIGHT answer: no digit, so no version pin. Speed
+    // bought by rejecting anything long would not be a fix.
+    expect(result.problems.some((p) => p.field === "fancyDependencies[0].npm")).toBe(false);
+  });
+
+  it.each([
+    // Pins — every shape the old pattern caught, still caught.
+    ["@particle-academy/fancy-screens@^0.4", true],
+    ["@particle-academy/fancy-screens@0.4.1", true],
+    ["fancy-screens:^1", true],
+    ["fancy-screens:~1.2", true],
+    ["fancy-screens:>=2", true],
+    ["fancy-screens:<3", true],
+    ["fancy-screens: ^ 1", true],
+    ["fancy-screens@ 1", true],
+    ["@acme/thing@>=1.0.0", true],
+    // Not pins — nothing here should be rejected.
+    ["fancy-screens", false],
+    ["@particle-academy/fancy-screens", false],
+    ["particle-academy/laravel-fms", false],
+    ["@acme/fancy-flow-node2", false],
+    ["fancy-3d-babylon", false],
+    ["@scope/pkg@", false],
+    ["@scope/pkg:^", false],
+    ["@scope/pkg: ", false],
+  ])("%s is a version pin: %s", (name, isPin) => {
+    const problems = validateNodeManifest({
+      ...valid,
+      fancyDependencies: [{ package: "fancy-screens", npm: name as string }],
+    }).problems;
+
+    expect(problems.some((p) => p.field === "fancyDependencies[0].npm")).toBe(isPin);
+  });
+});

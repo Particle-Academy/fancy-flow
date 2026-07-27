@@ -12,6 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.3] — 2026-07-27
+
+### Security
+
+- **A marketplace manifest could hang whatever validated it** (ReDoS, CWE-1333,
+  CodeQL `js/polynomial-redos`). The pattern `validateNodeManifest()` uses to
+  reject version pins in `fancyDependencies[].package` / `.npm` / `.composer`
+  was `(?:@|:)\s*[\^~>=<]*\s*\d`. The operator class can match nothing, so a run
+  of *n* spaces could be divided between the two `\s*` in *n+1* ways — and with
+  no digit following, the engine tried every one of them. Cost was **O(n²)**:
+  a dependency declaring `npm: "@" + " ".repeat(200000)` took **30 seconds**,
+  synchronously, on the thread that called it.
+
+  That input is reachable by design. A manifest is third-party data — read off a
+  marketplace package or a registry response — and `validateNodeManifest()`
+  exists precisely to be pointed at strings nobody in this repo wrote. Anything
+  validating submitted nodes (a registry, CI, the CLI, an MCP server) could be
+  stalled by one field.
+
+  **You have to do nothing.** The pattern was rewritten to
+  `(?:@|:)\s*(?:[\^~>=<]+\s*)?\d`, which matches **exactly** the same strings —
+  reaching the second whitespace run only *through* a non-empty operator run
+  removes the ambiguity without narrowing the language. Verified exhaustively
+  over every string up to length 4 in the relevant alphabet plus 400k longer
+  random ones: zero divergence. Every pin that was rejected before is still
+  rejected, and the `@scope/` prefix is still not mistaken for a version. The
+  same 200k-character input now validates in under a millisecond.
+
+  No length cap was added. Truncating input would have changed which manifests
+  validate in order to hide a pattern that was still quadratic.
+
 ## [0.33.2] — 2026-07-27
 
 ### Fixed
@@ -1242,7 +1273,11 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 - Omit xyflow's number-only `height` prop so `FlowCanvas` can take string
   heights.
 
-[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/Particle-Academy/fancy-flow/compare/v0.33.3...HEAD
+[0.33.3]: https://github.com/Particle-Academy/fancy-flow/compare/v0.33.2...v0.33.3
+[0.33.2]: https://github.com/Particle-Academy/fancy-flow/compare/v0.33.1...v0.33.2
+[0.33.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.33.0...v0.33.1
+[0.33.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.29.1...v0.30.0
