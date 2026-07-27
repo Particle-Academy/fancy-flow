@@ -109,6 +109,35 @@ describe("NodeConfigPanel labelling", () => {
     expect(idOf(a)).not.toBe(idOf(b));
   });
 
+  it("survives going from no selection to a node and back", () => {
+    // React error #310. Every hook must run on every render, and the panel's
+    // two useMemos used to sit AFTER the `if (!node)` early return — so it
+    // called no hooks with nothing selected and several with a node. Selecting
+    // a node blanked the whole editor.
+    //
+    // It reached production because nothing in this repo could render a
+    // component to find out: vitest collected only `.test.ts`.
+    const { rerender, container } = render(<NodeConfigPanel node={null} onChange={vi.fn()} />);
+    expect(screen.getByText(/Select a node/)).toBeTruthy();
+
+    rerender(<NodeConfigPanel node={node} onChange={vi.fn()} />);
+    expect(container.querySelector('[data-ff-field="endpoint"]')).not.toBeNull();
+
+    rerender(<NodeConfigPanel node={null} onChange={vi.fn()} />);
+    expect(screen.getByText(/Select a node/)).toBeTruthy();
+  });
+
+  it("survives a node whose kind was never registered", () => {
+    // The other early return, and the same hazard.
+    const unknown = { ...node, data: { kind: "@test/nope", label: "?", config: {} } } as never;
+    const { rerender, container } = render(<NodeConfigPanel node={unknown} onChange={vi.fn()} />);
+
+    expect(screen.getByText(/Unknown kind/)).toBeTruthy();
+
+    rerender(<NodeConfigPanel node={node} onChange={vi.fn()} />);
+    expect(container.querySelector('[data-ff-field="endpoint"]')).not.toBeNull();
+  });
+
   it("keeps the required marker out of the accessible name", () => {
     // The asterisk is aria-hidden, so the field is announced "Endpoint" rather
     // than "Endpoint star".

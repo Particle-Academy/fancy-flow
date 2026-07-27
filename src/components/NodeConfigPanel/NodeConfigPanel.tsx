@@ -55,11 +55,25 @@ export function NodeConfigPanel({
   className,
   style,
 }: NodeConfigPanelProps) {
-  // One prefix per mounted panel, so two panels on a page (a split view, a
-  // comparison) cannot mint the same id and steal each other's label clicks.
-  // `useId` runs before the early returns below because hooks must — React
-  // rejects a hook called conditionally.
+  // EVERY hook runs before EVERY early return.
+  //
+  // The two `useMemo`s below used to sit after the `if (!node)` return, so the
+  // panel called no hooks with nothing selected and two with a node — a
+  // rules-of-hooks violation that React reports as #310, "rendered more hooks
+  // than during the previous render". It survived because nothing in this repo
+  // could render a component: the vitest config collected only `.test.ts`.
+  // Adding a third hook is what finally made it crash on selecting a node.
+  //
+  // `uid` gives one prefix per mounted panel, so two panels on a page (a split
+  // view, a comparison) cannot mint the same id and steal each other's label
+  // clicks.
   const uid = useId();
+  const kindName = node ? ((node.data as any).kind ?? node.type) : null;
+  const kind = useMemo(() => (kindName ? getNodeKind(kindName) : undefined), [kindName]);
+  const config = useMemo(
+    () => ((node?.data as any)?.config ?? {}) as Record<string, unknown>,
+    [node?.data],
+  );
 
   /**
    * A stable DOM id for one field's control.
@@ -78,10 +92,6 @@ export function NodeConfigPanel({
       </aside>
     );
   }
-
-  const kindName = (node.data as any).kind ?? node.type;
-  const kind = useMemo(() => getNodeKind(kindName), [kindName]);
-  const config = useMemo(() => ((node.data as any).config ?? {}) as Record<string, unknown>, [node.data]);
 
   if (!kind) {
     return (

@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.2] — 2026-07-27
+
+### Fixed
+
+- **Selecting a node blanked the editor** (React error #310, *"rendered more
+  hooks than during the previous render"*). `<NodeConfigPanel>` called its two
+  `useMemo`s **after** the `if (!node)` early return, so it ran no hooks with
+  nothing selected and several with a node — a rules-of-hooks violation.
+
+  **Upgrade from 0.33.1 immediately if you took it.** That release added a third
+  hook, which is what tipped the latent violation into a crash on every node
+  selection. Every hook now runs before every early return.
+
+  Two regression tests cover the transitions that break it: no-selection → node
+  → no-selection, and a node whose kind was never registered → a registered one.
+
+
 ## [0.33.1] — 2026-07-27
 
 ### Fixed
