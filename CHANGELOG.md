@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`useFancyCmsForRichInput` is now `registerFancyCmsForRichInput`.** The `use`
+  prefix was wrong: it registers a document engine and returns a dispose
+  function — it is not a React hook and calls none. React reserves `use*` for
+  hooks, so the name made `react-hooks/rules-of-hooks` report the module-scope
+  call on import as a hook outside a component, and told any reader that hook
+  rules applied to it.
+
+  **No action needed.** The old name is still exported as a `@deprecated` alias
+  and will not be removed in 0.x.
+
+### Changed
+
 - Widened the `@particle-academy/fancy-auto-common` requirement from `^0.1.0` to `>=0.1 <2.0`, so a
   sibling minor release is an upgrade and not a resolver conflict. **No action
   needed** — widening a range only adds candidates; the version you have today

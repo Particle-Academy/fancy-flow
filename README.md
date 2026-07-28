@@ -228,9 +228,9 @@ To pass a custom element registry (the same one you give `CmsPage` at runtime,
 or the edit canvas renders your node types as blank placeholders):
 
 ```ts
-import { useFancyCmsForRichInput } from "@particle-academy/fancy-flow/rich-input";
+import { registerFancyCmsForRichInput } from "@particle-academy/fancy-flow/rich-input";
 
-useFancyCmsForRichInput({ registry: myElements, data: previewData });
+registerFancyCmsForRichInput({ registry: myElements, data: previewData });
 ```
 
 The underlying seam (`registerRichInputAdapter`) stays public if you need a

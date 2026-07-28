@@ -52,7 +52,7 @@ export function isPageDoc(value: unknown): value is PageDoc {
  * Called automatically on import. Exported so a host can re-register after
  * swapping in a custom element registry, and so the call is testable.
  */
-export function useFancyCmsForRichInput(options: {
+export function registerFancyCmsForRichInput(options: {
   /** Custom element registry — pass the SAME one you give `CmsPage` at runtime,
    *  or the edit canvas renders your node types as blank placeholders. */
   registry?: Parameters<typeof CmsPage>[0]["registry"];
@@ -84,4 +84,17 @@ export function useFancyCmsForRichInput(options: {
   });
 }
 
-useFancyCmsForRichInput();
+registerFancyCmsForRichInput();
+
+/**
+ * @deprecated Renamed to `registerFancyCmsForRichInput`. This alias still works
+ * and will not be removed in 0.x.
+ *
+ * The `use` prefix was wrong: this registers a document engine and returns a
+ * dispose function — it is not a React hook and calls none. React reserves
+ * `use*` for hooks, and the name made `react-hooks/rules-of-hooks` report the
+ * module-scope call on import as a hook called outside a component. A linter
+ * being misled by a name is the mild version; a reader assuming hook rules
+ * apply, or that it must be called during render, is the real cost.
+ */
+export const useFancyCmsForRichInput = registerFancyCmsForRichInput;
