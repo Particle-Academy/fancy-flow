@@ -12,6 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-07-31
+
+### Added
+
+- **`NodeKindDefinition.sideEffects`** — declare whether a node of this kind is
+  safe to run twice (`none` / `idempotent` / `unsafe-to-replay`), the same three
+  values a marketplace manifest already carries.
+
+  **No action needed** — optional and additive; every existing kind is unchanged.
+
+  Closing a twin drift, not adding a feature. `fancy-flow-php` 0.10 had to lift
+  this onto its own `NodeKind` because its per-node queue driver keys retry
+  policy on it: an `unsafe-to-replay` node gets exactly one attempt whatever
+  `tries` says, since a retried `git_pr_open` opens a second pull request. The
+  field existed only inside manifest validation, which is install-time data a
+  durable runner cannot consult mid-run.
+
+  The twins declare the same kind metadata or they are not twins. This is
+  declaration only: the in-process TS runner does not retry, so nothing here
+  enforces it — a host's runner decides what to do with it.
+
+
 ## [0.34.0] — 2026-07-28
 
 ### Changed

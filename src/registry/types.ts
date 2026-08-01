@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from "react";
 import type { NodeProps } from "@xyflow/react";
 import type { FlowNode, NodeExecutor, PortDescriptor } from "../types";
 import type { PauseAwaiting } from "./pause";
+import type { SideEffects } from "../marketplace/manifest";
 
 /** Categories used by the palette for grouping. */
 export type NodeCategory =
@@ -272,6 +273,25 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
    * refuse to list a pausing node whose package never says so.
    */
   pausesForHuman?: PauseAwaiting;
+
+  /**
+   * Whether a node of this kind is safe to run twice.
+   *
+   * The same three values a marketplace manifest declares (see `SideEffects`),
+   * lifted onto the KIND so it is readable at run time. A manifest is install-
+   * time data; a durable runner needs this while deciding whether to retry, and
+   * cannot go and read a manifest to find out.
+   *
+   * `fancy-flow-php`'s per-node queue driver keys its retry policy on exactly
+   * this: an `unsafe-to-replay` node gets one attempt whatever `tries` says,
+   * because a retried `git_pr_open` opens a second pull request. This field is
+   * the TypeScript half of that contract — the twins declare the same kind
+   * metadata or they are not twins.
+   *
+   * Declaration only. Nothing here enforces it; a host's runner decides what to
+   * do with it, and the TS in-process runner currently does not retry at all.
+   */
+  sideEffects?: SideEffects;
 
   /**
    * Make nodes of this kind resizable via drag handles (xyflow NodeResizer).
