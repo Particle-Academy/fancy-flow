@@ -623,3 +623,68 @@
   .ff-editor { grid-template-columns: 1fr; }
   .ff-editor__palette { display: none; }
 }
+
+/* ─── FlowViewer ─────────────────────────────────────────────────────────────
+   Read-only rendering of a workflow. Every colour here reads from the same
+   --ff-* token layer the editor uses, so a consumer that themed the editor gets
+   a themed viewer for free and does not restyle the same surface twice.
+   ──────────────────────────────────────────────────────────────────────────── */
+.ff-viewer { color: var(--ff-fg, inherit); }
+
+.ff-viewer--empty {
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  border: 1px dashed var(--ff-border, #3f3f46);
+  border-radius: var(--ff-radius, 12px);
+}
+.ff-viewer__empty { font-size: 13px; color: var(--ff-fg-muted, #a1a1aa); }
+
+.ff-viewer__list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+
+.ff-viewer__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--ff-surface, transparent);
+  border: 1px solid var(--ff-border, #3f3f46);
+  border-radius: var(--ff-radius, 10px);
+}
+.ff-viewer__row--interactive { cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
+.ff-viewer__row--interactive:hover { border-color: var(--ff-accent, #8b5cf6); }
+.ff-viewer__row--selected { border-color: var(--ff-accent, #8b5cf6); }
+
+.ff-viewer__index {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px; height: 22px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+/* min-width:0 is what lets the long-title truncation below actually engage —
+   a flex child defaults to min-width:auto, i.e. its min-content width. */
+.ff-viewer__body { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.ff-viewer__title { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.ff-viewer__desc {
+  font-size: 12px; line-height: 1.4;
+  color: var(--ff-fg-muted, #a1a1aa);
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+
+.ff-viewer__status {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+}
+.ff-viewer__status--ok      { background: #10b98122; color: #34d399; }
+.ff-viewer__status--running { background: #3b82f622; color: #60a5fa; }
+.ff-viewer__status--failed  { background: #ef444422; color: #f87171; }
+.ff-viewer__status--skipped { background: #71717a22; color: #a1a1aa; }
+.ff-viewer__status--pending { background: #a855f722; color: #c084fc; }

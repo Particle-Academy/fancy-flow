@@ -12,6 +12,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.36.0 — 2026-08-02
+
+### Added
+
+- **`<FlowViewer>` — a workflow, read-only.** There was no way to *show* a flow.
+  `FlowEditor` is the whole editor, and `FlowCanvas` is the canvas — neither had
+  a `readOnly` prop. A consumer could assemble a viewer out of `FlowCanvas` plus
+  four React Flow flags they had to know to pass, but nothing named that,
+  nothing documented it, and nothing stopped the next person handing a graph to
+  `FlowEditor` and shipping a fully editable canvas where they wanted a picture.
+
+  Read-only **by construction**: there is no prop that makes it editable, because
+  a viewer that can be switched into an editor is one that eventually gets
+  switched by accident. Verified behaviourally, not by class name — a drag moves
+  nothing and a handle-to-handle drag creates no edge and no connection line.
+
+  ```tsx
+  <FlowViewer graph={graph} />                       // canvas
+  <FlowViewer graph={graph} variant="list" />        // rows
+  <FlowViewer graph={graph} statuses={{ n3: "running" }} />
+  ```
+
+  `variant="list"` is the other half of the gap: nothing could render a flow
+  **without** a canvas — for a docs page, a narrow column, print, or an audit
+  view, where pan-zoom is the wrong shape and often unusable. `statuses` lets
+  the same component serve "here is the workflow" and "here is what happened".
+
+- **`overrideNodeKind(name, patch)` — rename a node you did not author.** The
+  palette rendered `kind.label` and `kind.description` straight from the
+  registry, and the only way to change either was `registerNodeKind`, which
+  **replaces the whole definition**. Relabelling `http_request` meant
+  re-declaring its config schema, ports, executor and renderer — internals a
+  consumer does not own — and silently forfeiting whatever the builtin gained in
+  the next release. In practice nobody renamed a node, and the palette could not
+  be localised at all.
+
+  ```ts
+  const undo = overrideNodeKind("@particle-academy/http_request", {
+    label: "Call an API",
+    description: "Fetch or post JSON to a URL",
+  });
+  ```
+
+  Patchable: `label`, `description`, `icon`, `accent`, `category`. Everything
+  behavioural is excluded on purpose — an override that could reach `executor`
+  or `outputs` is a fork wearing a friendly name, and would desync the graph
+  from the runtime that executes it.
+
+  Overrides are stored **separately from the definition**, so they survive the
+  base kind being re-registered by HMR, a later `registerBuiltinKinds()`, or a
+  package upgrade. They apply at `getNodeKind()` and `listNodeKinds()`, so one
+  call reaches the palette, the canvas node cards and `FlowViewer` — and they
+  apply *before* category filtering, so re-categorising a node actually moves it
+  in the palette instead of leaving it filed under the old heading with a new
+  name.
+
+  **What you must DO: nothing.** Both are purely additive.
+
 ## [0.35.0] - 2026-07-31
 
 ### Added

@@ -4,6 +4,30 @@ const kinds = new Map<string, NodeKindDefinition<any, any, any>>();
 /** alias → canonical name. See `resolveKindId`. */
 const aliases = new Map<string, string>();
 const listeners = new Set<() => void>();
+/**
+ * canonical name → presentation patch. See `overrideNodeKind`.
+ *
+ * Kept SEPARATE from `kinds` on purpose: an override has to survive its base
+ * kind being re-registered (HMR, a later `registerBuiltinKinds()`, a package
+ * upgrade). Merging into the definition would mean the next registration
+ * silently reverts the consumer's naming.
+ */
+const overrides = new Map<string, NodeKindPresentation>();
+
+/**
+ * The presentation fields a consumer may override on someone else's node kind.
+ *
+ * Deliberately excludes everything behavioural — `executor`, `inputs`,
+ * `outputs`, `configSchema`, `sideEffects`. An "override" that could change
+ * those is not an override, it is a fork wearing a friendly name, and it would
+ * desync the graph from the runtime that executes it.
+ *
+ * `category` IS included: which drawer a node appears in is presentation, and a
+ * consumer regrouping their palette is the same kind of act as renaming.
+ */
+export type NodeKindPresentation = Partial<
+  Pick<NodeKindDefinition, "label" | "description" | "icon" | "accent" | "category">
+>;
 
 /**
  * registerNodeKind — install a node kind in the global registry. Returns
@@ -46,10 +70,65 @@ export function resolveKindId(id: string): string | null {
   return canonical && kinds.has(canonical) ? canonical : null;
 }
 
+/**
+ * Rename or re-describe a kind you did not author.
+ *
+ * Before this existed the only way to relabel a builtin was `registerNodeKind`
+ * with a full definition — which REPLACES the kind, so a consumer wanting
+ * "Call an API" instead of "HTTP Request" had to re-declare that node's
+ * configSchema, ports, executor and renderer, and silently forfeited whatever
+ * the builtin gained in the next release. In practice nobody renamed a node,
+ * and the palette could not be localised at all.
+ *
+ * ```ts
+ * const undo = overrideNodeKind("@particle-academy/http_request", {
+ *   label: "Call an API",
+ *   description: "Fetch or post JSON to a URL",
+ * });
+ * ```
+ *
+ * Applies at `getNodeKind()` and `listNodeKinds()`, so one call reaches the
+ * palette, the node cards on the canvas, `FlowViewer`, and anything else that
+ * reads the registry. Returns an unsubscribe, matching `registerNodeKind`.
+ *
+ * Patching an unregistered id is allowed and takes effect if that kind is
+ * registered later — order of module side effects is not something a consumer
+ * should have to reason about.
+ */
+export function overrideNodeKind(name: string, patch: NodeKindPresentation): () => void {
+  const canonical = resolveKindId(name) ?? name;
+  const previous = overrides.get(canonical);
+
+  overrides.set(canonical, { ...previous, ...patch });
+  notify();
+
+  return () => {
+    if (previous) {
+      overrides.set(canonical, previous);
+    } else {
+      overrides.delete(canonical);
+    }
+    notify();
+  };
+}
+
+/** Remove every presentation override. Mostly for tests. */
+export function clearNodeKindOverrides(): void {
+  if (overrides.size === 0) return;
+  overrides.clear();
+  notify();
+}
+
+function withOverride(kind: NodeKindDefinition | undefined): NodeKindDefinition | null {
+  if (!kind) return null;
+  const patch = overrides.get(kind.name);
+  return patch ? ({ ...kind, ...patch } as NodeKindDefinition) : kind;
+}
+
 /** Get a single kind by canonical id or alias, or null. */
 export function getNodeKind(name: string): NodeKindDefinition | null {
   const canonical = resolveKindId(name);
-  return canonical ? ((kinds.get(canonical) as NodeKindDefinition) ?? null) : null;
+  return canonical ? withOverride(kinds.get(canonical) as NodeKindDefinition) : null;
 }
 
 /** Every id a kind answers to — canonical first. Used to key node-type maps. */
@@ -59,7 +138,12 @@ export function kindIds(kind: NodeKindDefinition): string[] {
 
 /** List every registered kind, optionally filtered by category. */
 export function listNodeKinds(category?: string): NodeKindDefinition[] {
-  const all = Array.from(kinds.values()) as NodeKindDefinition[];
+  const all = Array.from(kinds.values()).map((k) =>
+    withOverride(k as NodeKindDefinition),
+  ) as NodeKindDefinition[];
+  // Filter AFTER applying overrides, so an override that moves a node to a
+  // different category actually moves it in the palette rather than leaving it
+  // filed under the old one with a new name.
   return category ? all.filter((k) => k.category === category) : all;
 }
 

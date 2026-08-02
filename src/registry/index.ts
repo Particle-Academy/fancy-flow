@@ -77,6 +77,9 @@ export {
 
 export {
   registerNodeKind,
+  overrideNodeKind,
+  clearNodeKindOverrides,
+  type NodeKindPresentation,
   getNodeKind,
   resolveKindId,
   kindIds,

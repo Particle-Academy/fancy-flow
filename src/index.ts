@@ -24,6 +24,12 @@ export {
 } from "./components/FlowEditor";
 export { NodePalette, paletteDropHandlers, type NodePaletteProps } from "./components/NodePalette";
 export {
+  FlowViewer,
+  type FlowViewerProps,
+  type FlowViewerClassNames,
+  type FlowNodeStatus,
+} from "./components/FlowViewer";
+export {
   NodeConfigPanel,
   ConfigFieldRenderer,
   type NodeConfigPanelProps,
@@ -63,6 +69,9 @@ export { FlowRunFeed, type FlowRunFeedProps } from "./components/FlowRunFeed";
 // Registry (also: fancy-flow/registry)
 export {
   registerNodeKind,
+  overrideNodeKind,
+  clearNodeKindOverrides,
+  type NodeKindPresentation,
   getNodeKind,
   listNodeKinds,
   onNodeKindsChanged,
