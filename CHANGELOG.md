@@ -12,6 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.37.0 — 2026-08-02
+
+### Added
+
+- **`fancy-flow/screens` — `registerFlowSchema()`**, so an agent-emitted
+  `ScreenSchema` can place a workflow in a page:
+
+  ```json
+  { "type": "FlowViewer", "props": { "graph": { "nodes": [], "edges": [] } } }
+  ```
+
+  Mirrors `fancy-artboard/screens` exactly: a separate entry that is the only
+  module importing `@particle-academy/fancy-screens`, declared as an **optional**
+  peer and marked external, so the base `.` import graph is untouched and an app
+  that never uses fancy-screens never pays for it. The built entry is 604 bytes.
+
+  **Only the VIEWER is registered, deliberately.** A schema is JSON, and
+  `FlowEditor` needs executors, run handlers and controlled state that JSON props
+  cannot express — registering it would let an agent emit an editor that renders
+  and does nothing, which is worse than not offering it at all. `FlowViewer` is
+  complete from props alone, which is exactly what makes it schema-safe.
+
+  **What you must DO: nothing** unless you want it. `registerFlowSchema()` is an
+  explicit call at host startup, like every other screens adapter.
+
 ## 0.36.0 — 2026-08-02
 
 ### Added
