@@ -12,6 +12,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.39.0 — 2026-08-07
+
+### Added
+
+- **`flowLive` — this package's Live Contract**, plus `flowKeys` for per-run
+  query keys. `FancyFlow\Laravel\LiveContract` declares the identical list and
+  both sides assert parity.
+
+  `fancy-query` is a **type-only** import, so this adds no dependency.
+
+  **It covers a run's durable state, not per-node chatter.** `NodeStatusChanged`
+  and `NodeOutput` fire per node, many times a second on a wide graph — a log
+  line is a stream, not a cache entry. In the contract, a 40-node run would
+  invalidate the run list forty times while executing, each a re-fetch telling
+  the UI nothing the stream had not already delivered. Use `useFancyStream` for
+  that half.
+
+  `flow.run.awaiting` gets its own event rather than folding into `updated`: a
+  run parking on a human step is the moment a form has to appear in front of
+  somebody, and a host should be able to subscribe to just that.
+
+  **Broadcast status, stated plainly:** `fancy-flow-php` dispatches these as
+  in-process Laravel events; none implements `ShouldBroadcast` yet. The contract
+  is the agreed vocabulary, so a host wanting live runs today re-broadcasts
+  under these names. Making them broadcast natively is a separate change,
+  because it turns on websocket traffic for every consumer.
+
+  **What you must do:** nothing. Additive.
+
+
 ## 0.38.0 — 2026-08-07
 
 ### Changed
