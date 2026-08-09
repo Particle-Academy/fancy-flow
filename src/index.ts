@@ -32,6 +32,8 @@ export {
 export {
   NodeConfigPanel,
   ConfigFieldRenderer,
+  type ConfigFieldRenderFn,
+  type ConfigFieldRenderContext,
   type NodeConfigPanelProps,
   type ConfigFieldRendererProps,
 } from "./components/NodeConfigPanel";

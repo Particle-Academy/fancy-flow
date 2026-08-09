@@ -6,6 +6,25 @@ import type {
   TextConfigField,
 } from "../../registry/types";
 
+/** What a host renderer is handed. */
+export type ConfigFieldRenderContext = {
+  field: ConfigField;
+  value: unknown;
+  onChange: (next: unknown) => void;
+  /** The id the panel's `<label>` points at. Put it on your control. */
+  id?: string;
+};
+
+/**
+ * Render one field. Return `null` to fall back to the package's own rendering,
+ * so a host can claim a type conditionally instead of reimplementing every case.
+ *
+ * Named `...Fn` because `ConfigFieldRenderer` is already the component this
+ * module exports; two things with one name in a public API is a paper cut a
+ * consumer pays for, not us.
+ */
+export type ConfigFieldRenderFn = (ctx: ConfigFieldRenderContext) => ReactNode;
+
 export type ConfigFieldRendererProps = {
   field: ConfigField;
   value: unknown;
@@ -38,6 +57,22 @@ export type ConfigFieldRendererProps = {
     value: unknown;
     onChange: (next: unknown) => void;
   }) => ReactNode;
+  /**
+   * Host renderers keyed by field `type`.
+   *
+   * The generic form of `renderDocumentField` / `renderCredentialField`: those
+   * cover two types the package deliberately does not interpret, this covers
+   * any type at all — including one the package has never heard of.
+   *
+   * Without it, a richer field had to be rendered OUTSIDE the panel, so that
+   * node's config stopped living where every other field does. An unknown type
+   * also fell through to `default:` and rendered nothing, so the schema said the
+   * field existed and the panel showed empty space.
+   *
+   * Consulted BEFORE the built-in switch, so a host can also replace a built-in
+   * (react-fancy inputs, say) through the same seam rather than a second one.
+   */
+  fieldRenderers?: Record<string, ConfigFieldRenderFn>;
 };
 
 /**
@@ -58,9 +93,18 @@ export function ConfigFieldRenderer({
   id,
   renderCredentialField,
   renderDocumentField,
+  fieldRenderers,
 }: ConfigFieldRendererProps) {
   /** Applied to whichever control this field renders. */
   const handle = { id, "data-ff-field": field.key } as const;
+
+  // Host renderers win, and `null` means "you take it" — so claiming a type
+  // conditionally does not mean reimplementing the rest.
+  const custom = fieldRenderers?.[field.type];
+  if (custom) {
+    const rendered = custom({ field, value, onChange, id });
+    if (rendered !== null && rendered !== undefined) return <>{rendered}</>;
+  }
 
   switch (field.type) {
     case "text": {
@@ -173,6 +217,7 @@ export function ConfigFieldRenderer({
           onChange={onChange}
           renderCredentialField={renderCredentialField}
           renderDocumentField={renderDocumentField}
+          fieldRenderers={fieldRenderers}
         />
       );
 
@@ -254,12 +299,14 @@ function RepeaterField({
   onChange,
   renderCredentialField,
   renderDocumentField,
+  fieldRenderers,
 }: {
   field: RepeaterConfigField;
   value: unknown;
   onChange: (v: unknown) => void;
   renderCredentialField?: ConfigFieldRendererProps["renderCredentialField"];
   renderDocumentField?: ConfigFieldRendererProps["renderDocumentField"];
+  fieldRenderers?: ConfigFieldRendererProps["fieldRenderers"];
 }) {
   const rows: Array<Record<string, unknown>> = Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
   const max = field.maxItems ?? Infinity;
@@ -341,6 +388,7 @@ function RepeaterField({
                 onChange={(cell) => setCell(i, sub.key, cell)}
                 renderCredentialField={renderCredentialField}
                 renderDocumentField={renderDocumentField}
+                fieldRenderers={fieldRenderers}
               />
             </div>
           ))}

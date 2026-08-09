@@ -1,211 +1,211 @@
 {
-    "name": "@particle-academy/fancy-flow",
-    "version": "0.39.0",
-    "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/Particle-Academy/fancy-flow.git"
+  "name": "@particle-academy/fancy-flow",
+  "version": "0.40.0",
+  "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Particle-Academy/fancy-flow.git"
+  },
+  "homepage": "https://github.com/Particle-Academy/fancy-flow#readme",
+  "bugs": "https://github.com/Particle-Academy/fancy-flow/issues",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
-    "homepage": "https://github.com/Particle-Academy/fancy-flow#readme",
-    "bugs": "https://github.com/Particle-Academy/fancy-flow/issues",
-    "type": "module",
-    "main": "./dist/index.cjs",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "import": {
-                "types": "./dist/index.d.ts",
-                "default": "./dist/index.js"
-            },
-            "require": {
-                "types": "./dist/index.d.cts",
-                "default": "./dist/index.cjs"
-            }
-        },
-        "./runtime": {
-            "import": {
-                "types": "./dist/runtime/index.d.ts",
-                "default": "./dist/runtime.js"
-            },
-            "require": {
-                "types": "./dist/runtime/index.d.cts",
-                "default": "./dist/runtime.cjs"
-            }
-        },
-        "./registry": {
-            "import": {
-                "types": "./dist/registry/index.d.ts",
-                "default": "./dist/registry.js"
-            },
-            "require": {
-                "types": "./dist/registry/index.d.cts",
-                "default": "./dist/registry.cjs"
-            }
-        },
-        "./schema": {
-            "import": {
-                "types": "./dist/schema/index.d.ts",
-                "default": "./dist/schema.js"
-            },
-            "require": {
-                "types": "./dist/schema/index.d.cts",
-                "default": "./dist/schema.cjs"
-            }
-        },
-        "./layout": {
-            "import": {
-                "types": "./dist/layout/index.d.ts",
-                "default": "./dist/layout.js"
-            },
-            "require": {
-                "types": "./dist/layout/index.d.cts",
-                "default": "./dist/layout.cjs"
-            }
-        },
-        "./engine": {
-            "import": {
-                "types": "./dist/engine.d.ts",
-                "default": "./dist/engine.js"
-            },
-            "require": {
-                "types": "./dist/engine.d.cts",
-                "default": "./dist/engine.cjs"
-            }
-        },
-        "./ux": {
-            "import": {
-                "types": "./dist/ux.d.ts",
-                "default": "./dist/ux.js"
-            },
-            "require": {
-                "types": "./dist/ux.d.cts",
-                "default": "./dist/ux.cjs"
-            }
-        },
-        "./styles.css": "./dist/styles.css",
-        "./rich-input": {
-            "import": {
-                "types": "./dist/rich-input.d.ts",
-                "default": "./dist/rich-input.js"
-            },
-            "require": {
-                "types": "./dist/rich-input.d.cts",
-                "default": "./dist/rich-input.cjs"
-            }
-        },
-        "./llm/vercel-ai": {
-            "import": {
-                "types": "./dist/llm/vercel-ai.d.ts",
-                "default": "./dist/llm/vercel-ai.js"
-            },
-            "require": {
-                "types": "./dist/llm/vercel-ai.d.cts",
-                "default": "./dist/llm/vercel-ai.cjs"
-            }
-        },
-        "./llm/prism": {
-            "import": {
-                "types": "./dist/llm/prism.d.ts",
-                "default": "./dist/llm/prism.js"
-            },
-            "require": {
-                "types": "./dist/llm/prism.d.cts",
-                "default": "./dist/llm/prism.cjs"
-            }
-        },
-        "./screens": {
-            "import": {
-                "types": "./dist/screens.d.ts",
-                "default": "./dist/screens.js"
-            },
-            "require": {
-                "types": "./dist/screens.d.cts",
-                "default": "./dist/screens.cjs"
-            }
-        }
+    "./runtime": {
+      "import": {
+        "types": "./dist/runtime/index.d.ts",
+        "default": "./dist/runtime.js"
+      },
+      "require": {
+        "types": "./dist/runtime/index.d.cts",
+        "default": "./dist/runtime.cjs"
+      }
     },
-    "files": [
-        "dist",
-        "docs",
-        "README.md"
-    ],
-    "scripts": {
-        "build": "tsup",
-        "dev": "tsup --watch",
-        "lint": "tsc --noEmit && eslint .",
-        "test": "vitest run",
-        "clean": "rm -rf dist",
-        "prepublishOnly": "tsup"
+    "./registry": {
+      "import": {
+        "types": "./dist/registry/index.d.ts",
+        "default": "./dist/registry.js"
+      },
+      "require": {
+        "types": "./dist/registry/index.d.cts",
+        "default": "./dist/registry.cjs"
+      }
     },
-    "keywords": [
-        "react",
-        "workflow",
-        "flow",
-        "graph",
-        "agent",
-        "fancy"
-    ],
-    "peerDependencies": {
-        "@particle-academy/fancy-cms-ui": ">=0.2",
-        "@particle-academy/fancy-screens": ">=0.4 <2.0",
-        "@particle-academy/react-fancy": ">=3",
-        "ai": ">=5",
-        "react": "^19.0.0",
-        "react-dom": "^19.0.0"
+    "./schema": {
+      "import": {
+        "types": "./dist/schema/index.d.ts",
+        "default": "./dist/schema.js"
+      },
+      "require": {
+        "types": "./dist/schema/index.d.cts",
+        "default": "./dist/schema.cjs"
+      }
     },
-    "dependencies": {
-        "@particle-academy/fancy-auto-common": ">=0.1 <2.0"
+    "./layout": {
+      "import": {
+        "types": "./dist/layout/index.d.ts",
+        "default": "./dist/layout.js"
+      },
+      "require": {
+        "types": "./dist/layout/index.d.cts",
+        "default": "./dist/layout.cjs"
+      }
     },
-    "devDependencies": {
-        "@dagrejs/dagre": "^3.0.0",
-        "@particle-academy/fancy-cms-ui": "^0.2.0",
-        "@particle-academy/fancy-query": "^0.8.0",
-        "@particle-academy/fancy-screens": "^0.4.3",
-        "@particle-academy/react-fancy": "^4.15.0",
-        "@testing-library/dom": "^10.4.1",
-        "@testing-library/react": "^16.3.2",
-        "@types/react": "^19.2.18",
-        "@types/react-dom": "^19.2.4",
-        "@xyflow/react": "^12.4.0",
-        "ai": "^7.0.31",
-        "clsx": "^2.1.0",
-        "eslint": "^10.8.0",
-        "eslint-plugin-react-hooks": "^7.1.1",
-        "jsdom": "^29.1.1",
-        "react": "^19.2.8",
-        "react-dom": "^19.2.8",
-        "tsup": "^8.0.0",
-        "typescript": "^5.7.0",
-        "typescript-eslint": "^8.65.0",
-        "vitest": "^3.2.6",
-        "zod": "^4.4.3"
+    "./engine": {
+      "import": {
+        "types": "./dist/engine.d.ts",
+        "default": "./dist/engine.js"
+      },
+      "require": {
+        "types": "./dist/engine.d.cts",
+        "default": "./dist/engine.cjs"
+      }
     },
-    "publishConfig": {
-        "access": "public"
+    "./ux": {
+      "import": {
+        "types": "./dist/ux.d.ts",
+        "default": "./dist/ux.js"
+      },
+      "require": {
+        "types": "./dist/ux.d.cts",
+        "default": "./dist/ux.cjs"
+      }
     },
-    "license": "MIT",
-    "sideEffects": [
-        "**/*.css"
-    ],
-    "overrides": {
-        "esbuild": "^0.28.1"
+    "./styles.css": "./dist/styles.css",
+    "./rich-input": {
+      "import": {
+        "types": "./dist/rich-input.d.ts",
+        "default": "./dist/rich-input.js"
+      },
+      "require": {
+        "types": "./dist/rich-input.d.cts",
+        "default": "./dist/rich-input.cjs"
+      }
     },
-    "peerDependenciesMeta": {
-        "@particle-academy/fancy-cms-ui": {
-            "optional": true
-        },
-        "@particle-academy/react-fancy": {
-            "optional": true
-        },
-        "ai": {
-            "optional": true
-        },
-        "@particle-academy/fancy-screens": {
-            "optional": true
-        }
+    "./llm/vercel-ai": {
+      "import": {
+        "types": "./dist/llm/vercel-ai.d.ts",
+        "default": "./dist/llm/vercel-ai.js"
+      },
+      "require": {
+        "types": "./dist/llm/vercel-ai.d.cts",
+        "default": "./dist/llm/vercel-ai.cjs"
+      }
     },
-    "engines": {
-        "node": ">=22"
+    "./llm/prism": {
+      "import": {
+        "types": "./dist/llm/prism.d.ts",
+        "default": "./dist/llm/prism.js"
+      },
+      "require": {
+        "types": "./dist/llm/prism.d.cts",
+        "default": "./dist/llm/prism.cjs"
+      }
+    },
+    "./screens": {
+      "import": {
+        "types": "./dist/screens.d.ts",
+        "default": "./dist/screens.js"
+      },
+      "require": {
+        "types": "./dist/screens.d.cts",
+        "default": "./dist/screens.cjs"
+      }
     }
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "tsc --noEmit && eslint .",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "tsup"
+  },
+  "keywords": [
+    "react",
+    "workflow",
+    "flow",
+    "graph",
+    "agent",
+    "fancy"
+  ],
+  "peerDependencies": {
+    "@particle-academy/fancy-cms-ui": ">=0.2",
+    "@particle-academy/fancy-screens": ">=0.4 <2.0",
+    "@particle-academy/react-fancy": ">=3",
+    "ai": ">=5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@particle-academy/fancy-auto-common": ">=0.1 <2.0"
+  },
+  "devDependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@particle-academy/fancy-cms-ui": "^0.2.0",
+    "@particle-academy/fancy-query": "^0.8.0",
+    "@particle-academy/fancy-screens": "^0.4.3",
+    "@particle-academy/react-fancy": "^4.15.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@xyflow/react": "^12.4.0",
+    "ai": "^7.0.31",
+    "clsx": "^2.1.0",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^29.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^3.2.6",
+    "zod": "^4.4.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "overrides": {
+    "esbuild": "^0.28.1"
+  },
+  "peerDependenciesMeta": {
+    "@particle-academy/fancy-cms-ui": {
+      "optional": true
+    },
+    "@particle-academy/react-fancy": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
+    },
+    "@particle-academy/fancy-screens": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }

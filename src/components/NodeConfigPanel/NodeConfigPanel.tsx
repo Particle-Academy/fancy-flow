@@ -2,7 +2,7 @@ import { type ReactNode, useId, useMemo } from "react";
 import type { FlowNode } from "../../types";
 import { categoryAccent, getNodeKind, validateConfig } from "../../registry/registry";
 import { getRichInputAdapter } from "../../registry/rich-input";
-import { ConfigFieldRenderer } from "./ConfigFieldRenderer";
+import { ConfigFieldRenderer, type ConfigFieldRenderFn } from "./ConfigFieldRenderer";
 
 export type NodeConfigPanelProps = {
   /** Currently-selected node — pass null to render the empty state. */
@@ -31,6 +31,8 @@ export type NodeConfigPanelProps = {
    * fields. Lets rich authored content live in node config without fancy-flow
    * taking on a document model.
    */
+  /** Host renderers keyed by field `type`. See {@link ConfigFieldRenderer}. */
+  fieldRenderers?: Record<string, ConfigFieldRenderFn>;
   renderDocumentField?: (props: {
     documentType?: string;
     value: unknown;
@@ -52,6 +54,7 @@ export function NodeConfigPanel({
   header,
   renderCredentialField,
   renderDocumentField,
+  fieldRenderers,
   className,
   style,
 }: NodeConfigPanelProps) {
@@ -197,6 +200,7 @@ export function NodeConfigPanel({
                 onChange={(v) => setConfigValue(field.key, v)}
                 renderCredentialField={renderCredentialField}
                 renderDocumentField={documentField}
+                fieldRenderers={fieldRenderers}
               />
             </div>
           ))}

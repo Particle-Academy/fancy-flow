@@ -12,6 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.40.0 — 2026-08-09
+
+### Added
+
+- **`fieldRenderers` on `NodeConfigPanel` — a generic seam for host-defined
+  `ConfigField` types.** (#4)
+
+  ```tsx
+  <NodeConfigPanel
+    fieldRenderers={{
+      "trigger-filters": ({ value, onChange }) => <FilterEditor value={value} onChange={onChange} />,
+    }}
+  />
+  ```
+
+  The panel had hooks for two *specific* types (`renderDocumentField`,
+  `renderCredentialField`) and no generic one, so anything richer than the
+  built-ins had to be rendered **outside** the panel — that node's config stopped
+  living where every other field does. An unknown `type` also fell through to
+  `default:` and rendered nothing, so the schema said the field existed and the
+  panel showed empty space.
+
+  - Keyed by `field.type`, and consulted **before** the built-in switch, so the
+    same seam also replaces a built-in (react-fancy inputs, say) rather than
+    needing a second mechanism.
+  - Return `null` to fall back to the package's own rendering, so a host can
+    claim a type conditionally instead of reimplementing every case.
+  - Forwarded into **repeater rows**, so a custom field nested one level down
+    renders like any other.
+
+  `ConfigFieldRenderFn` and `ConfigFieldRenderContext` are exported. The type is
+  `…Fn` rather than `ConfigFieldRenderer` because that name is already the
+  component this module exports.
+
 ## 0.39.0 — 2026-08-07
 
 ### Added
