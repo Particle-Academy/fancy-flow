@@ -23,6 +23,15 @@ jobs:
         run: |
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));for(const s of ['dependencies','devDependencies','peerDependencies','optionalDependencies']){if(!p[s])continue;for(const[n,v]of Object.entries(p[s])){if(typeof v==='string'&&v.startsWith('workspace:'))p[s][n]=v.slice('workspace:'.length)||'*';}}fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');"
 
+      # The Live Contract parity test compares this package's contract against the
+      # PHP twin's. Without the repo here it found no file and every assertion
+      # returned early -- green, having compared nothing.
+      - name: Check out fancy-flow-php
+        uses: actions/checkout@v4
+        with:
+          repository: Particle-Academy/fancy-flow-php
+          path: .php-flow
+
       - name: Install
         run: npm install --no-audit --no-fund --legacy-peer-deps
 
@@ -31,6 +40,8 @@ jobs:
 
       - name: Test
         run: npm test --if-present
+        env:
+          FLOW_PHP_SRC: ${{ github.workspace }}/.php-flow/src/Laravel
 
       - name: Build
         run: npm run build --if-present

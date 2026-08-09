@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.40.3 — 2026-08-09
+
+### Fixed
+
+- **The Live Contract parity test never ran in CI.** It compares `flowLive`
+  against `FancyFlow\Laravel\LiveContract`, reading the PHP source — from a
+  hard-coded `../../fancy-flow-php/`, which resolves only inside the `.agi`
+  envelope. In CI the repo is not checked out, so every assertion returned early
+  and passed having compared nothing.
+
+  Now: CI checks out `fancy-flow-php`, the path comes from `FLOW_PHP_SRC`
+  (sibling as fallback), and a missing twin **throws in CI**. Locally a skip is
+  still right.
+
+  Verified in three states: correct path passes all 8, a bad path under `CI=1`
+  fails 3, and a bad path without `CI` still skips.
+
 ## 0.40.2 — 2026-08-09
 
 ### Added
