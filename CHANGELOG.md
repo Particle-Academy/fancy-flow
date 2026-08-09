@@ -12,6 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.40.1 — 2026-08-09
+
+### Fixed
+
+- **CI could not run `live-contract.test.ts`**, and had been red since that test
+  landed four commits earlier.
+
+  `@tanstack/react-query` is a *required* peer of `@particle-academy/fancy-query`,
+  which this repo uses in tests — and CI installs with `--legacy-peer-deps`,
+  which skips peer installation entirely. So it resolved locally (where the peer
+  was already on disk) and could never resolve on a clean runner.
+
+  Now declared as a direct devDependency, which installs regardless of the flag.
+  Verified the way it actually fails: deleted the package, ran CI's exact install
+  command, and confirmed it comes back.
+
+  The flag itself is left alone — it is there for other reasons, and flipping it
+  to fix a missing declaration would trade a known problem for an unknown one.
+
 ## 0.40.0 — 2026-08-09
 
 ### Added
