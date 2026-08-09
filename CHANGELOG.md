@@ -12,6 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.40.2 — 2026-08-09
+
+### Added
+
+- Six cases to the `satisfiesRange` table. Two pin places where this convention
+  **deliberately differs from standard semver**: `1.2.3-beta.1` satisfies `^1.2`
+  here and not under npm's `semver`, and `^0.0.1` admits `0.0.2` where standard
+  semver pins it exactly.
+
+  `satisfiesRange` has three implementations (`fancy-ui-cli`, this package,
+  `fancy-flow-php`) and — unusually for the suite — has never drifted, because
+  each carries the same case table in its own CI. I ran all three against a
+  shared case set to check that rather than assume it, and they agree on every
+  case including these.
+
+  The gap they close is a future one: a fourth implementation reaching for a
+  stock semver library would disagree on exactly these two, and nothing said so.
+
 ## 0.40.1 — 2026-08-09
 
 ### Fixed

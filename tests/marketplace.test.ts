@@ -193,6 +193,21 @@ describe("satisfiesRange", () => {
     ["0.8.0", "~0.7.1", false],
     ["9.9.9", "*", true],
     ["0.7.0", "^0.5 || ^0.7", true],
+    // ── Cases where this convention deliberately DIFFERS from standard semver.
+    // Verified against all three implementations (fancy-ui-cli, fancy-flow,
+    // fancy-flow-php) and against npm's `semver` package: the first two rows
+    // below are `false` under standard semver and `true` here.
+    //
+    // They are pinned because "just use the semver crate" is the obvious way to
+    // write a fourth implementation, and it would silently disagree on exactly
+    // these — a node published as compatible that then refuses to load, or
+    // loads when it should not.
+    ["1.2.3-beta.1", "^1.2", true],   // std semver: false (prereleases excluded)
+    ["0.0.2", "^0.0.1", true],        // std semver: false (^0.0.1 pins exactly)
+    ["1.0.0", "", true],              // an empty range accepts anything
+    ["1.2.3", "1.2.3", true],         // a bare version is an exact match
+    ["1.2.3", " ^1.2 ", true],        // surrounding whitespace is trimmed
+    ["10.0.0", "^9 || ^10", true],    // multi-major union, two-digit major
   ])("%s against %s is %s", (version, range, expected) => {
     expect(satisfiesRange(version as string, range as string)).toBe(expected);
   });
