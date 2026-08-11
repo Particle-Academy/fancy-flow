@@ -36,27 +36,55 @@ export type ExprValue = unknown;
 export type ExprContext = Record<string, ExprValue>;
 
 /**
- * Matches a whole-string single expression: `{{ … }}` and nothing else.
+ * `{{ … }}` is parsed by SCANNING, not by a regular expression.
  *
- * **No `\s*` around the capture, deliberately.** It used to read
- * `^\{\{\s*([\s\S]*?)\s*\}\}$`, and those two `\s*` are ambiguous with the lazy
- * capture between them: given a string that opens `{{` and never closes, the
- * engine tries every split between "whitespace the `\s*` ate" and "whitespace
- * the capture ate" — quadratic in the run length, and in practice a hang.
- * (CodeQL js/polynomial-redos, alerts #2 and #3.)
+ * Two CodeQL `js/polynomial-redos` alerts (#2, #3) came out of the regex
+ * version, and the second survived the obvious fix — which is the useful part.
+ * Dropping the ambiguous `\s*` around the capture killed one witness
+ * (`'{{{{' + ' '.repeat(n)`) and CodeQL immediately produced another
+ * (`'{{{{a'` repeated). That is not a pattern bug: a GLOBAL lazy scan for a
+ * delimiter that never arrives is quadratic by construction — O(n) starts, each
+ * scanning O(n) forward — and no amount of tuning the pattern removes it.
  *
- * Nothing is lost by dropping it: `resolvePath` trims its argument and always
- * did, so the padding was being removed twice.
+ * `indexOf` has no backtracking at all. Each character is visited a bounded
+ * number of times, so this is linear by construction rather than by careful
+ * pattern-writing, and there is no next witness to find.
  *
- * The PHP twin keeps its `\s*` and that is CORRECT, not drift. PCRE
- * auto-possessifies and anchors this pattern, so the same input returns in 0ms
- * there — measured, not assumed. The flaw is specific to the JavaScript engine.
- * Both sides still trim in `resolvePath`, so the resolved path is identical and
- * `shared/expr` passes on both; do not "fix" the PHP one for symmetry.
+ * The behaviour is deliberately identical to the regexes it replaces, including
+ * the odd corner: `{{a}}{{b}}` is a WHOLE expression whose path is `a}}{{b`
+ * (which resolves to null), because the old pattern was `$`-anchored and its
+ * lazy capture had to grow to reach the end. The PHP twin does the same, and
+ * `shared/expr` is what holds the two together.
  */
-const WHOLE = /^\{\{([\s\S]*?)\}\}$/;
-/** Every `{{ … }}` run, for interpolation. Same no-`\s*` rule as {@link WHOLE}. */
-const EACH = /\{\{([\s\S]*?)\}\}/g;
+
+/** The inner text of a template that is exactly one expression, else `null`. */
+function wholeExpression(trimmed: string): string | null {
+  if (trimmed.length < 4) return null;
+  if (!trimmed.startsWith("{{") || !trimmed.endsWith("}}")) return null;
+  return trimmed.slice(2, -2);
+}
+
+/**
+ * Replace every `{{ … }}` run, left to right, in a single pass.
+ *
+ * An unterminated `{{` is literal text — the same thing the regex did by simply
+ * not matching, and the case an author hits constantly while typing.
+ */
+function interpolate(template: string, resolve: (path: string) => string): string {
+  let out = "";
+  let i = 0;
+
+  for (;;) {
+    const open = template.indexOf("{{", i);
+    if (open === -1) return out + template.slice(i);
+
+    const close = template.indexOf("}}", open + 2);
+    if (close === -1) return out + template.slice(i);
+
+    out += template.slice(i, open) + resolve(template.slice(open + 2, close));
+    i = close + 2;
+  }
+}
 
 /**
  * Strings PHP's `Expr::truthy` treats as false.
@@ -121,10 +149,10 @@ export function resolvePath(path: string, context: ExprContext): ExprValue {
 export function evaluateExpression(template: ExprValue, context: ExprContext): ExprValue {
   if (typeof template !== "string") return template;
 
-  const whole = WHOLE.exec(template.trim());
-  if (whole) return resolvePath(whole[1] ?? "", context);
+  const whole = wholeExpression(template.trim());
+  if (whole !== null) return resolvePath(whole, context);
 
-  return template.replace(EACH, (_m, path: string) => stringify(resolvePath(path, context)));
+  return interpolate(template, (path) => stringify(resolvePath(path, context)));
 }
 
 /**

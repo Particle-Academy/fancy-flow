@@ -263,6 +263,12 @@ describe("the expression regexes cannot be made to backtrack", () => {
     ["unterminated with tabs", "{{" + "\t".repeat(60_000)],
     ["many opens, never closed", "{{ ".repeat(20_000)],
     ["trailing whitespace run", "{{ a " + " ".repeat(60_000)],
+    // CodeQL's SECOND witness, produced after the first fix. A global lazy scan
+    // for a delimiter that never arrives is quadratic however the pattern is
+    // written, which is why this is scanned with indexOf now rather than
+    // matched.
+    ["nested opens, never closed", "{{{{a".repeat(20_000)],
+    ["one open then a huge body", "{{" + "a".repeat(200_000)],
   ])("stays fast on %s", async (_label, template) => {
     const { evaluateExpression } = await import("../src/expressions/expr");
 

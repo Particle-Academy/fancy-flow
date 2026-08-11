@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.2] - 2026-08-11
+
+### Security
+
+- **`{{ }}` is now parsed by scanning, not by a regular expression** — finishing
+  the ReDoS fix 0.43.1 started (CodeQL `js/polynomial-redos` #3).
+
+  0.43.1 removed the ambiguous `\s*` around the capture, which killed CodeQL's
+  first witness. It immediately produced a second one (`'{{{{a'` repeated), and
+  that is the informative part: a GLOBAL lazy scan for a delimiter that never
+  arrives is quadratic by construction — O(n) start positions, each scanning
+  O(n) forward — and no pattern tuning removes it.
+
+  `indexOf` does not backtrack. Every character is visited a bounded number of
+  times, so the parse is linear by construction rather than by careful
+  pattern-writing, and there is no next witness.
+
+  Behaviour is unchanged down to the corners, verified against the PHP twin
+  side by side: `{{a}}{{b}}` still resolves to `null` (the old pattern was
+  `$`-anchored, so its lazy capture grew to `a}}{{b`), `{{` and `{{a` stay
+  literal, `{{}}` is null. `shared/expr` passes on both runtimes.
+
+  **Consumers do nothing.**
+
 ## [0.43.1] - 2026-08-11
 
 ### Security
