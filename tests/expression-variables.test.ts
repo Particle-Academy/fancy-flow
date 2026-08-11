@@ -238,3 +238,48 @@ describe("the builtin kinds' declared output shapes", () => {
     expect(shape!({})).toEqual([]);
   });
 });
+
+describe("the expression regexes cannot be made to backtrack", () => {
+  /**
+   * CodeQL `js/polynomial-redos`, alerts #2 and #3 — introduced by 0.43.0 and
+   * fixed in 0.43.1. Both were mine.
+   *
+   * The patterns were `\{\{\s*([\s\S]*?)\s*\}\}`. The `\s*` on either side of
+   * the lazy capture is AMBIGUOUS with it: for a string that starts `{{` and
+   * then runs on without a closing `}}`, the engine has to try every split
+   * between "whitespace the \s* ate" and "whitespace the capture ate", which is
+   * quadratic in the run length.
+   *
+   * The `\s*` was never load-bearing — `resolvePath` trims its argument, and
+   * always did. Removing it is what fixes the ambiguity, and changes nothing:
+   * the conformance table above still passes row for row.
+   *
+   * Reachability matters here rather than being theoretical. Config strings
+   * arrive from workflow JSON that an agent or an API caller can author, so a
+   * template is genuinely untrusted input on the way to `evaluateExpression`.
+   */
+  it.each([
+    ["the exact CodeQL witness", "{{{{" + " ".repeat(60_000)],
+    ["unterminated with tabs", "{{" + "\t".repeat(60_000)],
+    ["many opens, never closed", "{{ ".repeat(20_000)],
+    ["trailing whitespace run", "{{ a " + " ".repeat(60_000)],
+  ])("stays fast on %s", async (_label, template) => {
+    const { evaluateExpression } = await import("../src/expressions/expr");
+
+    const started = Date.now();
+    evaluateExpression(template, { in: {} });
+    const elapsed = Date.now() - started;
+
+    // The vulnerable pattern takes seconds-to-minutes on these; the fixed one
+    // is single-digit milliseconds. 1s is a deliberately loose ceiling so a
+    // slow CI box cannot make this flaky while still failing hard on a
+    // reintroduced quadratic.
+    expect(elapsed).toBeLessThan(1_000);
+  });
+
+  it("still resolves a padded expression, which is what the \s* was for", async () => {
+    const { evaluateExpression } = await import("../src/expressions/expr");
+    expect(evaluateExpression("{{   $json.a   }}", { in: { a: 7 } })).toBe(7);
+    expect(evaluateExpression("x {{\t$json.a\n}} y", { in: { a: 7 } })).toBe("x 7 y");
+  });
+});

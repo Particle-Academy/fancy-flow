@@ -12,6 +12,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-08-11
+
+### Security
+
+- **Fixed a polynomial-ReDoS in `{{ }}` parsing** (CodeQL `js/polynomial-redos`,
+  alerts #2 and #3 — both introduced by 0.43.0, an hour earlier).
+
+  The patterns were `\{\{\s*([\s\S]*?)\s*\}\}`. The `\s*` on either side of the
+  lazy capture is ambiguous with it: given a string that opens `{{` and never
+  closes, the engine tries every split between "whitespace the `\s*` matched"
+  and "whitespace the capture matched". On `'{{{{' + ' '.repeat(60_000)` that is
+  not a slowdown — the test suite ran past **ten minutes** before it was killed.
+
+  Reachable rather than theoretical: templates come from workflow config that an
+  agent or an API caller can author, so `evaluateExpression` takes untrusted
+  input by design.
+
+  The `\s*` was never load-bearing — `resolvePath` trims its argument and always
+  did, so the padding was being stripped twice. Removing it fixes the ambiguity
+  and changes nothing: `shared/expr` passes row for row on both runtimes.
+
+  **Consumers do nothing** beyond upgrading. Same inputs, same outputs, same
+  whitespace tolerance.
+
+  The PHP twin keeps its `\s*` deliberately — PCRE returns in 0ms on the same
+  input (measured), so the flaw is specific to the JavaScript engine, and the
+  two still resolve identically.
+
+
 ## [0.43.0] - 2026-08-11
 
 ### Added

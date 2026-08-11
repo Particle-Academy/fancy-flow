@@ -35,10 +35,28 @@ export type ExprValue = unknown;
 /** The context an expression resolves against — the executor's `inputs`. */
 export type ExprContext = Record<string, ExprValue>;
 
-/** Matches a whole-string single expression: `{{ … }}` and nothing else. */
-const WHOLE = /^\{\{\s*([\s\S]*?)\s*\}\}$/;
-/** Every `{{ … }}` run, for interpolation. */
-const EACH = /\{\{\s*([\s\S]*?)\s*\}\}/g;
+/**
+ * Matches a whole-string single expression: `{{ … }}` and nothing else.
+ *
+ * **No `\s*` around the capture, deliberately.** It used to read
+ * `^\{\{\s*([\s\S]*?)\s*\}\}$`, and those two `\s*` are ambiguous with the lazy
+ * capture between them: given a string that opens `{{` and never closes, the
+ * engine tries every split between "whitespace the `\s*` ate" and "whitespace
+ * the capture ate" — quadratic in the run length, and in practice a hang.
+ * (CodeQL js/polynomial-redos, alerts #2 and #3.)
+ *
+ * Nothing is lost by dropping it: `resolvePath` trims its argument and always
+ * did, so the padding was being removed twice.
+ *
+ * The PHP twin keeps its `\s*` and that is CORRECT, not drift. PCRE
+ * auto-possessifies and anchors this pattern, so the same input returns in 0ms
+ * there — measured, not assumed. The flaw is specific to the JavaScript engine.
+ * Both sides still trim in `resolvePath`, so the resolved path is identical and
+ * `shared/expr` passes on both; do not "fix" the PHP one for symmetry.
+ */
+const WHOLE = /^\{\{([\s\S]*?)\}\}$/;
+/** Every `{{ … }}` run, for interpolation. Same no-`\s*` rule as {@link WHOLE}. */
+const EACH = /\{\{([\s\S]*?)\}\}/g;
 
 /**
  * Strings PHP's `Expr::truthy` treats as false.
