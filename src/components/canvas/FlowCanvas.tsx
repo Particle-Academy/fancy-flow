@@ -27,6 +27,7 @@ import { sortNodesParentFirst } from "../FlowEditor/graph-ops";
 import { getHelperLines } from "./helper-lines";
 import { HelperLines } from "./HelperLines";
 import type { FlowNode } from "../../types";
+import { useResolvedColorMode } from "./use-resolved-color-mode";
 
 /**
  * With wheel-zoom off, Shift+wheel still zooms — and must not ALSO scroll the
@@ -194,14 +195,26 @@ export function FlowCanvas({
     [showHelperLines, onNodesChange],
   );
 
+  /**
+   * An unset `colorMode` means "follow the app", NOT "light".
+   *
+   * It used to pass straight through to React Flow, whose own default is
+   * light — so on a dark page React Flow's layer stayed light underneath our
+   * `ff-` styles, which look right because they hang off an ancestor `.dark`.
+   * Any node kind without a registered type falls back to React Flow's default
+   * node: a white box with unreadable text on a dark canvas. Passing a mode
+   * explicitly still wins.
+   */
+  const resolvedColorMode = useResolvedColorMode(colorMode);
+
   return (
     <div
       className={[
         "ff-canvas",
         // colorMode drives BOTH react-flow's chrome (below) and our `ff-` styles
         // via the shared `.dark` class / light opt-out — one theme signal.
-        colorMode === "dark" ? "dark" : "",
-        colorMode === "light" ? "ff-canvas--light" : "",
+        resolvedColorMode === "dark" ? "dark" : "",
+        resolvedColorMode === "light" ? "ff-canvas--light" : "",
         className ?? "",
       ]
         .filter(Boolean)
@@ -214,7 +227,7 @@ export function FlowCanvas({
           nodes={orderedNodes}
           edges={edges}
           onNodesChange={handleNodesChange}
-          colorMode={colorMode}
+          colorMode={resolvedColorMode}
           nodeTypes={mergedNodeTypes}
           edgeTypes={mergedEdgeTypes}
           fitView

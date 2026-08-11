@@ -60,8 +60,15 @@
 }
 
 /* ─── Theme tokens — DARK ──────────────────────────────────────────────── */
+/* Both a DESCENDANT of a dark root and the element itself.
+   `FlowCanvas` puts `dark` on its own root when a colour mode resolves, and the
+   descendant-only form could never match that — so the class the component sets
+   on itself, and which a comment there claims drives these tokens, did nothing.
+   A host that marks <html class="dark"> still matches the first two. */
 .dark      :is(.ff-editor, .ff-canvas, .ff-palette, .ff-panel, .ff-run-feed, .ff-prompt),
-[data-theme="dark"] :is(.ff-editor, .ff-canvas, .ff-palette, .ff-panel, .ff-run-feed, .ff-prompt) {
+[data-theme="dark"] :is(.ff-editor, .ff-canvas, .ff-palette, .ff-panel, .ff-run-feed, .ff-prompt),
+.dark:is(.ff-editor, .ff-canvas, .ff-palette, .ff-panel, .ff-run-feed, .ff-prompt),
+[data-theme="dark"]:is(.ff-editor, .ff-canvas, .ff-palette, .ff-panel, .ff-run-feed, .ff-prompt) {
   --ff-surface:    #1c1c22;
   --ff-surface-2:  #141419;
   --ff-surface-3:  #27272a;

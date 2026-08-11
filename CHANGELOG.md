@@ -12,6 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.4] — 2026-08-11
+
+### Fixed
+
+- **The canvas ran React Flow in LIGHT mode on a dark page.** `colorMode` was
+  passed straight through, so a host that did not supply one got React Flow's
+  own default — light — no matter what the surrounding app was doing.
+
+  Our `ff-` styles still looked right, which is exactly what hid it: they hang
+  off an ancestor `.dark`, so the nodes we style were fine while React Flow's
+  layer underneath stayed light. Any node kind **without a registered type**
+  falls back to React Flow's default node — a white box with unreadable text on
+  a dark canvas — and edges, handles, the selection rectangle and the controls
+  were light too. Observed on the live showcase: `.react-flow` carried the class
+  `light` while `<html>` was `dark`.
+
+  An unset `colorMode` now means **follow the app**: `data-theme`, then a
+  `.dark` class, then the OS preference. `"system"` resolves the same way.
+  Passing `"light"` or `"dark"` explicitly still wins — a canvas deliberately
+  pinned against the page is a real use and is unaffected.
+
+  It also **reacts** to a theme toggle. Flipping the theme changes an attribute
+  on `<html>`, which triggers no React render by itself, so a one-shot read
+  would have been right on load and wrong the instant anyone used the switch.
+
+- **The dark token block never matched the canvas's own `dark` class.** The
+  selector was descendant-only (`.dark :is(.ff-canvas)`), while `FlowCanvas`
+  puts `dark` on its own root — so the class the component sets on itself, and
+  which a comment there claims drives these tokens, did nothing. The selector
+  now matches both.
+
+  **What you must do:** nothing. A host on a dark page gets a dark canvas
+  without wiring anything; one that already passed `colorMode` is unchanged.
+
 ## 0.40.3 — 2026-08-09
 
 ### Fixed
