@@ -95,6 +95,19 @@ export type JsonConfigField = ConfigFieldBase & {
   language?: "json" | "yaml" | "javascript";
   rows?: number;
   default?: unknown;
+  /**
+   * Declared types per path, as a JSON **string** — `{"retries":"integer"}`.
+   *
+   * Consumed by richer editors (see `/fields/react-fancy`) to pick a control
+   * per value and report contradictions; ignored by the built-in textarea,
+   * which has nowhere to put it. Optional, because plenty of JSON config —
+   * an arbitrary request body, a JSON Schema — has no fixed shape to declare.
+   *
+   * A string rather than an object so it survives an MCP round-trip: a kind
+   * definition travels as JSON to agents, and a nested object here would be
+   * indistinguishable from the value it describes.
+   */
+  keyMap?: string;
 };
 export type ExpressionConfigField = ConfigFieldBase & {
   type: "expression";

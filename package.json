@@ -1,6 +1,6 @@
 {
   "name": "@particle-academy/fancy-flow",
-  "version": "0.40.4",
+  "version": "0.41.0",
   "description": "Workflow editor + runner. Six built-in node kits (trigger / action / decision / output / note / subgraph), tokenized theme, topological execution with per-node status. React-flow bundled; consumers npm install fancy-flow and get nothing extra.",
   "repository": {
     "type": "git",
@@ -114,6 +114,16 @@
         "default": "./dist/llm/prism.cjs"
       }
     },
+    "./fields/react-fancy": {
+      "import": {
+        "types": "./dist/fields/react-fancy.d.ts",
+        "default": "./dist/fields/react-fancy.js"
+      },
+      "require": {
+        "types": "./dist/fields/react-fancy.d.cts",
+        "default": "./dist/fields/react-fancy.cjs"
+      }
+    },
     "./screens": {
       "import": {
         "types": "./dist/screens.d.ts",
@@ -162,7 +172,7 @@
     "@particle-academy/fancy-cms-ui": "^0.2.0",
     "@particle-academy/fancy-query": "^0.8.0",
     "@particle-academy/fancy-screens": "^0.4.3",
-    "@particle-academy/react-fancy": "^4.15.0",
+    "@particle-academy/react-fancy": "^5.17.1",
     "@tanstack/react-query": "^5.101.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

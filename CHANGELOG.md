@@ -12,6 +12,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-08-11
+
+### Added
+
+- **`/fields/react-fancy` — a real JSON editor for `type: "json"` config
+  fields.** The built-in is a bare textarea; react-fancy ships a typed key/value
+  editor and the panel had no way to use it.
+
+  ```tsx
+  import { reactFancyFieldRenderers } from "@particle-academy/fancy-flow/fields/react-fancy";
+
+  <FlowEditor value={graph} onChange={setGraph} fieldRenderers={reactFancyFieldRenderers} />
+  ```
+
+  An opt-in subpath rather than a change to the panel, for the reason
+  `panel-labels.test.tsx` already records: fancy-flow themes through a `--ff-*`
+  token layer a host overrides on `.ff-editor`, while react-fancy's primitives
+  are hardcoded Tailwind classes that read no custom properties. Building them
+  in would trade the theming contract for a nicer widget. react-fancy stays an
+  **optional** peer — a standalone install pays nothing.
+
+  It claims **only** `json`, so handing the whole map over does not quietly
+  replace controls it has no business replacing. Spread it to add your own:
+  `{ ...reactFancyFieldRenderers, "trigger-filters": mine }`.
+
+- **`fieldRenderers` on `FlowEditor`.** The seam existed on `NodeConfigPanel`
+  and had no route through the editor, so the only ways to supply one were to
+  abandon `FlowEditor` and compose an editor by hand, or replace the whole panel
+  via `slots.panel`. It was real, correct, unit-tested and connected to nothing.
+
+- **`keyMap` on a `json` config field** — declared types per path, as a JSON
+  string (`{"retries":"integer"}`). Consumed by the editor above to pick a
+  control per value and report contradictions; ignored by the built-in textarea,
+  which has nowhere to put it. A string, not an object, so a kind definition
+  still survives an MCP round-trip.
+
+### Fixed
+
+- **A `json` field silently discarded invalid input.** It parsed on blur and the
+  `catch` block was empty but for a comment claiming the visual would revert. It
+  could not: the textarea was uncontrolled, so the broken text stayed on screen
+  while the config kept its previous value. The panel showed one document, the
+  node ran another, and nothing anywhere said so — a missing comma reverted an
+  edit invisibly, in exactly the two places a stray character is most likely
+  (`api_request` bodies, `llm_call` input schemas).
+
+  The parse error is now reported under the field (`role="alert"`,
+  `aria-invalid`), the author's text stays put to be corrected, and unparseable
+  text is still never written to config. Refusing to store garbage was right;
+  doing it silently was not.
+
+  **Consumers do nothing.** Valid JSON behaves exactly as before.
+
+- **A `json` field carried no `id` or `data-ff-field`.** It was the one built-in
+  the labelling pass missed, so the panel's `<label>` pointed at nothing and
+  agents had no handle for it.
+
+- **`repeater` and `keyvalue` had dangling labels.** Their containers never
+  received the `id` the panel's `<label htmlFor>` was pointing at, so clicking
+  the label focused nothing and a screen reader announced them unnamed. They now
+  carry that `id`, `role="group"` and a `data-ff-field` handle. A `htmlFor`
+  pointing at an id that does not exist is worse than no label — it reads as
+  done.
+
+
 ## [0.40.4] — 2026-08-11
 
 ### Fixed

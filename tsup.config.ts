@@ -46,11 +46,12 @@ export default defineConfig({
     "rich-input": "src/rich-input.tsx",
     "llm/vercel-ai": "src/llm/vercel-ai.ts",
     "llm/prism": "src/llm/prism.ts",
+    "fields/react-fancy": "src/fields/react-fancy.tsx",
     screens: "src/screens.ts",
     styles: "src/styles.css",
   },
   format: ["esm", "cjs"],
-  dts: { entry: ["src/index.ts", "src/runtime/index.ts", "src/engine.ts", "src/ux.ts", "src/registry/index.ts", "src/schema/index.ts", "src/layout/index.ts", "src/rich-input.tsx", "src/llm/vercel-ai.ts", "src/llm/prism.ts", "src/screens.ts"] },
+  dts: { entry: ["src/index.ts", "src/runtime/index.ts", "src/engine.ts", "src/ux.ts", "src/registry/index.ts", "src/schema/index.ts", "src/layout/index.ts", "src/rich-input.tsx", "src/llm/vercel-ai.ts", "src/llm/prism.ts", "src/fields/react-fancy.tsx", "src/screens.ts"] },
   sourcemap: true,
   clean: true,
   // fancy-auto-common stays external — it's the shared core agent-integrations

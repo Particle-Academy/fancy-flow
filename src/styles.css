@@ -535,6 +535,10 @@
 .ff-panel__switch input:checked + .ff-panel__switch-slider::before { left: 16px; }
 .ff-panel__issues { margin-top: 4px; }
 .ff-panel__issue { font-size: 11px; color: var(--ff-warn); margin: 2px 0; }
+/* A parse error sits directly under the field it belongs to, not in the panel's
+   issue list at the bottom — an error about the box you are typing in is
+   useless three scroll-lengths away from it. */
+.ff-panel__issue--field { margin-top: 4px; }
 
 /* Repeater / key-value config fields */
 .ff-repeater { display: flex; flex-direction: column; gap: 8px; }

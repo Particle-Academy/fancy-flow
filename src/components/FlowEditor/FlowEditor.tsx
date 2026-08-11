@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type ComponentProps,
 } from "react";
 import {
   ReactFlowProvider,
@@ -66,6 +67,20 @@ export type FlowEditorProps = {
   showPalette?: boolean;
   /** Show the config panel sidebar. Default true. */
   showPanel?: boolean;
+  /**
+   * Host renderers for config-field types, keyed by `type`, handed straight to
+   * `NodeConfigPanel`.
+   *
+   * Use it to claim a type the package renders plainly — the built-in `json`
+   * field is a bare textarea, and
+   * `@particle-academy/fancy-flow/fields/react-fancy` swaps it for a real typed
+   * editor — or to supply one the package has never heard of.
+   *
+   * This forwarding is the whole point: the seam existed on `NodeConfigPanel`
+   * and had no route through `FlowEditor`, so reaching it meant abandoning the
+   * editor and composing one by hand.
+   */
+  fieldRenderers?: ComponentProps<typeof NodeConfigPanel>["fieldRenderers"];
   /** Show run feed below the canvas. Default true. */
   showFeed?: boolean;
   /** Total editor height. Default 720. */
@@ -131,6 +146,7 @@ function FlowEditorInner({
   metadata,
   showPalette = true,
   showPanel = true,
+  fieldRenderers,
   showFeed = true,
   extraToolbar,
   actions = [],
@@ -789,6 +805,7 @@ function FlowEditorInner({
               className="ff-editor__panel"
               node={api.selected}
               onChange={api.updateNode}
+              fieldRenderers={fieldRenderers}
               // The delete affordance lives IN the panel (one source of truth),
               // not a private FlowEditor toolbar button — so a dev composing
               // their own editor from NodeConfigPanel gets it for free.

@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import type {
   ConfigField,
   KeyValueConfigField,
@@ -180,7 +180,7 @@ export function ConfigFieldRenderer({
       );
 
     case "json":
-      return <JsonField value={value} onChange={onChange} rows={field.rows} />;
+      return <JsonField value={value} onChange={onChange} rows={field.rows} handle={handle} />;
 
     case "expression":
       return (
@@ -212,6 +212,7 @@ export function ConfigFieldRenderer({
     case "repeater":
       return (
         <RepeaterField
+          id={id}
           field={field}
           value={value}
           onChange={onChange}
@@ -222,7 +223,7 @@ export function ConfigFieldRenderer({
       );
 
     case "keyvalue":
-      return <KeyValueField field={field} value={value} onChange={onChange} />;
+      return <KeyValueField id={id} field={field} value={value} onChange={onChange} />;
 
     case "document":
       if (renderDocumentField) {
@@ -294,6 +295,7 @@ function ChoiceField({
  * agent can target a specific row without guessing DOM.
  */
 function RepeaterField({
+  id,
   field,
   value,
   onChange,
@@ -301,6 +303,7 @@ function RepeaterField({
   renderDocumentField,
   fieldRenderers,
 }: {
+  id?: string;
   field: RepeaterConfigField;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -344,7 +347,7 @@ function RepeaterField({
   };
 
   return (
-    <div className="ff-repeater" data-ff-repeater={field.key}>
+    <div id={id} role="group" className="ff-repeater" data-ff-repeater={field.key} data-ff-field={field.key}>
       {rows.length === 0 && <p className="ff-repeater__empty">None yet.</p>}
 
       {rows.map((row, i) => (
@@ -414,10 +417,12 @@ function RepeaterField({
  * delete-then-add), so rows don't jump around while the author is typing.
  */
 function KeyValueField({
+  id,
   field,
   value,
   onChange,
 }: {
+  id?: string;
   field: KeyValueConfigField;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -444,7 +449,7 @@ function KeyValueField({
   const add = () => commit([...entries, ["", ""]]);
 
   return (
-    <div className="ff-keyvalue" data-ff-keyvalue={field.key}>
+    <div id={id} role="group" className="ff-keyvalue" data-ff-keyvalue={field.key} data-ff-field={field.key}>
       {entries.length > 0 && (
         <div className="ff-keyvalue__head">
           <span>{field.keyLabel ?? "Key"}</span>
@@ -499,34 +504,119 @@ function KeyValueField({
   );
 }
 
-function JsonField({ value, onChange, rows }: { value: unknown; onChange: (v: unknown) => void; rows?: number }) {
-  // Keep a separate string buffer so partial input doesn't get clobbered
-  // by re-serializing on every keystroke.
-  const initial = useMemo(() => {
+/**
+ * JsonField — the built-in fallback for `type: "json"`.
+ *
+ * **It used to eat invalid input.** Parsing happened on blur and the `catch`
+ * block was empty save for a comment claiming the visual would revert. It could
+ * not: the textarea was uncontrolled, so the broken text stayed on screen while
+ * the config silently kept its previous value. The panel showed one document
+ * and the node ran another, with nothing anywhere saying so — and a missing
+ * comma is not a rare event in an `api_request` body.
+ *
+ * Now the text is a real buffer, the parse error is reported, and the config is
+ * still never written from unparseable text. Refusing to store garbage was
+ * right; doing it silently was not.
+ *
+ * The error appears on blur rather than per keystroke — every partially-typed
+ * object is invalid on the way to being valid, and flagging that is noise.
+ *
+ * Hosts on react-fancy can swap this for a real typed editor by passing
+ * `fieldRenderers` from `@particle-academy/fancy-flow/fields/react-fancy`.
+ */
+function JsonField({
+  value,
+  onChange,
+  rows,
+  handle,
+}: {
+  value: unknown;
+  onChange: (v: unknown) => void;
+  rows?: number;
+  handle: { id?: string; "data-ff-field": string };
+}) {
+  const serialized = useMemo(() => {
     try {
       return value === undefined ? "" : JSON.stringify(value, null, 2);
     } catch {
       return "";
     }
   }, [value]);
+
+  const [text, setText] = useState(serialized);
+  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+
+  // Two refs, because "the props changed" and "our own edit came back" are
+  // different events and only the first should touch the buffer.
+  const lastProps = useRef(serialized);
+  const committed = useRef<string | null>(null);
+
+  // Re-sync on a genuinely EXTERNAL change — an undo, an agent write, another
+  // node selected into the same panel.
+  //
+  // Comparing props against previous props (not against our own last commit) is
+  // what keeps this from fighting a host that doesn't apply changes
+  // immediately: a debounced or read-only host leaves `value` alone, which used
+  // to read as "reverted externally" and wiped whatever had just been typed.
+  // And skipping when the incoming value is our own commit is what stops the
+  // author's `{"a":1}` being reformatted onto four lines mid-edit.
+  if (serialized !== lastProps.current) {
+    lastProps.current = serialized;
+    if (serialized !== committed.current) {
+      setText(serialized);
+      setError(null);
+      setTouched(false);
+    }
+  }
+
+  /** Parse and commit; returns the message when it cannot. */
+  const commit = (next: string): string | null => {
+    const trimmed = next.trim();
+    if (trimmed === "") {
+      committed.current = "";
+      onChange(undefined);
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      // Record what this commit will serialize to, so recognising it on the way
+      // back is an exact string comparison rather than a guess.
+      committed.current = JSON.stringify(parsed, null, 2);
+      onChange(parsed);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : "Invalid JSON";
+    }
+  };
+
+  const errorId = handle.id ? `${handle.id}-error` : undefined;
+  const showError = touched && error !== null;
+
   return (
-    <textarea
-      className="ff-panel__input ff-panel__input--json"
-      rows={rows ?? 6}
-      defaultValue={initial}
-      spellCheck={false}
-      onBlur={(e) => {
-        const text = e.target.value.trim();
-        if (text === "") {
-          onChange(undefined);
-          return;
-        }
-        try {
-          onChange(JSON.parse(text));
-        } catch {
-          // Leave value unchanged; visual stays at last good state on next render
-        }
-      }}
-    />
+    <>
+      <textarea
+        {...handle}
+        className="ff-panel__input ff-panel__input--json"
+        rows={rows ?? 6}
+        value={text}
+        spellCheck={false}
+        aria-invalid={showError || undefined}
+        aria-describedby={showError ? errorId : undefined}
+        onChange={(e) => {
+          setText(e.target.value);
+          setError(commit(e.target.value));
+        }}
+        onBlur={(e) => {
+          setTouched(true);
+          setError(commit(e.target.value));
+        }}
+      />
+      {showError && (
+        <p className="ff-panel__issue ff-panel__issue--field" id={errorId} role="alert">
+          ⚠ {error}
+        </p>
+      )}
+    </>
   );
 }
