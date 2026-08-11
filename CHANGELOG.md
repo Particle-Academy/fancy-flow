@@ -12,6 +12,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-08-11
+
+### Added
+
+- **`{{ }}` variable autocomplete in `NodeConfigPanel`, aware of what is actually
+  reachable at that node** (#5). Typing `{{` in an expression field opens a
+  picker of the variables the node can really see, inserts on select, and
+  supports arrow-keys / Enter / Escape.
+
+  The list comes from the UPSTREAM node's declared output, so a node after an
+  `llm_call` offers `$json.text`, and a node after a `user_input` offers the
+  field keys that step's author defined. Only DIRECT predecessors are consulted,
+  because `in` is the value on the incoming wire - offering a grandparent's
+  fields would suggest paths that resolve to nothing at runtime.
+
+- **`outputShape` on `NodeKindDefinition`** - what a kind EMITS, as opposed to
+  `outputs`, which describes wires. Nothing in the registry described the data
+  on those wires, so a context-aware picker had nothing to read.
+
+  Static, or a function of config. The function form is the important one: a
+  `user_input` step emits exactly the keys its author typed, which no static
+  list can know. Declared on `llm_call`, `api_request`, `embed_search`,
+  `for_each` and `user_input`, each read off the fancy-flow-php executor that
+  produces it and pinned by a test.
+
+- **A `{{ }}` grammar reference** on every expression field, via
+  `describeExpressionGrammar()`. It documents the four forms
+  `FancyFlow\Nodes\Support\Expr` actually implements - dot-paths only - and says
+  plainly that fancy-flow's own `runFlow` does not interpolate: it hands config
+  to your executor verbatim, and the PHP runtime is what resolves these. A test
+  fails if a form that is not a dot-path is ever added.
+
+- **`graph` on `NodeConfigPanel` / `FlowEditor`** - what makes the picker
+  context-aware. Optional: a panel composed without it still opens the picker,
+  it can just only offer `{{ $json }}`.
+
+- Public exports: `availableVariables`, `baseVariables`, `outputFieldsFor`,
+  `describeExpressionGrammar`, `ExpressionField`, and their types.
+
+### Changed
+
+- `type: "expression"` fields now render `ExpressionField` instead of a bare
+  textarea. **Consumers do nothing** - same value, same `onChange`, same
+  `data-ff-field` handle; it gains a picker and a reference toggle.
+
+
 ## [0.41.0] — 2026-08-11
 
 ### Added

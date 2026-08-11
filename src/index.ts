@@ -183,3 +183,21 @@ export type {
 } from "./types";
 
 export { flowLive, flowKeys } from "./live";
+
+// Expression authoring — what an author can write in a `{{ }}` field at a given
+// node, and the reference help that explains the grammar (issue #5).
+export {
+  availableVariables,
+  baseVariables,
+  describeExpressionGrammar,
+  outputFieldsFor,
+} from "./expressions/variables";
+export type {
+  AvailableVariable,
+  ExpressionForm,
+  ExpressionGrammarHelp,
+  OutputField,
+  OutputShape,
+} from "./expressions/variables";
+export { ExpressionField } from "./components/NodeConfigPanel/ExpressionField";
+export type { ExpressionFieldProps } from "./components/NodeConfigPanel/ExpressionField";

@@ -699,3 +699,51 @@
 .ff-viewer__status--failed  { background: #ef444422; color: #f87171; }
 .ff-viewer__status--skipped { background: #71717a22; color: #a1a1aa; }
 .ff-viewer__status--pending { background: #a855f722; color: #c084fc; }
+
+/* ── Expression field: {{ }} autocomplete + reference help (issue #5) ─────── */
+.ff-expression { position: relative; }
+.ff-expression__bar {
+  display: flex; align-items: center; gap: 8px; margin-top: 3px;
+}
+.ff-expression__helpbtn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--ff-font-mono, ui-monospace, monospace);
+  font-size: 10px; color: var(--ff-accent); text-decoration: underline dotted;
+}
+.ff-expression__hint { font-size: 10px; color: var(--ff-fg-3); }
+.ff-expression__hint code { font-family: var(--ff-font-mono, ui-monospace, monospace); }
+
+/* The menu overlays whatever follows the field, so a picker opening near the
+   bottom of the panel does not push the rest of the form down as you type. */
+.ff-expression__menu {
+  position: absolute; z-index: 20; left: 0; right: 0;
+  margin: 2px 0 0; padding: 4px; list-style: none;
+  max-height: 208px; overflow-y: auto;
+  background: var(--ff-bg-1); border: 1px solid var(--ff-border-1);
+  border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+.ff-expression__option {
+  display: flex; flex-direction: column; gap: 1px; width: 100%;
+  padding: 5px 7px; border: none; border-radius: 4px;
+  background: none; text-align: left; cursor: pointer;
+}
+.ff-expression__option:hover,
+.ff-expression__option.is-active { background: var(--ff-bg-2); }
+.ff-expression__path {
+  font-family: var(--ff-font-mono, ui-monospace, monospace);
+  font-size: 11px; color: var(--ff-fg-1);
+}
+.ff-expression__source { font-size: 10px; color: var(--ff-accent); }
+.ff-expression__desc { font-size: 10px; color: var(--ff-fg-3); }
+
+.ff-expression__help {
+  margin-top: 4px; padding: 7px 8px;
+  background: var(--ff-bg-2); border: 1px solid var(--ff-border-1);
+  border-radius: 6px; font-size: 10px; color: var(--ff-fg-2);
+}
+.ff-expression__help dl { margin: 0; display: grid; gap: 4px; }
+.ff-expression__help dt code {
+  font-family: var(--ff-font-mono, ui-monospace, monospace); color: var(--ff-fg-1);
+}
+.ff-expression__help dd { margin: 0 0 0 2px; color: var(--ff-fg-3); }
+.ff-expression__note { margin: 6px 0 0; color: var(--ff-fg-3); }

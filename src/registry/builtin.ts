@@ -116,6 +116,12 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/user_input",
+    // The keys an author declared on THIS node — the case a static list cannot
+    // express, and the one issue #5 named.
+    outputShape: (config: { fields?: Array<{ key?: string; label?: string }> }) =>
+      (config.fields ?? [])
+        .filter((f) => typeof f.key === "string" && f.key !== "")
+        .map((f) => ({ path: f.key as string, type: "string" as const, description: f.label })),
     aliases: ["user_input", "@fancy/user_input"],
     pausesForHuman: "input",
     category: "human",
@@ -305,6 +311,10 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/for_each",
+    outputShape: [
+      { path: "items", type: "array" },
+      { path: "count", type: "number" },
+    ],
     aliases: ["for_each", "@fancy/for_each"],
     category: "logic",
     label: "For Each",
@@ -436,6 +446,12 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── AI ─────────────
   {
     name: "@particle-academy/llm_call",
+    // LlmClient::complete() -> array{text:string,usage?:array,raw?:mixed}
+    outputShape: [
+      { path: "text", type: "string", description: "The model's completion." },
+      { path: "usage", type: "object", description: "Token counts, when the provider reports them." },
+      { path: "raw", type: "unknown", description: "The provider's untouched response." },
+    ],
     aliases: ["llm_call", "@fancy/llm_call"],
     category: "ai",
     label: "LLM Call",
@@ -533,6 +549,10 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/embed_search",
+    outputShape: [
+      { path: "query", type: "string" },
+      { path: "matches", type: "array", description: "Ranked results from the vector store." },
+    ],
     aliases: ["embed_search", "@fancy/embed_search"],
     category: "ai",
     label: "Embed & Search",
@@ -548,6 +568,12 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── IO ─────────────
   {
     name: "@particle-academy/api_request",
+    // HttpClient::send() -> array{status:int,headers:array,body:mixed}
+    outputShape: [
+      { path: "status", type: "number", description: "HTTP status code." },
+      { path: "headers", type: "object" },
+      { path: "body", type: "unknown", description: "Decoded JSON when the response is JSON, otherwise the raw body." },
+    ],
     aliases: ["api_request", "@fancy/api_request"],
     category: "io",
     label: "API Request",

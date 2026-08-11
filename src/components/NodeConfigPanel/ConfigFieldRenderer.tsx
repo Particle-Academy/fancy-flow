@@ -1,4 +1,6 @@
 import { type ReactNode, useMemo, useRef, useState } from "react";
+import { ExpressionField } from "./ExpressionField";
+import type { FlowGraph } from "../../types";
 import type {
   ConfigField,
   KeyValueConfigField,
@@ -73,6 +75,13 @@ export type ConfigFieldRendererProps = {
    * (react-fancy inputs, say) through the same seam rather than a second one.
    */
   fieldRenderers?: Record<string, ConfigFieldRenderFn>;
+  /**
+   * The graph and the node being edited — what makes the `{{ }}` picker
+   * CONTEXT-aware rather than a static list. Optional: a panel composed without
+   * them still renders, it just cannot offer node-specific variables.
+   */
+  graph?: FlowGraph;
+  nodeId?: string;
 };
 
 /**
@@ -94,6 +103,8 @@ export function ConfigFieldRenderer({
   renderCredentialField,
   renderDocumentField,
   fieldRenderers,
+  graph,
+  nodeId,
 }: ConfigFieldRendererProps) {
   /** Applied to whichever control this field renders. */
   const handle = { id, "data-ff-field": field.key } as const;
@@ -184,14 +195,13 @@ export function ConfigFieldRenderer({
 
     case "expression":
       return (
-        <textarea
-          {...handle}
-          className="ff-panel__input ff-panel__input--expression"
-          rows={2}
+        <ExpressionField
+          handle={handle}
           value={(value as string) ?? ""}
+          onChange={onChange}
           placeholder={field.example ?? "{{ $json.field }}"}
-          spellCheck={false}
-          onChange={(e) => onChange(e.target.value)}
+          graph={graph}
+          nodeId={nodeId}
         />
       );
 
@@ -219,6 +229,8 @@ export function ConfigFieldRenderer({
           renderCredentialField={renderCredentialField}
           renderDocumentField={renderDocumentField}
           fieldRenderers={fieldRenderers}
+          graph={graph}
+          nodeId={nodeId}
         />
       );
 
@@ -299,6 +311,8 @@ function RepeaterField({
   field,
   value,
   onChange,
+  graph,
+  nodeId,
   renderCredentialField,
   renderDocumentField,
   fieldRenderers,
@@ -310,6 +324,8 @@ function RepeaterField({
   renderCredentialField?: ConfigFieldRendererProps["renderCredentialField"];
   renderDocumentField?: ConfigFieldRendererProps["renderDocumentField"];
   fieldRenderers?: ConfigFieldRendererProps["fieldRenderers"];
+  graph?: FlowGraph;
+  nodeId?: string;
 }) {
   const rows: Array<Record<string, unknown>> = Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
   const max = field.maxItems ?? Infinity;
@@ -386,6 +402,8 @@ function RepeaterField({
                 {sub.required && <span className="ff-panel__required" aria-hidden> *</span>}
               </label>
               <ConfigFieldRenderer
+                graph={graph}
+                nodeId={nodeId}
                 field={sub}
                 value={row[sub.key]}
                 onChange={(cell) => setCell(i, sub.key, cell)}

@@ -806,6 +806,9 @@ function FlowEditorInner({
               node={api.selected}
               onChange={api.updateNode}
               fieldRenderers={fieldRenderers}
+              // The editor already holds the graph; passing it is what turns the
+              // {{ }} picker from a static list into a context-aware one.
+              graph={flow}
               // The delete affordance lives IN the panel (one source of truth),
               // not a private FlowEditor toolbar button — so a dev composing
               // their own editor from NodeConfigPanel gets it for free.

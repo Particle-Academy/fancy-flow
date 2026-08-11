@@ -1,5 +1,5 @@
 import { type ReactNode, useId, useMemo } from "react";
-import type { FlowNode } from "../../types";
+import type { FlowNode, FlowGraph} from "../../types";
 import { categoryAccent, getNodeKind, validateConfig } from "../../registry/registry";
 import { getRichInputAdapter } from "../../registry/rich-input";
 import { ConfigFieldRenderer, type ConfigFieldRenderFn } from "./ConfigFieldRenderer";
@@ -33,6 +33,13 @@ export type NodeConfigPanelProps = {
    */
   /** Host renderers keyed by field `type`. See {@link ConfigFieldRenderer}. */
   fieldRenderers?: Record<string, ConfigFieldRenderFn>;
+  /**
+   * The graph the node lives in. Supplying it is what makes the `{{ }}` variable
+   * picker context-aware — it reads the UPSTREAM node's declared `outputShape`
+   * to list what is actually reachable here (issue #5). Without it the picker
+   * still opens, but can only offer the whole input.
+   */
+  graph?: FlowGraph;
   renderDocumentField?: (props: {
     documentType?: string;
     value: unknown;
@@ -55,6 +62,7 @@ export function NodeConfigPanel({
   renderCredentialField,
   renderDocumentField,
   fieldRenderers,
+  graph,
   className,
   style,
 }: NodeConfigPanelProps) {
@@ -201,6 +209,8 @@ export function NodeConfigPanel({
                 renderCredentialField={renderCredentialField}
                 renderDocumentField={documentField}
                 fieldRenderers={fieldRenderers}
+                graph={graph}
+                nodeId={node.id}
               />
             </div>
           ))}

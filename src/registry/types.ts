@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import type { OutputShape } from "../expressions/variables";
 import type { NodeProps } from "@xyflow/react";
 import type { FlowNode, NodeExecutor, PortDescriptor } from "../types";
 import type { PauseAwaiting } from "./pause";
@@ -255,6 +256,16 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
   inputs?: PortSpec<TConfig>;
   /** Output ports. Defaults vary by category. See `PortSpec`. */
   outputs?: PortSpec<TConfig>;
+  /**
+   * What this kind EMITS, described well enough for an author to reference it
+   * in a `{{ }}` field. Distinct from `outputs`, which describes wires (port
+   * ids), not the data on them — nothing in the registry described the latter,
+   * so a variable picker had nothing to read.
+   *
+   * A function when the honest answer depends on config: a `user_input` step
+   * emits the field keys its author defined, which no static list can know.
+   */
+  outputShape?: OutputShape<TConfig>;
 
   /** Optional custom body rendered inside the node card. */
   renderBody?: (ctx: RenderBodyContext<TConfig>) => ReactNode;
