@@ -12,6 +12,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-08-11
+
+### Added
+
+- **`evaluateExpression` / `truthy` / `resolvePath` / `evaluateConfig` - the
+  TypeScript twin of `FancyFlow\Nodes\Support\Expr`.** The `{{ }}` grammar the
+  editor now autocompletes has existed only in the PHP runtime since it shipped;
+  this side had no evaluator at all.
+
+  **OPT-IN, and `runFlow` does not call it.** The JS runtime hands node config to
+  your executor verbatim, so every host that uses `{{ }}` today already resolves
+  it itself. Resolving inside `runFlow` would interpolate a SECOND time over
+  values those hosts had already substituted - silently, and only for graphs
+  whose data happens to contain `{{`. Call it where you want it:
+
+  ```ts
+  import { evaluateExpression } from "@particle-academy/fancy-flow";
+  const url = evaluateExpression(node.data.config.url, inputs);
+  ```
+
+  **Consumers do nothing.** Nothing resolves that did not resolve before.
+
+  `truthy` mirrors PHP's rules rather than JavaScript's, because the graph is
+  authored once and may run on either side. The two disagree exactly where a
+  workflow lives: `"0"`, `"false"` and `[]` are truthy in JS and falsy here.
+
+- **`shared/expr` conformance, actually running.** Both runtimes read the same
+  20-row table from `@particle-academy/fancy-conformance`, imported from the
+  INSTALLED package rather than a sibling checkout - the conformance repo's own
+  runner notes record why that distinction matters.
+
+
 ## [0.42.0] - 2026-08-11
 
 ### Added

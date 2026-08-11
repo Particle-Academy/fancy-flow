@@ -201,3 +201,18 @@ export type {
 } from "./expressions/variables";
 export { ExpressionField } from "./components/NodeConfigPanel/ExpressionField";
 export type { ExpressionFieldProps } from "./components/NodeConfigPanel/ExpressionField";
+
+// `{{ }}` resolution — the TypeScript twin of fancy-flow-php's `Expr`.
+//
+// OPT-IN: `runFlow` does not call these. It hands config to your executor
+// verbatim, and every host using `{{ }}` today already resolves it itself, so
+// resolving inside the runtime would interpolate a second time over values
+// those hosts had already substituted. Call it yourself where you want it.
+export {
+  evaluateExpression,
+  evaluateConfig,
+  resolvePath,
+  truthy,
+  text,
+} from "./expressions/expr";
+export type { ExprContext, ExprValue } from "./expressions/expr";
