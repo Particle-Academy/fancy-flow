@@ -306,7 +306,12 @@ describe("config authoring surface", () => {
 
     // Keep this list short and justified. Adding to it should require an
     // argument, which is the point of asserting on it.
-    expect([...new Set(jsonFields)].sort()).toEqual(["body", "input_schema"]);
+    //
+    // `response_schema` (llm_call, #6) is the exception's own example: it is a
+    // JSON Schema, the same as `input_schema` beside it. There is no structured
+    // field that could express an arbitrary schema without reimplementing JSON
+    // Schema in the panel.
+    expect([...new Set(jsonFields)].sort()).toEqual(["body", "input_schema", "response_schema"]);
   });
 
   it("gives branch a structured condition builder, not a bare expression", async () => {

@@ -200,7 +200,10 @@ describe("the builtin kinds' declared output shapes", () => {
    * and the picker gave them every reason to trust it.
    *
    * Sources:
-   *   llm_call     LlmClient::complete()  -> {text, usage?, raw?}
+   *   llm_call     LlmClient::complete()  -> {text, data?, usage?, raw?}
+   *                `data` is conditional on `response_schema` (#6), so the row
+   *                below is the UNCONFIGURED shape. The conditional half is
+   *                asserted in llm-structured-output.test.ts.
    *   api_request  HttpClient::send()     -> {status, headers, body}
    *   embed_search EmbedSearchExecutor    -> {query, matches}
    *   for_each     ForEachExecutor        -> {items, count}
@@ -209,8 +212,11 @@ describe("the builtin kinds' declared output shapes", () => {
   // are registered by an explicit `registerBuiltinKinds()` call, so going
   // through the registry would make this pass or fail on registration order
   // rather than on what the kinds actually declare.
+  //
+  // `llm_call` is NOT in this list: its shape became a function of config in
+  // #6, since `data` is on the wire only when a response schema was set. Both
+  // directions are asserted in llm-structured-output.test.ts.
   it.each([
-    ["@particle-academy/llm_call", ["text", "usage", "raw"]],
     ["@particle-academy/api_request", ["status", "headers", "body"]],
     ["@particle-academy/embed_search", ["query", "matches"]],
     ["@particle-academy/for_each", ["items", "count"]],

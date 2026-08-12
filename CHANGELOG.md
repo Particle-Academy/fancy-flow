@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-12
+
+### Added
+
+- **`response_schema` on `llm_call`, and `data` in what it emits** (#6). Set a
+  JSON Schema on the node and the runtime asks the provider for schema-valid
+  JSON, emitting the *parsed* value as `data` — so a downstream field can say
+  `{{ $json.data[0].title }}` instead of parsing a string out of `text`.
+
+  The execution half lives in `fancy-flow-php` 0.15.0 (`StructuredOutput`), per
+  the usual split: this package declares the kind, the PHP runtime runs it.
+
+  **`data` is declared conditionally**, as a function of config. It is on the
+  wire only when a schema was set, so declaring it statically would offer
+  `{{ $json.data }}` in the variable picker on every `llm_call` in the kit,
+  including the ones that emit nothing of the sort. A suggestion that resolves
+  to `null` at runtime is worse than no suggestion — the picker is exactly what
+  gave the author confidence in it.
+
+  **What to do:** nothing. `llm_call` without `response_schema` is unchanged —
+  same config, same `text` / `usage` / `raw`, and the picker offers exactly what
+  it did before.
+
+
 ## [0.43.2] - 2026-08-11
 
 ### Security

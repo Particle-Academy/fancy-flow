@@ -446,12 +446,28 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── AI ─────────────
   {
     name: "@particle-academy/llm_call",
-    // LlmClient::complete() -> array{text:string,usage?:array,raw?:mixed}
-    outputShape: [
-      { path: "text", type: "string", description: "The model's completion." },
-      { path: "usage", type: "object", description: "Token counts, when the provider reports them." },
-      { path: "raw", type: "unknown", description: "The provider's untouched response." },
-    ],
+    // LlmClient::complete() -> array{text:string,data?:mixed,usage?:array,raw?:mixed}
+    //
+    // A FUNCTION of config, because `data` exists only when this node was asked
+    // for a schema. Declaring it statically would offer `{{ $json.data }}` on
+    // every llm_call in the kit, including the ones that emit nothing of the
+    // sort — and a suggestion that resolves to null at runtime is worse than no
+    // suggestion, since the picker is exactly what gave the author confidence.
+    outputShape: (config: { response_schema?: unknown }) => {
+      const asked =
+        config?.response_schema != null &&
+        config.response_schema !== "" &&
+        !(Array.isArray(config.response_schema) && config.response_schema.length === 0);
+
+      return [
+        { path: "text", type: "string" as const, description: "The model's completion." },
+        ...(asked
+          ? [{ path: "data", type: "unknown" as const, description: "The parsed, schema-checked result." }]
+          : []),
+        { path: "usage", type: "object" as const, description: "Token counts, when the provider reports them." },
+        { path: "raw", type: "unknown" as const, description: "The provider's untouched response." },
+      ];
+    },
     aliases: ["llm_call", "@fancy/llm_call"],
     category: "ai",
     label: "LLM Call",
@@ -479,6 +495,14 @@ const KINDS: NodeKindDefinition[] = [
           { type: "json", key: "input_schema", label: "Input schema",
             description: "JSON Schema for the tool's arguments." },
         ],
+      },
+      {
+        type: "json", key: "response_schema", label: "Response schema",
+        description:
+          "Optional JSON Schema. When set, the runtime asks the provider for schema-valid JSON " +
+          "and the node emits the parsed value as `data` — reference it as {{ $json.data }}. " +
+          "A response that cannot be parsed or does not match FAILS the node rather than " +
+          "passing an empty value downstream.",
       },
       { type: "credential", key: "credential", label: "API credential", credentialType: "llm_credential" },
     ],
