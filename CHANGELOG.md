@@ -12,6 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-08-14
+
+### Added
+
+- **`findSubflowCycle` — refuse to SAVE a subflow loop, instead of discovering it mid-run.** Exported from `@particle-academy/fancy-flow/engine` (zero React, so a server or worker can call it too).
+
+  ```ts
+  const loop = await findSubflowCycle(graph, resolver, "Daily Planner");
+  // ["Daily Planner", "Digest", "Daily Planner"]  — or [] when safe
+  ```
+
+  `subflowExecutor`'s depth cap stays and remains the right backstop — it is the only thing that catches a loop created from the other end, when someone edits B after A was saved. But it fires mid-run, by which point every node *above* the subflow has already executed on each pass, side effects included, and the author gets an opaque failure from deep inside a run. The editor is where an author should be stopped, which is why this exists on the TS side and not only in the PHP runtime.
+
+  It takes the host's resolver because schema validation sees one graph at a time, and A → B → A is made of two individually valid graphs. Async resolvers are awaited.
+
+  Three behaviours worth knowing, each of which would otherwise refuse a good graph or miss a bad one: a **diamond is not a cycle** (membership is tracked per path); **version pins are distinct**, so `A@1 → A@2` is not a loop on its own; and it **descends into an inline `subgraph`**, which cannot cycle by itself but can contain a `subflow` that does. An unresolvable ref or a resolution failure counts as safe — refusing a save for a missing child would block authoring a parent before that child exists.
+
+  **What you must do:** nothing. It is additive and nothing calls it for you; call it before persisting a graph if you want loops refused at the door.
+
+  Parity with `FancyFlow\Analysis\SubflowCycle` in `particle-academy/fancy-flow-php` 0.17.0 (fancy-flow-php#5).
+
 ## [0.44.0] - 2026-08-12
 
 ### Added

@@ -134,3 +134,18 @@ export {
   type FixtureFailure,
   type FixtureRunResult,
 } from "./marketplace";
+
+/**
+ * Refuse to SAVE a subflow loop, instead of discovering it mid-run.
+ *
+ * The runtime depth cap stays and is the right backstop for a loop created from
+ * the other end (someone edits B after A was saved). It is not a substitute for
+ * refusing to write one: by the time it fires, every node above the subflow has
+ * already run on each pass, side effects included.
+ *
+ * Needs the host's resolver, because schema validation sees one graph at a time
+ * and A → B → A is made of two individually valid graphs.
+ *
+ * The TS twin of `FancyFlow\Analysis\SubflowCycle` (fancy-flow-php#5).
+ */
+export { findSubflowCycle } from "./analysis/subflow-cycle";
