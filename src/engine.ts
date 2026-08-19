@@ -25,6 +25,20 @@
 export { runFlow, type RunOptions, type RunResult } from "./runtime/run-flow";
 
 /**
+ * Stable run/step identity — what a writing node keys an idempotent call on.
+ *
+ * `ctx.run.stepKey(ctx.node.id)` is the same on every retry of one step and
+ * different for every other execution of the same node, which is precisely the
+ * property a provider's `Idempotency-Key` needs. Pinned across all three
+ * runtimes by `shared/flow-run-identity` in `@particle-academy/fancy-conformance`.
+ */
+export {
+  RunIdentity,
+  escapeSegment,
+  type RunIdentityJson,
+} from "./runtime/run-identity";
+
+/**
  * Trigger collision — the runs one event fires, as a group.
  *
  * `runFlow` runs one graph, so a host that fans one webhook out to several flows

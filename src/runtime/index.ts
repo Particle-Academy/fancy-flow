@@ -1,5 +1,10 @@
 export { runFlow, type RunOptions, type RunResult } from "./run-flow";
 export {
+  RunIdentity,
+  escapeSegment,
+  type RunIdentityJson,
+} from "./run-identity";
+export {
   runCohort,
   type CohortGuard,
   type CohortOptions,

@@ -5,6 +5,9 @@
  */
 
 import type { Edge, Node } from "@xyflow/react";
+// Type-only, so this stays erased — `types.ts` must not pull a runtime module
+// into every consumer that only wanted a type.
+import type { RunIdentity } from "./runtime/run-identity";
 
 export type FlowNodeKind =
   | "trigger"
@@ -88,6 +91,18 @@ export type NodeExecutor<TIn = Record<string, unknown>, TOut = unknown> = (
      * rather than as a stack overflow.
      */
     depth?: number;
+    /**
+     * Who is running, and which attempt of which step this is.
+     *
+     * `ctx.run.stepKey(ctx.node.id)` is the idempotency key for a node that
+     * writes to somebody else's system — stable across retries of this step,
+     * distinct for every other execution of the same node.
+     *
+     * `undefined` when the host supplied no identity, and that is a real
+     * answer: a write with no key must decline or accept one attempt, never
+     * invent a key. See `RunIdentity`.
+     */
+    run?: RunIdentity;
   },
 ) => Promise<TOut> | TOut;
 

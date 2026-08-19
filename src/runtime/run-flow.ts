@@ -11,6 +11,7 @@ import type {
 // re-exports the RegistryNode component.
 import { getNodeKind, kindIds } from "../registry/registry";
 import { resolveNodePorts } from "../registry/ports";
+import { RunIdentity, type RunIdentityJson } from "./run-identity";
 
 export type RunOptions = {
   /** Stop the run after this many ms. Default: no timeout. */
@@ -21,6 +22,26 @@ export type RunOptions = {
   initialInputs?: Record<string, Record<string, unknown>>;
   /** Nesting depth — set by `subflow` when it runs a child graph. */
   depth?: number;
+  /**
+   * Who is running, so a writing node can derive a stable idempotency key.
+   *
+   * A bare string is taken as the run key. **Deliberately not defaulted:** a
+   * minted-per-call key would change on every whole-run retry, which is exactly
+   * the failure an idempotency key exists to prevent — so a host that has not
+   * supplied one gets `ctx.run === undefined` and a connector that declines to
+   * write blind, rather than a plausible-looking key that double-charges.
+   */
+  run?: RunIdentity | RunIdentityJson | string;
+  /**
+   * Outputs already checkpointed for this run, keyed by node id.
+   *
+   * A node present here is **republished, not re-executed** — its stored value
+   * goes back onto the same ports, so downstream routing reproduces exactly
+   * what it did the first time. This is what makes a per-node durable driver
+   * possible without a second copy of the routing rules, and it is how the PHP
+   * and Python runtimes have always resumed.
+   */
+  resumeOutputs?: Record<string, unknown>;
 };
 
 export type RunResult = {
@@ -50,7 +71,8 @@ export async function runFlow(
   onEvent: (event: RunEvent) => void = () => {},
   options: RunOptions = {},
 ): Promise<RunResult> {
-  const { signal, initialInputs = {}, timeoutMs, depth = 0 } = options;
+  const { signal, initialInputs = {}, timeoutMs, depth = 0, resumeOutputs = {} } = options;
+  const run = options.run === undefined ? undefined : RunIdentity.from(options.run);
   const outputs: Record<string, unknown> = {};
   const portValues = new Map<string, unknown>(); // key: `${nodeId}:${portId}`
   const completed = new Set<string>();
@@ -75,6 +97,24 @@ export async function runFlow(
     for (const node of order) {
       if (signal?.aborted) throw new Error("aborted");
       if (errors.length) break;
+
+      // A checkpointed node is republished, never re-executed. Publishing the
+      // stored value back onto its own ports is what makes the resume exact:
+      // the branch it took, the ports it lit and the inputs its successors
+      // collect are all reproduced by the engine's own rules rather than by a
+      // driver's recollection of them.
+      if (Object.prototype.hasOwnProperty.call(resumeOutputs, node.id)) {
+        const stored = resumeOutputs[node.id];
+        outputs[node.id] = stored;
+        const activated = activatedPorts(node, stored);
+        for (const portId of activated.ports) {
+          portValues.set(`${node.id}:${portId}`, activated.value);
+          onEvent({ type: "node-output", nodeId: node.id, portId, value: activated.value });
+        }
+        completed.add(node.id);
+        onEvent({ type: "node-status", nodeId: node.id, status: "done", text: "resumed" });
+        continue;
+      }
 
       const incoming = incomingByNode.get(node.id) ?? [];
 
@@ -134,6 +174,7 @@ export async function runFlow(
             abort: (reason) => { throw new Error(reason ?? "aborted"); },
             emit: onEvent,
             depth,
+            run,
           }),
         );
         outputs[node.id] = result;

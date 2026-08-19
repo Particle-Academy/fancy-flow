@@ -12,6 +12,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-08-19
+
+### Added
+
+- **`RunIdentity` — a stable run/step identity on the execution context, so a
+  node that WRITES can send an idempotency key.** `ctx.run` is new, and
+  `ctx.run.stepKey(ctx.node.id)` is the key.
+
+  Until now `ctx` was `{ node, inputs, emit, abort, depth }`, and nothing in it
+  could produce a key that is the same on a retry and different on a different
+  execution. So every writing connector shipped `unsafe-to-replay` with no key
+  at all — meaning **a timed-out payment could never be retried**, because
+  retrying it would charge the card a second time.
+
+  What identifies a step is deliberately **not** `(run, node)`: a node
+  legitimately runs many times in one run — once per subflow invocation, once
+  per loop iteration an executor drives. So the key is the run key plus the
+  *path of invocations* that led here, plus an optional occurrence:
+  `run_9f2c:billing/pay#3`. `attempt` is carried on the identity and is
+  **deliberately absent from the key** — that is the whole point, and the
+  conformance table has a pair of rows asserting it.
+
+  `isReplaySafe(windowSeconds, now)` answers the other half: providers forget
+  keys (Stripe after 24h), and past that window resending the key and sending a
+  fresh one BOTH write twice. A caller must refuse, loudly, rather than choose.
+  Attempt 1 is always safe, which is what lets a run park on a human gate for a
+  week and then write.
+
+  Pinned across TypeScript, PHP and Python by
+  `shared/flow-run-identity` in `@particle-academy/fancy-conformance` (25 rows).
+
+  *Consumer action: none required.* `ctx.run` is optional and `undefined` when
+  a host passes no `run` option — existing executors compile and behave
+  unchanged. To enable safe retries of a writing node, pass
+  `runFlow(graph, executors, onEvent, { run: myStableRunKey })`. It is
+  **deliberately not defaulted**: a key minted per call changes on every
+  whole-run retry, which is the exact failure it exists to prevent, so a host
+  that has not thought about it gets an honest `undefined` rather than a
+  plausible-looking key that double-charges.
+
+- **`resumeOutputs` on `RunOptions` — resume a run from checkpoints.** A node
+  listed there is **republished, not re-executed**: the stored value goes back
+  onto the same ports so downstream routing reproduces exactly what it did the
+  first time. `fancy-flow-php` and the Python runtime have always had this; the
+  TypeScript engine was the odd one out, which is why it had no durable driver.
+
+- **`@particle-academy/fancy-flow/durable` — step-wise execution. One job per
+  node, and a human gate that holds no worker.**
+
+  `runFlow` executes a whole graph in one call, which is right for the editor
+  and wrong for anything durable: an approval would occupy a worker for as long
+  as the person takes to answer, and a worker killed mid-run loses every node
+  that completed during the attempt.
+
+  The new entry splits a run into steps. A queue adapter wraps exactly two
+  operations — `advance()` (what is unblocked?) and `runNode()` (claim, execute,
+  checkpoint) — and owns nothing else. **An adapter contains no workflow logic
+  at all**; if it needs to know what a port is, the seam is in the wrong place.
+
+  - `Coordinator` — the driver. `runToCompletion()` drives both operations
+    in-process and is a real durable runner, not a demo: with a persistent store
+    it survives a crash exactly as a queued run does.
+  - `NodeClaimStore` + `InMemoryClaimStore` — the claim is a **unique
+    constraint, not a check**. Two workers racing for a node produce a no-op,
+    not a double run, and an `owner` token lets a job's own retry re-enter its
+    claim instead of deadlocking against the row it wrote itself.
+  - `Frontier` — the engine's rule asked from the other end: a node runs when
+    every predecessor has SETTLED and at least one incoming edge is ACTIVE. It
+    **reads** activated ports off the engine's own `node-output` events and
+    never recomputes them.
+  - `replayUpTo` — runs one node *through* `runFlow`, fenced to that node, with
+    completed nodes fed back as `resumeOutputs`. Routing stays the engine's.
+  - `RetryPolicy` — per node. `sideEffects: unsafe-to-replay` is pinned to one
+    attempt whatever `tries` says.
+  - `Submissions` + `durableUserInput` / `durableApproval` — fail-closed human
+    gates. A gate pauses because it IS a human node, never because its input
+    port happens to be empty, and recording an answer for a node the run is not
+    parked on THROWS rather than storing a write nobody reads.
+
+  This is the TypeScript member of a design the other two runtimes already ran:
+  `fancy-flow-php`'s `per_node` queue driver and `fancy_flow.durable`. Same
+  model, node for node — see
+  `.ai/plans/fancy-flow-run-identity-and-steps.md`.
+
+  *Consumer action: none.* A new subpath adds a capability; `runFlow` is
+  unchanged and still the right call for the editor, a CLI, and a test.
+
+### Changed
+
+- `subflow` pushes the invoking node onto the identity path when a run has one,
+  so a node inside a child graph cannot share an idempotency key with a
+  same-named node in the parent, or with the same child invoked from a different
+  parent node. *No consumer action.*
+
 ## [0.45.0] - 2026-08-14
 
 ### Added

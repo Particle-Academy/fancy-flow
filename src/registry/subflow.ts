@@ -119,6 +119,12 @@ export const subflowExecutor: NodeExecutor = async (ctx) => {
         __parent: ctx.inputs as Record<string, unknown>,
       },
       depth: depth + 1,
+      // Push THIS node onto the identity path, so a node inside the child graph
+      // cannot share an idempotency key with a same-named node in the parent —
+      // or with the same child graph invoked from a different parent node.
+      // Attempt and the first-attempt clock ride down unchanged: the child's
+      // work happens inside this node's attempt.
+      run: ctx.run?.descend(ctx.node.id),
     },
   );
 
