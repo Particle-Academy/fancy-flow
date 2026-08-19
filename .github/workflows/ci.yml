@@ -13,6 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Third-party dependency allowlist. Cheap, and failing here is cheap --
+      # the same check gates the release, so a PR that adds an unapproved or
+      # abandoned dependency finds out now rather than at tag time.
+      # The allowlist is FETCHED, never vendored: one source, no copies to drift.
+      - name: Fetch the third-party allowlist
+        uses: actions/checkout@v4
+        with:
+          repository: Particle-Academy/.github
+          path: .third-party-allowlist
+          persist-credentials: false
+
+      - name: Third-party dependency allowlist
+        run: node .third-party-allowlist/third-party/check.mjs --repo .
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

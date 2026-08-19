@@ -33,6 +33,22 @@ jobs:
           fi
           echo "Found changelog entry for ${VERSION}."
 
+      # Release gate: third-party dependencies must be approved and still
+      # maintained BEFORE the tarball reaches the registry. Once it is
+      # published, an unapproved or abandoned dependency has already shipped
+      # to everyone who upgrades -- the same reason the changelog gate sits
+      # here. The allowlist is FETCHED, never vendored: one source of truth,
+      # so there is no per-repo copy that can drift out of agreement with it.
+      - name: Fetch the third-party allowlist
+        uses: actions/checkout@v4
+        with:
+          repository: Particle-Academy/.github
+          path: .third-party-allowlist
+          persist-credentials: false
+
+      - name: Third-party dependency allowlist
+        run: node .third-party-allowlist/third-party/check.mjs --repo .
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
