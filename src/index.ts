@@ -1,9 +1,11 @@
 // Public surface for @particle-academy/fancy-flow.
 
-// Auto-register the built-in agentic kit on import. Hosts can replace
-// individual kinds via re-registration after this fires.
-import { registerBuiltinKinds } from "./registry/builtin";
-registerBuiltinKinds();
+// Register the built-in agentic kit. The registry ALSO ensures this itself on
+// first use, so a consumer importing a subpath (or only types) still gets the
+// kit -- this call just makes it eager for the common root import. Hosts can
+// replace individual kinds via re-registration after it fires.
+import { ensureBuiltinKinds } from "./registry/registry";
+ensureBuiltinKinds();
 
 // Editor
 export { FlowCanvas, type FlowCanvasProps } from "./components/canvas";
@@ -83,6 +85,7 @@ export {
   buildNodeTypes,
   RegistryNode,
   registerBuiltinKinds,
+  ensureBuiltinKinds,
   BUILTIN_KINDS,
   resolvePortSpec,
   resolveNodePorts,

@@ -10,6 +10,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [0.47.0] - 2026-08-19
+
+### Fixed
+
+- **The builtin node kinds now register however you import the package.** They
+  were registered by a bare statement in the root entry, so they existed only
+  as an import side effect of that one file. Anyone arriving another way got an
+  EMPTY registry -- the `/engine` and `/registry` subpaths, or a root import
+  TypeScript erased because it took only types
+  (`import { type FlowGraph } from "@particle-academy/fancy-flow"`).
+
+  An empty registry does not throw. `getNodeKind()` returns null, `FlowViewer`
+  falls down its title chain, and the card renders the raw kind id --
+  `@particle-academy/llm_call` where a name belongs. Nodes carrying their own
+  `data.label` still looked perfect, so it presented as "custom nodes work,
+  builtins are broken" rather than as a registry problem.
+
+  The registry now populates itself on first use. Measured through the
+  `/engine` subpath: 0 kinds before, 27 after. **Consumers do nothing** -- if
+  it worked, it still works; if you saw raw ids, they are names now. Hosts that
+  replace a builtin via `registerNodeKind` are unaffected: that call ensures
+  the kit first, so your registration still lands on top.
+
+- **A node's own `label` now beats the kind's generic name in `FlowViewer`.**
+  The chain was `kind?.label ?? node.data?.label`, so a graph whose nodes were
+  deliberately named "Fetch order", "Summarize" and "Respond" listed as "API
+  Request", "LLM Call" and "Output" -- and every `llm_call` in a flow rendered
+  as the same word. **Visible change:** viewers of graphs whose nodes carry
+  labels will now show those labels. Nodes without one still show the kind
+  name, exactly as before.
+
+- **`sideEffects` no longer claims the impure entries are pure.** `package.json`
+  listed only `**/*.css`, which tells a bundler every JS module is
+  side-effect-free -- including the two entries that register on import
+  (`index`, and `rich-input` via `registerFancyCmsForRichInput()`). Declared
+  properly, with a test that fails if a new import-time registration is added
+  without listing its entry.
+
+### Added
+
+- `ensureBuiltinKinds()` -- idempotent registration of the builtin kit, exported
+  from the root and from `/registry`. `registerBuiltinKinds()` is unchanged and
+  still forces a re-register (HMR).
+
 ## [Unreleased]
 
 ## [0.46.0] - 2026-08-19

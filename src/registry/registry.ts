@@ -1,4 +1,5 @@
 import type { ConfigField, NodeKindDefinition } from "./types";
+import { registerBuiltinKinds } from "./builtin";
 
 const kinds = new Map<string, NodeKindDefinition<any, any, any>>();
 /** alias → canonical name. See `resolveKindId`. */
@@ -13,6 +14,32 @@ const listeners = new Set<() => void>();
  * silently reverts the consumer's naming.
  */
 const overrides = new Map<string, NodeKindPresentation>();
+
+let builtinsEnsured = false;
+
+/**
+ * Put the builtin kit in the registry before anyone reads or writes it.
+ *
+ * Registration used to be a bare `registerBuiltinKinds()` in `src/index.ts`, so
+ * it fired ONLY as an import side effect of that one entry. Every other route in
+ * — the `/engine` and `/registry` subpaths, or a root import that TypeScript
+ * erases because it only took types — got an empty registry, and an empty
+ * registry is silent: `getNodeKind()` returns null, `FlowViewer` falls through
+ * its title chain, and the canvas shows `@particle-academy/llm_call` where a
+ * name belongs.
+ *
+ * Doing it here instead means correctness no longer depends on which entry a
+ * consumer imported, or on a bundler agreeing to keep a top-level statement.
+ *
+ * The flag is set BEFORE the call so a listener that reads the registry from
+ * inside `notify()` cannot recurse. `registerNodeKind` ensures too, so builtins
+ * are always in place before a host registers over one of them.
+ */
+export function ensureBuiltinKinds(): void {
+  if (builtinsEnsured) return;
+  builtinsEnsured = true;
+  registerBuiltinKinds();
+}
 
 /**
  * The presentation fields a consumer may override on someone else's node kind.
@@ -42,6 +69,7 @@ export type NodeKindPresentation = Partial<
 export function registerNodeKind<TC = any, TI = any, TO = any>(
   definition: NodeKindDefinition<TC, TI, TO>,
 ): () => void {
+  ensureBuiltinKinds();
   kinds.set(definition.name, definition as NodeKindDefinition<any, any, any>);
   for (const alias of definition.aliases ?? []) aliases.set(alias, definition.name);
   notify();
@@ -65,6 +93,7 @@ export function registerNodeKind<TC = any, TI = any, TO = any>(
  * documents written before namespacing keep opening.
  */
 export function resolveKindId(id: string): string | null {
+  ensureBuiltinKinds();
   if (kinds.has(id)) return id;
   const canonical = aliases.get(id);
   return canonical && kinds.has(canonical) ? canonical : null;
@@ -138,6 +167,7 @@ export function kindIds(kind: NodeKindDefinition): string[] {
 
 /** List every registered kind, optionally filtered by category. */
 export function listNodeKinds(category?: string): NodeKindDefinition[] {
+  ensureBuiltinKinds();
   const all = Array.from(kinds.values()).map((k) =>
     withOverride(k as NodeKindDefinition),
   ) as NodeKindDefinition[];

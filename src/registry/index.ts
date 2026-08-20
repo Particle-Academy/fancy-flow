@@ -92,6 +92,7 @@ export {
 
 export { RegistryNode } from "./RegistryNode";
 export { registerBuiltinKinds, BUILTIN_KINDS } from "./builtin";
+export { ensureBuiltinKinds } from "./registry";
 
 import type { NodeTypes } from "@xyflow/react";
 import { RegistryNode } from "./RegistryNode";

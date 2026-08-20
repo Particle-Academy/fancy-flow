@@ -93,7 +93,9 @@ export function FlowViewer({
         return {
           node,
           index,
-          title: kind?.label ?? node.data?.label ?? node.data?.kind ?? node.id,
+          // The node's own label is the name the AUTHOR gave THIS node ("Summarize");
+          // the kind label is the generic type name ("LLM Call"). Specific wins.
+          title: node.data?.label ?? kind?.label ?? node.data?.kind ?? node.id,
           description: kind?.description ?? null,
           accent: kind?.accent ?? categoryAccent(kind?.category ?? "custom"),
           status: statuses?.[node.id] ?? null,
