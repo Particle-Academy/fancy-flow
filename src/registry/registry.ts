@@ -110,7 +110,7 @@ export function resolveKindId(id: string): string | null {
  * and the palette could not be localised at all.
  *
  * ```ts
- * const undo = overrideNodeKind("@particle-academy/http_request", {
+ * const undo = overrideNodeKind("@particle-academy/api_request", {
  *   label: "Call an API",
  *   description: "Fetch or post JSON to a URL",
  * });
