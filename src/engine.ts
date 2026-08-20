@@ -97,6 +97,12 @@ export {
   validateConfig,
 } from "./registry/registry";
 export type { NodeKindDefinition, ConfigField, NodeCategory, PortSpec } from "./registry/types";
+// `outputShape` on the definition above is built from these. Declaring a public
+// type that refers to an unexported one puts it in the shipped `.d.ts` under a
+// mangled name -- present, and unreachable by the name a consumer would write.
+// Two marketplace nodes already import `OutputField` from this entry and only
+// typechecked inside the sandbox, where they resolve from source.
+export type { OutputField, OutputShape } from "./expressions/variables";
 
 /**
  * The human-pause contract.

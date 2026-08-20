@@ -10,6 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [0.47.1] - 2026-08-20
+
+### Fixed
+
+- **`/engine` now exports `OutputField` and `OutputShape`.** It declared them —
+  `NodeKindDefinition.outputShape` is built from them — but did not re-export
+  them, so the `.d.ts` rollup emitted them under a mangled internal name. The
+  types were present in the shipped artifact and unreachable by the name a
+  consumer would write.
+
+  This already broke shipped code. Two marketplace nodes —
+  `stripe-payment-intent` and `resend-email-send` — do
+  `import type { NodeKindDefinition, OutputField } from "@particle-academy/fancy-flow/engine"`.
+  They typecheck inside the sandbox, where they resolve from SOURCE, and failed
+  against the published package, which is the only place a consumer ever
+  resolves them from. Vendoring either into a real project did not compile.
+
+  **What a consumer must DO:** nothing. This is purely additive — if you already
+  worked around it by re-declaring the type locally, you can delete that now.
+
+  Found by Weaver compiling generated packages against the published artifact.
+  No test in this repo could have caught it: they all import from `src`.
+
 ## [0.47.0] - 2026-08-19
 
 ### Fixed
