@@ -10,6 +10,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [0.48.0] - 2026-08-20
+
+### Added
+
+- **`./connectors` — the authoring surface every connector node shares.**
+  `defineConnectorKind`, `connectionFields`, `summarize`, `ingredients`, plus
+  `ConnectorMeta` / `ConnectorDomain` / `ConnectorRole` / `SandboxKind` and
+  `DOMAIN_ACCENT`.
+
+  It existed only as vendored source in the flow-node marketplace
+  (`_connector/ui/connector.ts`). That is right for a NODE — a copy costs a
+  consumer no dependency — and impossible for a PACKAGE, because a package
+  cannot import vendored sandbox source. So every connector package had to carry
+  its own copy of a file only this repo can correctly change, which is the "a
+  copy cannot be upgraded" problem those packages exist to avoid.
+
+  It lives here rather than in `fancy-connector-core` because it builds a node's
+  `ConfigField[]` and `NodeKindDefinition` — flow concepts. The runtime owns the
+  wire and deliberately knows nothing about flow; putting this there would force
+  a non-flow consumer to install an editor to make an HTTP call.
+
+  **What a consumer must DO:** nothing. The vendored `_connector` node is
+  unchanged and keeps working. If you were carrying a copy, you can now
+  `import { defineConnectorKind } from "@particle-academy/fancy-flow/connectors"`
+  and delete it.
+
+  Raised by Weaver, which was emitting a verified copy into every generated
+  provider package.
+
 ## [0.47.1] - 2026-08-20
 
 ### Fixed
