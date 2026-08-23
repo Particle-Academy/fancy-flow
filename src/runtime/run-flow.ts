@@ -270,12 +270,27 @@ function pickExecutor(
   if (executors[node.id]) return executors[node.id];
   if (node.type && executors[node.type]) return executors[node.type];
 
+  // `data.kind` is where a graph carries its kind when `type` is unset, and it
+  // is what EVERY other reader in this package consults -- the schema's own
+  // `kindName`, FlowViewer, FlowEditor, connection.ts, subflow-cycle.ts,
+  // use-flow-run.ts and `availableVariables` below all resolve
+  // `data.kind ?? node.type`. This lookup was the lone exception, so a registry
+  // keyed by kind simply never fired, and nothing said so: an unregistered kind
+  // fails closed with no outputs, which is the right default and exactly what
+  // makes the miss silent.
+  //
+  // `node.type` is still consulted FIRST -- it is the more specific statement,
+  // and preferring `data.kind` would silently re-point graphs that already work.
+  const declared = (node.data as { kind?: unknown } | undefined)?.kind;
+  const kindName = typeof declared === "string" && declared !== "" ? declared : node.type;
+  if (kindName && kindName !== node.type && executors[kindName]) return executors[kindName];
+
   // Try every id the kind answers to. Kinds are namespaced (`@fancy/switch_case`)
   // while a host may have bound its executor under the bare name it used before
   // — or vice versa. Without this, the rename would silently stop matching and
   // the node would fall through to `*` or simply not run: a breaking change
   // wearing the costume of a rename.
-  const kind = node.type ? getNodeKind(node.type) : null;
+  const kind = kindName ? getNodeKind(kindName) : null;
   if (kind) {
     for (const id of kindIds(kind)) {
       if (executors[id]) return executors[id];

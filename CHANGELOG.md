@@ -10,6 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [0.48.1] - 2026-08-22
+
+### Fixed
+
+- **An executor bound to a node's KIND now runs.** `pickExecutor` read
+  `node.id`, then `node.type`, then the kind's aliases — and never looked at
+  `data.kind`.
+
+  Every other reader in the package resolves `data.kind ?? node.type`: the
+  schema's own `kindName`, `FlowViewer`, `FlowEditor`, `connection.ts`,
+  `subflow-cycle.ts`, `use-flow-run.ts` and `availableVariables`. This lookup
+  was the lone exception, so **a graph carrying its kind in `data.kind` — which
+  the schema explicitly supports — resolved to the `*` fallback or to nothing.**
+
+  Nothing threw. An unregistered kind fails closed with no outputs, which is the
+  correct default and precisely what made the miss silent: a kind-only registry
+  never fired, and the run simply produced nothing.
+
+  **What a consumer must DO:** nothing. `node.type` is still consulted first, so
+  a graph that works today resolves exactly as before — preferring `data.kind`
+  would have re-pointed working graphs, which is why it is the fallback rather
+  than the preference. If you have been setting `type` purely to make your
+  registry fire, you no longer need to.
+
+  Reported by the Genie team integrating the package, who found it by RUNNING
+  the engine rather than reading it.
+
 ## [0.48.0] - 2026-08-20
 
 ### Added
