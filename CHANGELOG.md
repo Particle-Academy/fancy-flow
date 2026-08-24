@@ -10,6 +10,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [Unreleased]
+
+## [0.50.0] - 2026-08-24
+
+### Added
+
+- **A node's inputs are now addressable by the SOURCE NODE'S ID**, alongside the
+  port, whenever the edge declared no `targetHandle` (fancy-flow-php#8).
+
+  ```
+  {{ in.text }}    // still works, unchanged
+  {{ n2.text }}    // now works too
+  ```
+
+  **The failure this closes is silence, not inconvenience.** Authors reach for
+  node ids — it is how every graph tool addresses nodes, and it is the first
+  thing an assistant generating a graph writes. That resolved to nothing, and
+  *nothing failed*: an unresolvable path yields an empty string, so the node
+  ran, the run reported success, and the damage was output that was quietly
+  wrong. The reporting consumer shipped a `document.md` containing the literal
+  text of its own template, on a green run, and found out when a human opened
+  the file.
+
+  `targetHandle` is unchanged and remains the mechanism for reading something
+  other than the immediate predecessor. The model was never wrong — the obvious
+  spelling just meant nothing.
+
+  **Strictly additive.** The alias is written only for edges that named no
+  handle (an edge that named one said what it meant), and never over a key
+  already present from the host's initial inputs or an earlier edge. A dead
+  branch contributes nothing, as before.
+
+  **What you must do: nothing.**
+
+## [0.49.0] - 2026-08-24
+
+### Added
+
+- **Per-node status messages.** A node may carry `startingMsg` / `stoppingMsg`
+  in its data; the engine announces them around that node's execution as a new
+  `node-message` run event:
+
+  ```
+  start:Starting the deep analysis
+  end:Analysis complete
+  start:Saving report
+  ```
+
+  Opt-in per node — a node with neither field says nothing, because most nodes
+  in a graph are plumbing and narrating all of them buries the steps a person
+  actually follows. Authored in `NodeConfigPanel` beside label and description
+  (they apply to any kind, so no kind has to opt in), carried through
+  `exportWorkflow` / `importWorkflow`, and surfaced by `useFlowRun` as a
+  `message`-level feed entry plus a `nodeMessages` map.
+
+  **`stoppingMsg` fires only when the node SUCCEEDS.** A completion message
+  printed after a throw tells a human the opposite of what happened, in the
+  part of the UI they trust most. Skipped and resumed nodes stay silent too:
+  neither did the work.
+
+  Kept out of `node-status.text` deliberately — that already carries "skipped",
+  "resumed", "lane" and raw error strings, and a progress feed cannot be asked
+  to guess which of those are addressed to a person.
+
+### Fixed
+
+- **`subflow` now runs its child against the parent's registry** rather than
+  `config.executors ?? {}` — which meant an EMPTY registry unless the graph
+  happened to carry one. A host kind resolved at top level and vanished one
+  level down; worse, a host that had REPLACED a builtin (adding tenancy,
+  budgeting or token accounting to `llm_call`) got the package's version inside
+  the child. The same graph behaved two ways depending on nesting depth, and
+  nothing reported it, because an unregistered kind fails closed with no
+  outputs.
+
+  Reported against the PHP twin as `fancy-flow-php#7`; the TS engine had the
+  same defect with a worse default, found by checking rather than assuming
+  parity.
+
+  The registry now rides on the executor context (`ctx.executors`), so any
+  executor that starts a nested run inherits it without opting in.
+  `config.executors` still layers on top.
+
+  **What you must do: nothing**, unless you were relying on a child having no
+  executors, which was not a documented guarantee and could not be
+  distinguished from the bug.
+
 ## [0.48.1] - 2026-08-22
 
 ### Fixed
@@ -132,62 +219,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ensureBuiltinKinds()` -- idempotent registration of the builtin kit, exported
   from the root and from `/registry`. `registerBuiltinKinds()` is unchanged and
   still forces a re-register (HMR).
-
-## [Unreleased]
-
-## [0.49.0] - 2026-08-24
-
-### Added
-
-- **Per-node status messages.** A node may carry `startingMsg` / `stoppingMsg`
-  in its data; the engine announces them around that node's execution as a new
-  `node-message` run event:
-
-  ```
-  start:Starting the deep analysis
-  end:Analysis complete
-  start:Saving report
-  ```
-
-  Opt-in per node — a node with neither field says nothing, because most nodes
-  in a graph are plumbing and narrating all of them buries the steps a person
-  actually follows. Authored in `NodeConfigPanel` beside label and description
-  (they apply to any kind, so no kind has to opt in), carried through
-  `exportWorkflow` / `importWorkflow`, and surfaced by `useFlowRun` as a
-  `message`-level feed entry plus a `nodeMessages` map.
-
-  **`stoppingMsg` fires only when the node SUCCEEDS.** A completion message
-  printed after a throw tells a human the opposite of what happened, in the
-  part of the UI they trust most. Skipped and resumed nodes stay silent too:
-  neither did the work.
-
-  Kept out of `node-status.text` deliberately — that already carries "skipped",
-  "resumed", "lane" and raw error strings, and a progress feed cannot be asked
-  to guess which of those are addressed to a person.
-
-### Fixed
-
-- **`subflow` now runs its child against the parent's registry** rather than
-  `config.executors ?? {}` — which meant an EMPTY registry unless the graph
-  happened to carry one. A host kind resolved at top level and vanished one
-  level down; worse, a host that had REPLACED a builtin (adding tenancy,
-  budgeting or token accounting to `llm_call`) got the package's version inside
-  the child. The same graph behaved two ways depending on nesting depth, and
-  nothing reported it, because an unregistered kind fails closed with no
-  outputs.
-
-  Reported against the PHP twin as `fancy-flow-php#7`; the TS engine had the
-  same defect with a worse default, found by checking rather than assuming
-  parity.
-
-  The registry now rides on the executor context (`ctx.executors`), so any
-  executor that starts a nested run inherits it without opting in.
-  `config.executors` still layers on top.
-
-  **What you must do: nothing**, unless you were relying on a child having no
-  executors, which was not a documented guarantee and could not be
-  distinguished from the bug.
-
 
 ## [0.46.0] - 2026-08-19
 
@@ -327,7 +358,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same config, same `text` / `usage` / `raw`, and the picker offers exactly what
   it did before.
 
-
 ## [0.43.2] - 2026-08-11
 
 ### Security
@@ -380,7 +410,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input (measured), so the flaw is specific to the JavaScript engine, and the
   two still resolve identically.
 
-
 ## [0.43.0] - 2026-08-11
 
 ### Added
@@ -411,7 +440,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   20-row table from `@particle-academy/fancy-conformance`, imported from the
   INSTALLED package rather than a sibling checkout - the conformance repo's own
   runner notes record why that distinction matters.
-
 
 ## [0.42.0] - 2026-08-11
 
@@ -457,7 +485,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `type: "expression"` fields now render `ExpressionField` instead of a bare
   textarea. **Consumers do nothing** - same value, same `onChange`, same
   `data-ff-field` handle; it gains a picker and a reference toggle.
-
 
 ## [0.41.0] — 2026-08-11
 
@@ -523,7 +550,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pointing at an id that does not exist is worse than no label — it reads as
   done.
 
-
 ## [0.40.4] — 2026-08-11
 
 ### Fixed
@@ -558,228 +584,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **What you must do:** nothing. A host on a dark page gets a dark canvas
   without wiring anything; one that already passed `colorMode` is unchanged.
 
-## 0.40.3 — 2026-08-09
-
-### Fixed
-
-- **The Live Contract parity test never ran in CI.** It compares `flowLive`
-  against `FancyFlow\Laravel\LiveContract`, reading the PHP source — from a
-  hard-coded `../../fancy-flow-php/`, which resolves only inside the `.agi`
-  envelope. In CI the repo is not checked out, so every assertion returned early
-  and passed having compared nothing.
-
-  Now: CI checks out `fancy-flow-php`, the path comes from `FLOW_PHP_SRC`
-  (sibling as fallback), and a missing twin **throws in CI**. Locally a skip is
-  still right.
-
-  Verified in three states: correct path passes all 8, a bad path under `CI=1`
-  fails 3, and a bad path without `CI` still skips.
-
-## 0.40.2 — 2026-08-09
-
-### Added
-
-- Six cases to the `satisfiesRange` table. Two pin places where this convention
-  **deliberately differs from standard semver**: `1.2.3-beta.1` satisfies `^1.2`
-  here and not under npm's `semver`, and `^0.0.1` admits `0.0.2` where standard
-  semver pins it exactly.
-
-  `satisfiesRange` has three implementations (`fancy-ui-cli`, this package,
-  `fancy-flow-php`) and — unusually for the suite — has never drifted, because
-  each carries the same case table in its own CI. I ran all three against a
-  shared case set to check that rather than assume it, and they agree on every
-  case including these.
-
-  The gap they close is a future one: a fourth implementation reaching for a
-  stock semver library would disagree on exactly these two, and nothing said so.
-
-## 0.40.1 — 2026-08-09
-
-### Fixed
-
-- **CI could not run `live-contract.test.ts`**, and had been red since that test
-  landed four commits earlier.
-
-  `@tanstack/react-query` is a *required* peer of `@particle-academy/fancy-query`,
-  which this repo uses in tests — and CI installs with `--legacy-peer-deps`,
-  which skips peer installation entirely. So it resolved locally (where the peer
-  was already on disk) and could never resolve on a clean runner.
-
-  Now declared as a direct devDependency, which installs regardless of the flag.
-  Verified the way it actually fails: deleted the package, ran CI's exact install
-  command, and confirmed it comes back.
-
-  The flag itself is left alone — it is there for other reasons, and flipping it
-  to fix a missing declaration would trade a known problem for an unknown one.
-
-## 0.40.0 — 2026-08-09
-
-### Added
-
-- **`fieldRenderers` on `NodeConfigPanel` — a generic seam for host-defined
-  `ConfigField` types.** (#4)
-
-  ```tsx
-  <NodeConfigPanel
-    fieldRenderers={{
-      "trigger-filters": ({ value, onChange }) => <FilterEditor value={value} onChange={onChange} />,
-    }}
-  />
-  ```
-
-  The panel had hooks for two *specific* types (`renderDocumentField`,
-  `renderCredentialField`) and no generic one, so anything richer than the
-  built-ins had to be rendered **outside** the panel — that node's config stopped
-  living where every other field does. An unknown `type` also fell through to
-  `default:` and rendered nothing, so the schema said the field existed and the
-  panel showed empty space.
-
-  - Keyed by `field.type`, and consulted **before** the built-in switch, so the
-    same seam also replaces a built-in (react-fancy inputs, say) rather than
-    needing a second mechanism.
-  - Return `null` to fall back to the package's own rendering, so a host can
-    claim a type conditionally instead of reimplementing every case.
-  - Forwarded into **repeater rows**, so a custom field nested one level down
-    renders like any other.
-
-  `ConfigFieldRenderFn` and `ConfigFieldRenderContext` are exported. The type is
-  `…Fn` rather than `ConfigFieldRenderer` because that name is already the
-  component this module exports.
-
-## 0.39.0 — 2026-08-07
-
-### Added
-
-- **`flowLive` — this package's Live Contract**, plus `flowKeys` for per-run
-  query keys. `FancyFlow\Laravel\LiveContract` declares the identical list and
-  both sides assert parity.
-
-  `fancy-query` is a **type-only** import, so this adds no dependency.
-
-  **It covers a run's durable state, not per-node chatter.** `NodeStatusChanged`
-  and `NodeOutput` fire per node, many times a second on a wide graph — a log
-  line is a stream, not a cache entry. In the contract, a 40-node run would
-  invalidate the run list forty times while executing, each a re-fetch telling
-  the UI nothing the stream had not already delivered. Use `useFancyStream` for
-  that half.
-
-  `flow.run.awaiting` gets its own event rather than folding into `updated`: a
-  run parking on a human step is the moment a form has to appear in front of
-  somebody, and a host should be able to subscribe to just that.
-
-  **Broadcast status, stated plainly:** `fancy-flow-php` dispatches these as
-  in-process Laravel events; none implements `ShouldBroadcast` yet. The contract
-  is the agreed vocabulary, so a host wanting live runs today re-broadcasts
-  under these names. Making them broadcast natively is a separate change,
-  because it turns on websocket traffic for every consumer.
-
-  **What you must do:** nothing. Additive.
-
-
-## 0.38.0 — 2026-08-07
-
-### Changed
-
-- **BREAKING — Node 22 is now declared as the floor.** `engines.node` is `>=22`, where this package previously declared **nothing at all**.
-
-  Declaring nothing was not the same as supporting old Node: a consumer on 18 installed cleanly and found out at runtime.
-
-  **What you must do:** on Node 22 or newer, nothing. Note npm only *warns* on an `engines` mismatch while **pnpm fails the install**, so this surfaces differently depending on your package manager. Node 18 is end-of-life and 20 is maintenance-only.
-
-- **BREAKING — React 18 is no longer supported.** `peerDependencies.react` / `react-dom` are now `^19.0.0`.
-
-  **What you must do:** on React 19, nothing. On React 18, stay on the previous release, or upgrade your app to 19 first.
-
-  React 18 support was a claim nothing tested — every build and test in this package ran against 19, so the 18 half of the old range was never executed. An untested compatibility claim is worse than an absent one, because it reads as support.
-
-### Why
-
-These are the kit 0.5 platform floors, applied across every package at once so a consumer never has to resolve a mix. **No API changed, nothing was removed, nothing was renamed** — only what the package requires.
-
-
-## 0.37.0 — 2026-08-02
-
-### Added
-
-- **`fancy-flow/screens` — `registerFlowSchema()`**, so an agent-emitted
-  `ScreenSchema` can place a workflow in a page:
-
-  ```json
-  { "type": "FlowViewer", "props": { "graph": { "nodes": [], "edges": [] } } }
-  ```
-
-  Mirrors `fancy-artboard/screens` exactly: a separate entry that is the only
-  module importing `@particle-academy/fancy-screens`, declared as an **optional**
-  peer and marked external, so the base `.` import graph is untouched and an app
-  that never uses fancy-screens never pays for it. The built entry is 604 bytes.
-
-  **Only the VIEWER is registered, deliberately.** A schema is JSON, and
-  `FlowEditor` needs executors, run handlers and controlled state that JSON props
-  cannot express — registering it would let an agent emit an editor that renders
-  and does nothing, which is worse than not offering it at all. `FlowViewer` is
-  complete from props alone, which is exactly what makes it schema-safe.
-
-  **What you must DO: nothing** unless you want it. `registerFlowSchema()` is an
-  explicit call at host startup, like every other screens adapter.
-
-## 0.36.0 — 2026-08-02
-
-### Added
-
-- **`<FlowViewer>` — a workflow, read-only.** There was no way to *show* a flow.
-  `FlowEditor` is the whole editor, and `FlowCanvas` is the canvas — neither had
-  a `readOnly` prop. A consumer could assemble a viewer out of `FlowCanvas` plus
-  four React Flow flags they had to know to pass, but nothing named that,
-  nothing documented it, and nothing stopped the next person handing a graph to
-  `FlowEditor` and shipping a fully editable canvas where they wanted a picture.
-
-  Read-only **by construction**: there is no prop that makes it editable, because
-  a viewer that can be switched into an editor is one that eventually gets
-  switched by accident. Verified behaviourally, not by class name — a drag moves
-  nothing and a handle-to-handle drag creates no edge and no connection line.
-
-  ```tsx
-  <FlowViewer graph={graph} />                       // canvas
-  <FlowViewer graph={graph} variant="list" />        // rows
-  <FlowViewer graph={graph} statuses={{ n3: "running" }} />
-  ```
-
-  `variant="list"` is the other half of the gap: nothing could render a flow
-  **without** a canvas — for a docs page, a narrow column, print, or an audit
-  view, where pan-zoom is the wrong shape and often unusable. `statuses` lets
-  the same component serve "here is the workflow" and "here is what happened".
-
-- **`overrideNodeKind(name, patch)` — rename a node you did not author.** The
-  palette rendered `kind.label` and `kind.description` straight from the
-  registry, and the only way to change either was `registerNodeKind`, which
-  **replaces the whole definition**. Relabelling `http_request` meant
-  re-declaring its config schema, ports, executor and renderer — internals a
-  consumer does not own — and silently forfeiting whatever the builtin gained in
-  the next release. In practice nobody renamed a node, and the palette could not
-  be localised at all.
-
-  ```ts
-  const undo = overrideNodeKind("@particle-academy/http_request", {
-    label: "Call an API",
-    description: "Fetch or post JSON to a URL",
-  });
-  ```
-
-  Patchable: `label`, `description`, `icon`, `accent`, `category`. Everything
-  behavioural is excluded on purpose — an override that could reach `executor`
-  or `outputs` is a fork wearing a friendly name, and would desync the graph
-  from the runtime that executes it.
-
-  Overrides are stored **separately from the definition**, so they survive the
-  base kind being re-registered by HMR, a later `registerBuiltinKinds()`, or a
-  package upgrade. They apply at `getNodeKind()` and `listNodeKinds()`, so one
-  call reaches the palette, the canvas node cards and `FlowViewer` — and they
-  apply *before* category filtering, so re-categorising a node actually moves it
-  in the palette instead of leaving it filed under the old heading with a new
-  name.
-
-  **What you must DO: nothing.** Both are purely additive.
-
 ## [0.35.0] - 2026-07-31
 
 ### Added
@@ -800,7 +604,6 @@ These are the kit 0.5 platform floors, applied across every package at once so a
   The twins declare the same kind metadata or they are not twins. This is
   declaration only: the in-process TS runner does not retry, so nothing here
   enforces it — a host's runner decides what to do with it.
-
 
 ## [0.34.0] — 2026-07-28
 
@@ -875,7 +678,6 @@ These are the kit 0.5 platform floors, applied across every package at once so a
 
   Two regression tests cover the transitions that break it: no-selection → node
   → no-selection, and a node whose kind was never registered → a registered one.
-
 
 ## [0.33.1] — 2026-07-27
 
@@ -2136,3 +1938,223 @@ Driven by a consumer gap report (MOIC Suite) plus editor asks.
 [0.3.1]: https://github.com/Particle-Academy/fancy-flow/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Particle-Academy/fancy-flow/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Particle-Academy/fancy-flow/releases/tag/v0.2.2
+
+## 0.40.3 — 2026-08-09
+
+### Fixed
+
+- **The Live Contract parity test never ran in CI.** It compares `flowLive`
+  against `FancyFlow\Laravel\LiveContract`, reading the PHP source — from a
+  hard-coded `../../fancy-flow-php/`, which resolves only inside the `.agi`
+  envelope. In CI the repo is not checked out, so every assertion returned early
+  and passed having compared nothing.
+
+  Now: CI checks out `fancy-flow-php`, the path comes from `FLOW_PHP_SRC`
+  (sibling as fallback), and a missing twin **throws in CI**. Locally a skip is
+  still right.
+
+  Verified in three states: correct path passes all 8, a bad path under `CI=1`
+  fails 3, and a bad path without `CI` still skips.
+
+## 0.40.2 — 2026-08-09
+
+### Added
+
+- Six cases to the `satisfiesRange` table. Two pin places where this convention
+  **deliberately differs from standard semver**: `1.2.3-beta.1` satisfies `^1.2`
+  here and not under npm's `semver`, and `^0.0.1` admits `0.0.2` where standard
+  semver pins it exactly.
+
+  `satisfiesRange` has three implementations (`fancy-ui-cli`, this package,
+  `fancy-flow-php`) and — unusually for the suite — has never drifted, because
+  each carries the same case table in its own CI. I ran all three against a
+  shared case set to check that rather than assume it, and they agree on every
+  case including these.
+
+  The gap they close is a future one: a fourth implementation reaching for a
+  stock semver library would disagree on exactly these two, and nothing said so.
+
+## 0.40.1 — 2026-08-09
+
+### Fixed
+
+- **CI could not run `live-contract.test.ts`**, and had been red since that test
+  landed four commits earlier.
+
+  `@tanstack/react-query` is a *required* peer of `@particle-academy/fancy-query`,
+  which this repo uses in tests — and CI installs with `--legacy-peer-deps`,
+  which skips peer installation entirely. So it resolved locally (where the peer
+  was already on disk) and could never resolve on a clean runner.
+
+  Now declared as a direct devDependency, which installs regardless of the flag.
+  Verified the way it actually fails: deleted the package, ran CI's exact install
+  command, and confirmed it comes back.
+
+  The flag itself is left alone — it is there for other reasons, and flipping it
+  to fix a missing declaration would trade a known problem for an unknown one.
+
+## 0.40.0 — 2026-08-09
+
+### Added
+
+- **`fieldRenderers` on `NodeConfigPanel` — a generic seam for host-defined
+  `ConfigField` types.** (#4)
+
+  ```tsx
+  <NodeConfigPanel
+    fieldRenderers={{
+      "trigger-filters": ({ value, onChange }) => <FilterEditor value={value} onChange={onChange} />,
+    }}
+  />
+  ```
+
+  The panel had hooks for two *specific* types (`renderDocumentField`,
+  `renderCredentialField`) and no generic one, so anything richer than the
+  built-ins had to be rendered **outside** the panel — that node's config stopped
+  living where every other field does. An unknown `type` also fell through to
+  `default:` and rendered nothing, so the schema said the field existed and the
+  panel showed empty space.
+
+  - Keyed by `field.type`, and consulted **before** the built-in switch, so the
+    same seam also replaces a built-in (react-fancy inputs, say) rather than
+    needing a second mechanism.
+  - Return `null` to fall back to the package's own rendering, so a host can
+    claim a type conditionally instead of reimplementing every case.
+  - Forwarded into **repeater rows**, so a custom field nested one level down
+    renders like any other.
+
+  `ConfigFieldRenderFn` and `ConfigFieldRenderContext` are exported. The type is
+  `…Fn` rather than `ConfigFieldRenderer` because that name is already the
+  component this module exports.
+
+## 0.39.0 — 2026-08-07
+
+### Added
+
+- **`flowLive` — this package's Live Contract**, plus `flowKeys` for per-run
+  query keys. `FancyFlow\Laravel\LiveContract` declares the identical list and
+  both sides assert parity.
+
+  `fancy-query` is a **type-only** import, so this adds no dependency.
+
+  **It covers a run's durable state, not per-node chatter.** `NodeStatusChanged`
+  and `NodeOutput` fire per node, many times a second on a wide graph — a log
+  line is a stream, not a cache entry. In the contract, a 40-node run would
+  invalidate the run list forty times while executing, each a re-fetch telling
+  the UI nothing the stream had not already delivered. Use `useFancyStream` for
+  that half.
+
+  `flow.run.awaiting` gets its own event rather than folding into `updated`: a
+  run parking on a human step is the moment a form has to appear in front of
+  somebody, and a host should be able to subscribe to just that.
+
+  **Broadcast status, stated plainly:** `fancy-flow-php` dispatches these as
+  in-process Laravel events; none implements `ShouldBroadcast` yet. The contract
+  is the agreed vocabulary, so a host wanting live runs today re-broadcasts
+  under these names. Making them broadcast natively is a separate change,
+  because it turns on websocket traffic for every consumer.
+
+  **What you must do:** nothing. Additive.
+
+## 0.38.0 — 2026-08-07
+
+### Changed
+
+- **BREAKING — Node 22 is now declared as the floor.** `engines.node` is `>=22`, where this package previously declared **nothing at all**.
+
+  Declaring nothing was not the same as supporting old Node: a consumer on 18 installed cleanly and found out at runtime.
+
+  **What you must do:** on Node 22 or newer, nothing. Note npm only *warns* on an `engines` mismatch while **pnpm fails the install**, so this surfaces differently depending on your package manager. Node 18 is end-of-life and 20 is maintenance-only.
+
+- **BREAKING — React 18 is no longer supported.** `peerDependencies.react` / `react-dom` are now `^19.0.0`.
+
+  **What you must do:** on React 19, nothing. On React 18, stay on the previous release, or upgrade your app to 19 first.
+
+  React 18 support was a claim nothing tested — every build and test in this package ran against 19, so the 18 half of the old range was never executed. An untested compatibility claim is worse than an absent one, because it reads as support.
+
+### Why
+
+These are the kit 0.5 platform floors, applied across every package at once so a consumer never has to resolve a mix. **No API changed, nothing was removed, nothing was renamed** — only what the package requires.
+
+## 0.37.0 — 2026-08-02
+
+### Added
+
+- **`fancy-flow/screens` — `registerFlowSchema()`**, so an agent-emitted
+  `ScreenSchema` can place a workflow in a page:
+
+  ```json
+  { "type": "FlowViewer", "props": { "graph": { "nodes": [], "edges": [] } } }
+  ```
+
+  Mirrors `fancy-artboard/screens` exactly: a separate entry that is the only
+  module importing `@particle-academy/fancy-screens`, declared as an **optional**
+  peer and marked external, so the base `.` import graph is untouched and an app
+  that never uses fancy-screens never pays for it. The built entry is 604 bytes.
+
+  **Only the VIEWER is registered, deliberately.** A schema is JSON, and
+  `FlowEditor` needs executors, run handlers and controlled state that JSON props
+  cannot express — registering it would let an agent emit an editor that renders
+  and does nothing, which is worse than not offering it at all. `FlowViewer` is
+  complete from props alone, which is exactly what makes it schema-safe.
+
+  **What you must DO: nothing** unless you want it. `registerFlowSchema()` is an
+  explicit call at host startup, like every other screens adapter.
+
+## 0.36.0 — 2026-08-02
+
+### Added
+
+- **`<FlowViewer>` — a workflow, read-only.** There was no way to *show* a flow.
+  `FlowEditor` is the whole editor, and `FlowCanvas` is the canvas — neither had
+  a `readOnly` prop. A consumer could assemble a viewer out of `FlowCanvas` plus
+  four React Flow flags they had to know to pass, but nothing named that,
+  nothing documented it, and nothing stopped the next person handing a graph to
+  `FlowEditor` and shipping a fully editable canvas where they wanted a picture.
+
+  Read-only **by construction**: there is no prop that makes it editable, because
+  a viewer that can be switched into an editor is one that eventually gets
+  switched by accident. Verified behaviourally, not by class name — a drag moves
+  nothing and a handle-to-handle drag creates no edge and no connection line.
+
+  ```tsx
+  <FlowViewer graph={graph} />                       // canvas
+  <FlowViewer graph={graph} variant="list" />        // rows
+  <FlowViewer graph={graph} statuses={{ n3: "running" }} />
+  ```
+
+  `variant="list"` is the other half of the gap: nothing could render a flow
+  **without** a canvas — for a docs page, a narrow column, print, or an audit
+  view, where pan-zoom is the wrong shape and often unusable. `statuses` lets
+  the same component serve "here is the workflow" and "here is what happened".
+
+- **`overrideNodeKind(name, patch)` — rename a node you did not author.** The
+  palette rendered `kind.label` and `kind.description` straight from the
+  registry, and the only way to change either was `registerNodeKind`, which
+  **replaces the whole definition**. Relabelling `http_request` meant
+  re-declaring its config schema, ports, executor and renderer — internals a
+  consumer does not own — and silently forfeiting whatever the builtin gained in
+  the next release. In practice nobody renamed a node, and the palette could not
+  be localised at all.
+
+  ```ts
+  const undo = overrideNodeKind("@particle-academy/http_request", {
+    label: "Call an API",
+    description: "Fetch or post JSON to a URL",
+  });
+  ```
+
+  Patchable: `label`, `description`, `icon`, `accent`, `category`. Everything
+  behavioural is excluded on purpose — an override that could reach `executor`
+  or `outputs` is a fork wearing a friendly name, and would desync the graph
+  from the runtime that executes it.
+
+  Overrides are stored **separately from the definition**, so they survive the
+  base kind being re-registered by HMR, a later `registerBuiltinKinds()`, or a
+  package upgrade. They apply at `getNodeKind()` and `listNodeKinds()`, so one
+  call reaches the palette, the canvas node cards and `FlowViewer` — and they
+  apply *before* category filtering, so re-categorising a node actually moves it
+  in the palette instead of leaving it filed under the old heading with a new
+  name.
+
+  **What you must DO: nothing.** Both are purely additive.

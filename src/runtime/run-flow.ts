@@ -266,6 +266,30 @@ function collectInputs(
     // whenever a later inactive edge happened to be last in `incoming`.
     if (!portValues.has(key)) continue;
     inputs[portId] = portValues.get(key);
+
+    // ALSO address it by the SOURCE NODE'S ID, when the edge named no handle.
+    //
+    // Authors reach for node ids -- every graph tool addresses nodes that way,
+    // so `{{ n2.text }}` is the first thing written, by people and far more
+    // often by assistants generating graphs. That resolved to nothing, and
+    // NOTHING FAILED: an unresolvable path yields "", so the node ran, the run
+    // reported success, and the damage was output that was quietly wrong. A
+    // consumer shipped a file named `document.md` containing the literal text
+    // of its own template, on a green run (fancy-flow-php#8).
+    //
+    // `targetHandle` already covers this and stays the right mechanism for
+    // reading something other than the immediate predecessor -- but it is set
+    // on the EDGE, which is not where an author is looking while writing a
+    // node's config. The model was not wrong; the obvious spelling meant
+    // nothing.
+    //
+    // Only for edges that declared NO handle: an edge that named one said what
+    // it meant, and a second key under the source id would quietly widen a
+    // deliberate contract. `??=` so nothing already seeded -- by the host's
+    // initialInputs or an earlier edge -- is ever clobbered.
+    if (e.targetHandle == null && !(e.source in inputs)) {
+      inputs[e.source] = portValues.get(key);
+    }
   }
   return inputs;
 }
