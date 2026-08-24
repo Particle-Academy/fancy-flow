@@ -135,6 +135,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-08-24
+
+### Added
+
+- **Per-node status messages.** A node may carry `startingMsg` / `stoppingMsg`
+  in its data; the engine announces them around that node's execution as a new
+  `node-message` run event:
+
+  ```
+  start:Starting the deep analysis
+  end:Analysis complete
+  start:Saving report
+  ```
+
+  Opt-in per node — a node with neither field says nothing, because most nodes
+  in a graph are plumbing and narrating all of them buries the steps a person
+  actually follows. Authored in `NodeConfigPanel` beside label and description
+  (they apply to any kind, so no kind has to opt in), carried through
+  `exportWorkflow` / `importWorkflow`, and surfaced by `useFlowRun` as a
+  `message`-level feed entry plus a `nodeMessages` map.
+
+  **`stoppingMsg` fires only when the node SUCCEEDS.** A completion message
+  printed after a throw tells a human the opposite of what happened, in the
+  part of the UI they trust most. Skipped and resumed nodes stay silent too:
+  neither did the work.
+
+  Kept out of `node-status.text` deliberately — that already carries "skipped",
+  "resumed", "lane" and raw error strings, and a progress feed cannot be asked
+  to guess which of those are addressed to a person.
+
+### Fixed
+
+- **`subflow` now runs its child against the parent's registry** rather than
+  `config.executors ?? {}` — which meant an EMPTY registry unless the graph
+  happened to carry one. A host kind resolved at top level and vanished one
+  level down; worse, a host that had REPLACED a builtin (adding tenancy,
+  budgeting or token accounting to `llm_call`) got the package's version inside
+  the child. The same graph behaved two ways depending on nesting depth, and
+  nothing reported it, because an unregistered kind fails closed with no
+  outputs.
+
+  Reported against the PHP twin as `fancy-flow-php#7`; the TS engine had the
+  same defect with a worse default, found by checking rather than assuming
+  parity.
+
+  The registry now rides on the executor context (`ctx.executors`), so any
+  executor that starts a nested run inherits it without opting in.
+  `config.executors` still layers on top.
+
+  **What you must do: nothing**, unless you were relying on a child having no
+  executors, which was not a documented guarantee and could not be
+  distinguished from the bug.
+
+
 ## [0.46.0] - 2026-08-19
 
 ### Added

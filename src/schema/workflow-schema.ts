@@ -36,6 +36,14 @@ export type WorkflowSchemaNode = {
   position: { x: number; y: number };
   label?: string;
   description?: string;
+  /**
+   * Announced to a person just before / just after this node runs. Omitted
+   * entirely when unset, so a graph of ordinary plumbing nodes does not carry
+   * a pair of empty keys per node and every diff of a saved graph stays
+   * readable.
+   */
+  startingMsg?: string;
+  stoppingMsg?: string;
   config?: Record<string, unknown>;
   /**
    * Resolved ports, written on export.
@@ -123,6 +131,8 @@ function toSchemaNode(n: FlowNode): WorkflowSchemaNode {
     position: { x: n.position.x, y: n.position.y },
     label: data.label,
     description: data.description,
+    ...(typeof data.startingMsg === "string" && data.startingMsg !== "" ? { startingMsg: data.startingMsg } : {}),
+    ...(typeof data.stoppingMsg === "string" && data.stoppingMsg !== "" ? { stoppingMsg: data.stoppingMsg } : {}),
     config: data.config,
     inputs: ports.inputs,
     outputs: ports.outputs,
@@ -222,6 +232,8 @@ export function importWorkflow(schema: unknown, options: ImportOptions = {}): Im
         kind: kindId,
         label: n.label ?? kind?.label ?? n.kind,
         description: n.description,
+        ...(n.startingMsg ? { startingMsg: n.startingMsg } : {}),
+        ...(n.stoppingMsg ? { stoppingMsg: n.stoppingMsg } : {}),
         config,
         // Carry serialized ports back onto the node so a round-trip is stable
         // and an unknown kind still routes the way the document described.

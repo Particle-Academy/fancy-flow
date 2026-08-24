@@ -11,7 +11,13 @@ import type {
 export type FlowRunFeedEntry = {
   id: string;
   at: number;
-  level: "info" | "warn" | "error" | "status";
+  /**
+   * `message` is a node's own human-facing announcement (`startingMsg` /
+   * `stoppingMsg`), kept distinct from `status` and `info` so a progress UI can
+   * show ONLY the narration. Folded in with diagnostics it would be unfindable,
+   * which is the same as not having it.
+   */
+  level: "info" | "warn" | "error" | "status" | "message";
   text: string;
   nodeId?: string;
   detail?: unknown;
@@ -24,6 +30,12 @@ export type UseFlowRunReturn = {
   statusText: Record<string, string | undefined>;
   /** Latest computed output value per node (for reactive kinds). */
   outputs: Record<string, unknown>;
+  /**
+   * Latest status message per nodeId, from the node's own `startingMsg` /
+   * `stoppingMsg`. Undefined for the nodes that declared none, which is most
+   * of them by design.
+   */
+  nodeMessages: Record<string, string | undefined>;
   /** Live event log (capped to last N). */
   feed: FlowRunFeedEntry[];
   /** Whether a run is currently in progress. */
@@ -51,6 +63,7 @@ export type UseFlowRunOptions = {
 export function useFlowRun({ maxFeed = 200 }: UseFlowRunOptions = {}): UseFlowRunReturn {
   const [statuses, setStatuses] = useState<Record<string, NodeRunStatus>>({});
   const [statusText, setStatusText] = useState<Record<string, string | undefined>>({});
+  const [nodeMessages, setNodeMessages] = useState<Record<string, string | undefined>>({});
   const [outputs, setOutputs] = useState<Record<string, unknown>>({});
   const [feed, setFeed] = useState<FlowRunFeedEntry[]>([]);
   const [running, setRunning] = useState(false);
@@ -64,6 +77,10 @@ export function useFlowRun({ maxFeed = 200 }: UseFlowRunOptions = {}): UseFlowRu
           setStatuses((s) => ({ ...s, [e.nodeId]: e.status }));
           setStatusText((t) => ({ ...t, [e.nodeId]: e.text }));
           appendFeed({ level: "status", text: `${e.nodeId} → ${e.status}${e.text ? ` (${e.text})` : ""}`, nodeId: e.nodeId });
+          break;
+        case "node-message":
+          setNodeMessages((m) => ({ ...m, [e.nodeId]: e.message }));
+          appendFeed({ level: "message", text: e.message, nodeId: e.nodeId });
           break;
         case "node-output":
           setOutputs((o) => ({ ...o, [e.nodeId]: e.value }));
@@ -129,7 +146,7 @@ export function useFlowRun({ maxFeed = 200 }: UseFlowRunOptions = {}): UseFlowRu
     setLastResult(null);
   }, []);
 
-  return { statuses, statusText, outputs, feed, running, lastResult, run, cancel, reset };
+  return { statuses, statusText, nodeMessages, outputs, feed, running, lastResult, run, cancel, reset };
 }
 
 /**

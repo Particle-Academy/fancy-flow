@@ -132,6 +132,9 @@ export function NodeConfigPanel({
   const setDescription = (description: string) =>
     onChange({ ...node, data: { ...node.data, description } });
 
+  const setStatusMsg = (key: "startingMsg" | "stoppingMsg", value: string) =>
+    onChange({ ...node, data: { ...node.data, [key]: value } });
+
   const setConfigValue = (key: string, value: unknown) =>
     onChange({ ...node, data: { ...node.data, config: { ...config, [key]: value } } });
 
@@ -183,6 +186,37 @@ export function NodeConfigPanel({
           value={node.data.description ?? ""}
           onChange={(e) => setDescription(e.target.value)}
         />
+      </div>
+
+      {/* Run narration. Node-level and kind-agnostic, so it sits with label and
+          description rather than in the kind's configSchema — any node can
+          announce itself, and no kind should have to opt in to be allowed to.
+          Left blank on most nodes by design: narrating every step buries the
+          two or three a person actually follows. */}
+      <div className="ff-panel__field">
+        <label className="ff-panel__label" htmlFor={fieldId("startingMsg")}>Message when it starts</label>
+        <input
+          id={fieldId("startingMsg")}
+          data-ff-field="startingMsg"
+          className="ff-panel__input"
+          value={(node.data.startingMsg as string) ?? ""}
+          onChange={(e) => setStatusMsg("startingMsg", e.target.value)}
+          placeholder="e.g. Starting the deep analysis"
+        />
+        <p className="ff-panel__hint">Announced just before this node runs. Leave blank to say nothing.</p>
+      </div>
+
+      <div className="ff-panel__field">
+        <label className="ff-panel__label" htmlFor={fieldId("stoppingMsg")}>Message when it finishes</label>
+        <input
+          id={fieldId("stoppingMsg")}
+          data-ff-field="stoppingMsg"
+          className="ff-panel__input"
+          value={(node.data.stoppingMsg as string) ?? ""}
+          onChange={(e) => setStatusMsg("stoppingMsg", e.target.value)}
+          placeholder="e.g. Analysis complete"
+        />
+        <p className="ff-panel__hint">Announced only if the node succeeds — never after a failure.</p>
       </div>
 
       {kind.renderPanel ? (

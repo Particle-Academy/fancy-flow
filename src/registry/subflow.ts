@@ -109,7 +109,10 @@ export const subflowExecutor: NodeExecutor = async (ctx) => {
 
   const result = await runFlow(
     child!,
-    (config.executors as never) ?? {},
+    // Inherit the parent's registry, then let the graph layer its own on top.
+    // The inherited half is the fix; the layered half keeps a graph that
+    // deliberately hands its child extra or different executors working.
+    { ...(ctx.executors ?? {}), ...((config.executors as Record<string, unknown>) ?? {}) } as never,
     forward,
     {
       initialInputs: (config.inputs as Record<string, Record<string, unknown>>) ?? {

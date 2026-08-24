@@ -155,6 +155,7 @@ export async function runFlow(
       }
 
       onEvent({ type: "node-status", nodeId: node.id, status: "running" });
+      announce(onEvent, node, "start");
 
       const inputs = collectInputs(node, incoming, portValues, initialInputs);
       const exec = pickExecutor(executors, node);
@@ -173,6 +174,7 @@ export async function runFlow(
             inputs,
             abort: (reason) => { throw new Error(reason ?? "aborted"); },
             emit: onEvent,
+            executors,
             depth,
             run,
           }),
@@ -190,6 +192,11 @@ export async function runFlow(
         }
         completed.add(node.id);
         onEvent({ type: "node-status", nodeId: node.id, status: "done" });
+        // Only on the success path, and deliberately so: a `stoppingMsg` of
+        // "Analysis complete" emitted after a throw tells a human the opposite
+        // of what happened, in the part of the UI they trust most. A failure
+        // reports through node-status/log, which is what those exist for.
+        announce(onEvent, node, "end");
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         errors.push(msg);
@@ -317,4 +324,32 @@ function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; val
   const kind = getNodeKind((node.data as any)?.kind ?? node.type ?? "") ?? undefined;
   const declared = resolveNodePorts(node, kind).outputs?.map((p) => p.id);
   return { ports: declared?.length ? declared : ["out"], value: result };
+}
+
+/**
+ * Emit a node's own status message for one phase of its execution, if it
+ * declared one.
+ *
+ * Opt-in by absence: a node with no `startingMsg` / `stoppingMsg` says nothing,
+ * because most nodes in a real graph are plumbing and narrating all of them
+ * buries the two or three steps a person actually wants to follow.
+ *
+ * A message must be a non-empty string after trimming. An empty string is the
+ * shape a cleared editor field takes, and a blank line in a progress feed is
+ * indistinguishable from a real message that happens to render as nothing —
+ * so it is treated as "not set" rather than as "announce nothing visible".
+ */
+function announce(
+  onEvent: (event: RunEvent) => void,
+  node: FlowNode,
+  phase: "start" | "end",
+): void {
+  const data = node.data as { startingMsg?: unknown; stoppingMsg?: unknown } | undefined;
+  const raw = phase === "start" ? data?.startingMsg : data?.stoppingMsg;
+  if (typeof raw !== "string") return;
+
+  const message = raw.trim();
+  if (message === "") return;
+
+  onEvent({ type: "node-message", nodeId: node.id, phase, message });
 }

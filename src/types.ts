@@ -38,6 +38,23 @@ export type BaseNodeData = {
   status?: NodeRunStatus;
   /** Optional human-readable status detail (e.g. error message, current step). */
   statusText?: string;
+  /**
+   * Announced to a person just BEFORE this node runs — "Starting the deep
+   * analysis". Authored on the node, so a graph narrates itself without the
+   * host writing any per-node reporting code.
+   *
+   * Optional on purpose. Most nodes in a real graph are plumbing, and a run
+   * that narrates all of them buries the two or three steps anyone follows.
+   */
+  startingMsg?: string;
+  /**
+   * Announced AFTER this node finishes — "Analysis complete".
+   *
+   * Emitted only when the node SUCCEEDS. A completion message printed after a
+   * failure tells a human the opposite of what happened, in the part of the UI
+   * they trust most; failures report through `node-status` and `log`.
+   */
+  stoppingMsg?: string;
   /** Per-node accent override, e.g. for theming a custom subclass. */
   color?: string;
   /** Input ports rendered on the node. Defaults vary by kind. */
@@ -86,6 +103,21 @@ export type NodeExecutor<TIn = Record<string, unknown>, TOut = unknown> = (
     /** Lets the executor stream status updates and partial outputs. */
     emit: (event: RunEvent) => void;
     /**
+     * The registry THIS run is executing against.
+     *
+     * Handed down so an executor that starts a NESTED run gives the child the
+     * same executors as the parent. `subflow` previously ran its child against
+     * `config.executors ?? {}` — an empty registry unless the graph happened to
+     * carry one — so a host kind resolved at top level and vanished one level
+     * down, and a host that had REPLACED a builtin got the package's version in
+     * the child. Same graph, different behaviour by nesting depth, reported
+     * against the PHP twin as fancy-flow-php#7.
+     *
+     * Inheriting from the context rather than from a parameter is what makes it
+     * unforgettable: any future nesting executor gets it without opting in.
+     */
+    executors?: ExecutorRegistry;
+    /**
      * How deep this run is nested. 0 for a top-level run; `subflow` passes
      * depth + 1 to its child, so runaway recursion can be reported by name
      * rather than as a stack overflow.
@@ -110,6 +142,19 @@ export type ExecutorRegistry = Partial<Record<FlowNodeKind | string, NodeExecuto
 
 export type RunEvent =
   | { type: "node-status"; nodeId: string; status: NodeRunStatus; text?: string }
+  /**
+   * A human-facing announcement a node makes around its own execution, from
+   * `data.startingMsg` / `data.stoppingMsg`. Opt-in per node: most nodes in a
+   * real graph are plumbing, and narrating all of them buries the few steps a
+   * person cares about.
+   *
+   * Deliberately NOT folded into `node-status.text`, which already carries
+   * "skipped", "resumed", "lane", "annotation" and raw error strings. Those are
+   * diagnostics; these are addressed to a person. A consumer rendering a
+   * progress feed cannot be asked to guess which is which — that is how an
+   * error string ends up shown to a user as a status update.
+   */
+  | { type: "node-message"; nodeId: string; phase: "start" | "end"; message: string }
   | { type: "node-output"; nodeId: string; portId: string; value: unknown }
   | { type: "log"; nodeId?: string; level: "info" | "warn" | "error"; message: string; detail?: unknown }
   | { type: "run-start" }
