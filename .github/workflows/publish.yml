@@ -31,7 +31,26 @@ jobs:
             echo "::error::CHANGELOG.md has no entry for ${VERSION}. Add one — say what a consumer must DO — then re-tag."
             exit 1
           fi
-          echo "Found changelog entry for ${VERSION}."
+          # ORDER, not just presence. The check above asks only whether a
+          # heading exists SOMEWHERE. fancy-flow's changelog had four sections
+          # inserted ABOVE the [Unreleased] marker, so everything appended
+          # since -- including 0.49.0 -- landed below them, and reading
+          # top-down showed 0.48.1 as newest. That PASSED the presence check.
+          #
+          # A consumer deciding whether to upgrade reads top-down. Complete but
+          # mis-ordered is a truthful-looking lie, and it is invisible to
+          # whoever wrote it, because they are looking at their own entry
+          # rather than at the file.
+          FIRST=$(grep -E '^## ' CHANGELOG.md                   | grep -viE '^## +\[?unreleased\]?'                   | head -1)
+
+          if ! printf '%s' "$FIRST" | grep -qE "^## +\[?v?${VERSION}\]?"; then
+            echo "::error::CHANGELOG.md has an entry for ${VERSION}, but it is NOT the first version heading."
+            echo "::error::Top of file is: ${FIRST}"
+            echo "::error::Move this release above the older entries, then re-tag."
+            exit 1
+          fi
+
+          echo "Found changelog entry for ${VERSION}, and it is the newest."
 
       # Release gate: third-party dependencies must be approved and still
       # maintained BEFORE the tarball reaches the registry. Once it is
