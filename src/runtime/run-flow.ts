@@ -30,6 +30,37 @@ export type RunOptions = {
    * `graph.inputs`, so a misspelling fails the run instead of sitting unread.
    */
   props?: Record<string, unknown>;
+  /**
+   * Which ENTRY POINTS are live — the ids of nodes with NO incoming edges this
+   * run should start from. Omit it and every entry point runs, exactly as
+   * before the option existed.
+   *
+   * A graph may hold more than one trigger — a `manual_trigger` for
+   * hand-testing beside the event trigger that runs it for real — and a trigger
+   * has no inbound edges, which IS the readiness rule. So without this, every
+   * trigger's branch runs on every run, whichever one fired. The triggers
+   * themselves are harmless; everything DOWNSTREAM of the ones that did not
+   * fire is not. A `user_input` stranded on the manual branch parks an
+   * event-driven run to ask a person for data the event already supplied,
+   * which from outside looks like the event trigger being ignored.
+   *
+   * Naming the live entry points makes the others INACTIVE, and the existing
+   * "at least one active inbound edge" rule then skips everything reachable
+   * only from them. No new routing logic.
+   *
+   * Three edges, each pinned by `flow/entry-points` in
+   * `@particle-academy/fancy-conformance`:
+   *  - `undefined` is NOT `[]`. Unset runs every entry point; an empty array
+   *    says none is live and runs nothing.
+   *  - A node reachable from SEVERAL entry points still runs when any one of
+   *    them fires — one active inbound edge is enough, as always.
+   *  - Naming a node that HAS inbound edges names no entry point, so every real
+   *    entry is inactive and nothing runs. That falls out of the rule rather
+   *    than being special-cased; validate your ids if you want a typo to be
+   *    loud, because the runtime cannot tell one from a deliberate empty
+   *    selection.
+   */
+  entryNodes?: string[];
   /** Nesting depth — set by `subflow` when it runs a child graph. */
   depth?: number;
   /**
@@ -81,7 +112,7 @@ export async function runFlow(
   onEvent: (event: RunEvent) => void = () => {},
   options: RunOptions = {},
 ): Promise<RunResult> {
-  const { signal, initialInputs = {}, timeoutMs, depth = 0, resumeOutputs = {} } = options;
+  const { signal, initialInputs = {}, timeoutMs, depth = 0, resumeOutputs = {}, entryNodes } = options;
   const run = options.run === undefined ? undefined : RunIdentity.from(options.run);
   const outputs: Record<string, unknown> = {};
   const portValues = new Map<string, unknown>(); // key: `${nodeId}:${portId}`
@@ -141,6 +172,21 @@ export async function runFlow(
       }
 
       const incoming = incomingByNode.get(node.id) ?? [];
+
+      // An ENTRY POINT this run did not start from is inactive.
+      //
+      // A node with no inbound edges is unconditionally ready -- that IS the
+      // readiness rule -- so a graph with two triggers ran both branches on
+      // every run, whichever trigger actually fired. Marking the unnamed ones
+      // inactive here lets the "at least one active inbound edge" test below
+      // skip everything reachable only from them, with no new routing logic.
+      //
+      // Gates only nodes with NO incoming edges: a node further down the graph
+      // is not an entry point, and its readiness is still decided by its edges.
+      if (incoming.length === 0 && entryNodes !== undefined && !entryNodes.includes(node.id)) {
+        onEvent({ type: "node-status", nodeId: node.id, status: "idle", text: "skipped" });
+        continue;
+      }
 
       // Run a node once any upstream branch reaches it. We iterate in
       // topological order, so by the time we reach this node every upstream
