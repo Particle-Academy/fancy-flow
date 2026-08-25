@@ -12,6 +12,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.1] - 2026-08-25
+
+### Fixed
+
+- **An executor keyed by a kind's NAMESPACED id did not resolve when the node
+  carried an unrecognised `data.kind`.** `resolveKindId("manual_trigger")`
+  returns `@particle-academy/manual_trigger`, so keying a registry by what that
+  function hands you is the natural thing to do — and it was the one spelling
+  that failed. Only the bare name worked.
+
+  `pickExecutor` resolves a kind NAME (`data.kind ?? node.type`) and then tries
+  every id that kind answers to. Both halves were right; the bug was committing
+  to ONE name. A node typed `manual_trigger` carrying
+  `data: { kind: "trigger" }` — a category label rather than a kind id, which is
+  easy to write and says nothing false — made `getNodeKind("trigger")` return
+  null, so the alias loop never ran and `node.type`'s aliases were never tried.
+
+  Both names are now resolved. `data.kind` is still preferred; it no longer
+  silently disables the fallback.
+
+- **The failure now names the ids it LOOKED FOR.** It said
+  `No executor registered for kind=<node.type>`, so a mis-keyed registry
+  reported a kind as missing when it existed and was registered under one of its
+  other ids. It now lists every key it tried and the wildcard, and a test
+  asserts each listed id genuinely resolves — an error naming keys that were
+  never checked is worse than one naming none.
+
+  Reported by an outside consumer building a trading advisory system, who noted
+  it read as a missing package rather than a mis-keyed one. It nearly escaped a
+  second time: my first repro used `data: {}`, which falls back to `node.type`
+  and passes, so I reported it as not reproducible. Their exact graph caught it.
+
 ## [0.51.0] - 2026-08-25
 
 ### Added

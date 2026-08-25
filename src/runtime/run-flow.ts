@@ -184,7 +184,17 @@ export async function runFlow(
       const inputs = collectInputs(node, incoming, portValues, initialInputs, props, declaresProps);
       const exec = pickExecutor(executors, node);
       if (!exec) {
-        const msg = `No executor registered for kind=${node.type}`;
+        // Name what was LOOKED FOR, not just what the node calls itself.
+        //
+        // This said `kind=${node.type}` — so a registry keyed under one of the
+        // kind's other ids produced "kind=manual_trigger is missing" about a
+        // kind that exists AND is registered, just under a different key. The
+        // consumer who reported it reasonably read that as the kind being
+        // absent and went looking for a missing package.
+        const tried = executorLookupIds(node);
+        const msg = `No executor registered for kind=${node.type}`
+          + ` — tried ${tried.map((id) => `"${id}"`).join(", ")}`
+          + ` and the wildcard "*". Key your registry by one of those.`;
         errors.push(msg);
         onEvent({ type: "node-status", nodeId: node.id, status: "error", text: msg });
         onEvent({ type: "log", nodeId: node.id, level: "error", message: msg });
@@ -363,6 +373,30 @@ function collectInputs(
   return inputs;
 }
 
+/**
+ * Every key a node's executor may legitimately be registered under, in order.
+ *
+ * Shared by the lookup and by its failure message on purpose: an error that
+ * lists ids the lookup did not actually try is worse than one that lists none,
+ * because it sends the reader to check something that was never checked.
+ */
+function executorLookupIds(node: FlowNode): string[] {
+  const ids: string[] = [node.id];
+  if (node.type) ids.push(node.type);
+
+  const declared = (node.data as { kind?: unknown } | undefined)?.kind;
+  const kindName = typeof declared === "string" && declared !== "" ? declared : node.type;
+  if (kindName && kindName !== node.type) ids.push(kindName);
+
+  for (const name of [kindName, node.type]) {
+    const kind = name ? getNodeKind(name) : null;
+    if (!kind) continue;
+    for (const id of kindIds(kind)) ids.push(id);
+  }
+
+  return [...new Set(ids)];
+}
+
 function pickExecutor(
   executors: ExecutorRegistry,
   node: FlowNode,
@@ -390,8 +424,23 @@ function pickExecutor(
   // — or vice versa. Without this, the rename would silently stop matching and
   // the node would fall through to `*` or simply not run: a breaking change
   // wearing the costume of a rename.
-  const kind = kindName ? getNodeKind(kindName) : null;
-  if (kind) {
+  //
+  // BOTH names are resolved, not just whichever won above, and that was a bug.
+  // This committed to `kindName` alone — so a node carrying a `data.kind` the
+  // registry does not know (a category label like `"trigger"` rather than a
+  // kind id, which is easy to write and says nothing false) got
+  // `getNodeKind() === null`, the loop never ran, and `node.type`'s aliases
+  // were never tried even though `node.type` named a real kind.
+  //
+  // The visible symptom was that the ONE spelling `resolveKindId()` hands you
+  // — the namespaced id — was the one that failed, while the bare name worked.
+  // Reported by a consumer who reasonably keyed their registry by the resolved
+  // id. `data.kind` is still preferred; it simply no longer silently disables
+  // the fallback.
+  for (const name of [kindName, node.type]) {
+    const kind = name ? getNodeKind(name) : null;
+    if (!kind) continue;
+
     for (const id of kindIds(kind)) {
       if (executors[id]) return executors[id];
     }
