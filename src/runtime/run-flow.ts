@@ -191,10 +191,14 @@ export async function runFlow(
         // kind that exists AND is registered, just under a different key. The
         // consumer who reported it reasonably read that as the kind being
         // absent and went looking for a missing package.
+        // The wildcard is part of `executorLookupIds` now, so it is already in
+        // the list — appending "and the wildcard" as well made the message name
+        // it twice, and the test that reads the ids back out of the message
+        // parsed the prose between the two quoted stars as an id.
         const tried = executorLookupIds(node);
         const msg = `No executor registered for kind=${node.type}`
           + ` — tried ${tried.map((id) => `"${id}"`).join(", ")}`
-          + ` and the wildcard "*". Key your registry by one of those.`;
+          + `. Key your registry by one of those.`;
         errors.push(msg);
         onEvent({ type: "node-status", nodeId: node.id, status: "error", text: msg });
         onEvent({ type: "log", nodeId: node.id, level: "error", message: msg });
@@ -374,25 +378,58 @@ function collectInputs(
 }
 
 /**
- * Every key a node's executor may legitimately be registered under, in order.
+ * Every key a node's executor may legitimately be registered under, in
+ * precedence order. **This is the resolution rule** — `pickExecutor` walks this
+ * list and takes the first hit, and the failure message lists the same ids.
  *
- * Shared by the lookup and by its failure message on purpose: an error that
- * lists ids the lookup did not actually try is worse than one that lists none,
- * because it sends the reader to check something that was never checked.
+ * That sharing is the point, and it used to be a claim rather than a fact: this
+ * docblock already said "shared by the lookup and by its failure message" while
+ * `pickExecutor` re-implemented the walk beside it. The two agreed until the
+ * precedence changed, and then the message listed an id the lookup no longer
+ * tried — sending a reader to check something that never happened, which the
+ * comment correctly named as worse than listing nothing. **Prose next to a check
+ * is not the check.** One list now, walked by both, so they cannot drift.
+ *
+ * The order, and why:
+ *
+ * 1. `node.id` — the per-node override. First so a graph can pin ONE node to a
+ *    stub without unbinding that kind for every other node using it.
+ * 2. `node.type`, then every id its kind answers to — **if `node.type` names a
+ *    registered kind, it is authoritative and `data.kind` is not consulted at
+ *    all.** A node that says it is an `llm_call` must never quietly run another
+ *    kind's code; it fails closed instead.
+ * 3. Otherwise `data.kind` and its kind's ids. A `node.type` naming no
+ *    registered kind is not a claim about behaviour — usually it is an xyflow
+ *    RENDERER type (`"fancyNode"`), which is ordinary practice, and then
+ *    `data.kind` is the only real answer. This branch also covers `type` absent.
+ * 4. `"*"` — the wildcard, last, and a sentinel rather than a kind: it is never
+ *    expanded through the alias machinery, or every unmatched node would bind to
+ *    whatever a kind literally named `*` aliased to.
+ *
+ * Pinned as `flow/executor-resolution` in `@particle-academy/fancy-conformance`.
  */
 function executorLookupIds(node: FlowNode): string[] {
   const ids: string[] = [node.id];
   if (node.type) ids.push(node.type);
 
-  const declared = (node.data as { kind?: unknown } | undefined)?.kind;
-  const kindName = typeof declared === "string" && declared !== "" ? declared : node.type;
-  if (kindName && kindName !== node.type) ids.push(kindName);
+  const typeKind = node.type ? getNodeKind(node.type) : null;
 
-  for (const name of [kindName, node.type]) {
-    const kind = name ? getNodeKind(name) : null;
-    if (!kind) continue;
-    for (const id of kindIds(kind)) ids.push(id);
+  if (typeKind) {
+    for (const id of kindIds(typeKind)) ids.push(id);
+  } else {
+    const declared = (node.data as { kind?: unknown } | undefined)?.kind;
+    const kindName = typeof declared === "string" && declared !== "" ? declared : null;
+
+    if (kindName) {
+      ids.push(kindName);
+      const dataKind = getNodeKind(kindName);
+      if (dataKind) {
+        for (const id of kindIds(dataKind)) ids.push(id);
+      }
+    }
   }
+
+  ids.push("*");
 
   return [...new Set(ids)];
 }
@@ -401,52 +438,14 @@ function pickExecutor(
   executors: ExecutorRegistry,
   node: FlowNode,
 ): NodeExecutor | undefined {
-  if (executors[node.id]) return executors[node.id];
-  if (node.type && executors[node.type]) return executors[node.type];
-
-  // `data.kind` is where a graph carries its kind when `type` is unset, and it
-  // is what EVERY other reader in this package consults -- the schema's own
-  // `kindName`, FlowViewer, FlowEditor, connection.ts, subflow-cycle.ts,
-  // use-flow-run.ts and `availableVariables` below all resolve
-  // `data.kind ?? node.type`. This lookup was the lone exception, so a registry
-  // keyed by kind simply never fired, and nothing said so: an unregistered kind
-  // fails closed with no outputs, which is the right default and exactly what
-  // makes the miss silent.
-  //
-  // `node.type` is still consulted FIRST -- it is the more specific statement,
-  // and preferring `data.kind` would silently re-point graphs that already work.
-  const declared = (node.data as { kind?: unknown } | undefined)?.kind;
-  const kindName = typeof declared === "string" && declared !== "" ? declared : node.type;
-  if (kindName && kindName !== node.type && executors[kindName]) return executors[kindName];
-
-  // Try every id the kind answers to. Kinds are namespaced (`@fancy/switch_case`)
-  // while a host may have bound its executor under the bare name it used before
-  // — or vice versa. Without this, the rename would silently stop matching and
-  // the node would fall through to `*` or simply not run: a breaking change
-  // wearing the costume of a rename.
-  //
-  // BOTH names are resolved, not just whichever won above, and that was a bug.
-  // This committed to `kindName` alone — so a node carrying a `data.kind` the
-  // registry does not know (a category label like `"trigger"` rather than a
-  // kind id, which is easy to write and says nothing false) got
-  // `getNodeKind() === null`, the loop never ran, and `node.type`'s aliases
-  // were never tried even though `node.type` named a real kind.
-  //
-  // The visible symptom was that the ONE spelling `resolveKindId()` hands you
-  // — the namespaced id — was the one that failed, while the bare name worked.
-  // Reported by a consumer who reasonably keyed their registry by the resolved
-  // id. `data.kind` is still preferred; it simply no longer silently disables
-  // the fallback.
-  for (const name of [kindName, node.type]) {
-    const kind = name ? getNodeKind(name) : null;
-    if (!kind) continue;
-
-    for (const id of kindIds(kind)) {
-      if (executors[id]) return executors[id];
-    }
+  // The whole rule lives in `executorLookupIds` -- see its docblock. Walking
+  // that one list is what keeps the resolution and the failure message from
+  // ever disagreeing about which keys were tried.
+  for (const id of executorLookupIds(node)) {
+    if (executors[id]) return executors[id];
   }
 
-  return executors["*"];
+  return undefined;
 }
 
 function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; value: unknown } {

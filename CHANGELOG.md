@@ -12,6 +12,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-08-25
+
+### Fixed
+
+- **A node could run the WRONG executor, silently.** When `node.type` and
+  `data.kind` named two different registered kinds, the alias step resolved
+  `data.kind`'s ids **first** — so this graph:
+
+  ```js
+  { id: "n1", type: "llm_call", data: { kind: "output" } }
+  // executors: { "@particle-academy/llm_call": …, "@particle-academy/output": … }
+  ```
+
+  ran the **output** executor. Note what that means: the correct executor was
+  registered, under the node's own declared kind, and sat there unused.
+
+  Nothing reported it and nothing could — running the wrong executor and running
+  the right one look identical from outside, because the graph still completes
+  and still produces a value. It surfaced only when the shared table was written.
+
+  **The rule now: `node.type` is authoritative when it names a registered kind,**
+  and `data.kind` does not contribute. Otherwise `data.kind` decides — which
+  keeps the ordinary xyflow pattern working, where `type` is a RENDERER name
+  (`"fancyNode"`) and the real kind travels in `data`.
+
+### Changed
+
+- **BREAKING (narrow): a node whose `type` names a registered kind no longer
+  falls back to `data.kind`.** It fails closed instead — which is the fix above.
+
+  **What to do: almost certainly nothing.** This only changes behaviour when
+  `type` and `data.kind` disagree *and* `type` names a real kind — and in that
+  situation you were getting the other kind's executor, so any graph relying on
+  it was relying on the bug. Everything else is untouched: `data.kind` with no
+  `type`, `data.kind` with a renderer `type`, per-node id bindings, alias
+  resolution in both directions, and the `*` fallback all behave exactly as
+  before, each pinned by a row in the shared table.
+
+  If you *were* depending on `data.kind` overriding a real kind in `type`, set
+  `type` to the kind you actually want, or use a per-node binding keyed by the
+  node's id — which has always taken precedence over both.
+
+- **The resolution order and the failure message are now ONE list.**
+  `executorLookupIds` is the rule, and `pickExecutor` walks it. Its docblock
+  already claimed the two were shared while `pickExecutor` re-implemented the
+  walk beside it; they agreed until the precedence changed, and then the error
+  named an id the lookup no longer tried. The existing
+  *"the ids the message lists are the ids the lookup actually tries"* test caught
+  it. Prose next to a check is not the check.
+
+  The message no longer says `and the wildcard "*"` as a suffix, because `"*"`
+  is now part of the list it prints. If you were regex-matching that exact
+  phrase, match the quoted ids instead.
+
+### Added
+
+- **`flow/executor-resolution` is run here**, from
+  `@particle-academy/fancy-conformance` — 14 rows over the
+  `node id → kind → *` order, alias resolution in both directions, and failing
+  closed. The `0200` rows are skipped for the PHP and Python twins on a
+  structural ground stated per row: their `FlowNode` is flattened, with no `data`
+  slot for a second opinion, so the precedence question cannot arise there.
+
+- **`flow/workflow-props` is run here too — it never was.**
+  `src/runtime/workflow-props.ts` said in its own docblock that this suite "is
+  the table all three run"; the PHP and Python twins ran it and this side did
+  not, so the runtime whose behaviour the goldens describe was the one runtime
+  not checked against them. The implementation turned out to be correct; it was
+  simply unverified. No behaviour changed.
+
+- The `@particle-academy/fancy-conformance` devDependency moved `^0.4.0` →
+  `^0.12.0`. A caret on a `0.x` range locks the MINOR, so the pin sat eight
+  releases back while looking deliberate — and the suites added since were not
+  in the installed tarball at all, which is why the test above could not have
+  been written.
+
 ## [0.51.1] - 2026-08-25
 
 ### Fixed
