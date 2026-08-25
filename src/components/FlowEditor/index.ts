@@ -11,6 +11,9 @@ export {
   type HumanFieldType,
   type HumanFieldOption,
   type HumanPromptRequest,
+  type HumanFieldRenderContext,
+  type HumanFieldRenderFn,
+  type HumanFieldRenderers,
 } from "./HumanPrompt";
 export {
   useFlowEditor,

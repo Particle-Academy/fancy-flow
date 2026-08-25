@@ -52,7 +52,12 @@ import {
   type FlowEditorBuiltins,
   type FlowEditorSlots,
 } from "./api";
-import { HumanPrompt, humanInputFields, type HumanPromptRequest } from "./HumanPrompt";
+import {
+  HumanPrompt,
+  humanInputFields,
+  type HumanFieldRenderers,
+  type HumanPromptRequest,
+} from "./HumanPrompt";
 
 export type FlowEditorProps = {
   initial?: FlowGraph;
@@ -61,6 +66,17 @@ export type FlowEditorProps = {
   value?: FlowGraph;
   /** Executor registry passed to runFlow. Each kind name maps to an executor. */
   executors?: ExecutorRegistry;
+  /**
+   * Host controls for the `user_input` / `human_approval` pause form, keyed by
+   * canonical field type. A renderer returning `null` declines that field and
+   * falls through to the built-in, so a PARTIAL map is safe to spread.
+   *
+   * The built-ins are native `--ff-*`-themed elements because react-fancy is an
+   * OPTIONAL peer and this component ships in the main entry. A host that has
+   * react-fancy opts into its primitives with
+   * `humanFieldRenderers` from `@particle-academy/fancy-flow/fields/react-fancy`.
+   */
+  humanFieldRenderers?: HumanFieldRenderers;
   /** Saved metadata for export. */
   metadata?: WorkflowMetadata;
   /** Show the palette sidebar. Default true. */
@@ -158,6 +174,7 @@ function FlowEditorInner({
   onDelete,
   onEdgeDelete,
   confirmDelete,
+  humanFieldRenderers,
   apiRef,
 }: FlowEditorProps & { apiRef?: React.ForwardedRef<FlowEditorApi> }) {
   const internal = useFlowState(initial);
@@ -794,7 +811,13 @@ function FlowEditorInner({
         )}
         {showFeed &&
           (slots.feed ? slots.feed(api) : <FlowRunFeed entries={runner.feed} running={api.running} className="ff-editor__feed" />)}
-        {prompt && <HumanPrompt request={prompt} onCancel={() => { setPrompt(null); runner.cancel(); }} />}
+        {prompt && (
+          <HumanPrompt
+            request={prompt}
+            onCancel={() => { setPrompt(null); runner.cancel(); }}
+            fieldRenderers={humanFieldRenderers}
+          />
+        )}
       </div>
       {showPanel &&
         (slots.panel ? (

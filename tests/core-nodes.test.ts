@@ -448,11 +448,21 @@ describe("the /engine entry stays React-free", () => {
     expect(source).not.toMatch(/@xyflow\/react/);
   });
 
+  // 30s, not the default 5s: this test `await import()`s a large module graph,
+  // and vitest's timeout covers the TRANSFORM of everything that graph pulls in
+  // on a cold cache. Under parallel load that has been measured at well over
+  // five seconds here, so the default made this fail as
+  // `Test timed out in 5000ms` -- never as an assertion.
+  //
+  // That failure mode is the reason for the explicit number rather than a
+  // re-run: a timeout is indistinguishable from a real failure in CI, and a red
+  // build that goes green on retry is how a suite stops being trusted. The
+  // bound still exists, it is just set to something a cold transform can meet.
   it("exports the registry functions a headless package needs", async () => {
     const engine = await import("../src/engine");
 
     for (const name of ["registerNodeKind", "getNodeKind", "kindIds", "listNodeKinds", "defaultConfigFor"]) {
       expect(engine).toHaveProperty(name);
     }
-  });
+  }, 30_000);
 });

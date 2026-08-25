@@ -1,5 +1,40 @@
 import { useEffect, useId, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { HumanField, HumanFieldType } from "./human-fields";
+
+/** What a host renderer is handed for one field. */
+export type HumanFieldRenderContext = {
+  field: HumanField;
+  /** The id the field's `<label>` points at — put it on your control. */
+  id: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  /** Present only on the first field; attach it so the modal autofocuses. */
+  autoFocusRef?: React.RefObject<HTMLElement | null>;
+};
+
+/**
+ * Render one field, or return `null` to decline it.
+ *
+ * `null` means "not mine" and falls through to the built-in control. That is
+ * what makes a PARTIAL map safe to spread: a host handing over someone else's
+ * renderers does not silently lose every type that map does not cover.
+ */
+export type HumanFieldRenderFn = (ctx: HumanFieldRenderContext) => ReactNode | null;
+
+/**
+ * Host overrides for pause-form controls, keyed by CANONICAL field type
+ * (`"switch"`, not `"boolean"` — aliases are normalised before the lookup, so
+ * one entry covers every spelling of that type).
+ *
+ * The built-ins are deliberately native `--ff-*`-themed elements rather than
+ * react-fancy primitives: react-fancy is an OPTIONAL peer and this modal ships
+ * in the main entry, so importing it here would break a standalone install and
+ * bypass the token layer a host themes `.ff-editor` with. This seam is how a
+ * host that HAS react-fancy gets Fancy controls anyway —
+ * `@particle-academy/fancy-flow/fields/react-fancy` exports a ready map.
+ */
+export type HumanFieldRenderers = Partial<Record<HumanFieldType, HumanFieldRenderFn>>;
 
 /** What the modal was asked to collect — a form, or a yes/no decision. */
 export type HumanPromptRequest =
@@ -75,7 +110,15 @@ function initialValues(fields: HumanField[]): Record<string, unknown> {
  * it likes. Host executors are spread last, so they win.
  */
 
-export function HumanPrompt({ request, onCancel }: { request: HumanPromptRequest; onCancel: () => void }) {
+export function HumanPrompt({
+  request,
+  onCancel,
+  fieldRenderers,
+}: {
+  request: HumanPromptRequest;
+  onCancel: () => void;
+  fieldRenderers?: HumanFieldRenderers;
+}) {
   const firstRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     firstRef.current?.focus();
@@ -91,7 +134,7 @@ export function HumanPrompt({ request, onCancel }: { request: HumanPromptRequest
         {request.kind === "approval" ? (
           <ApprovalBody request={request} onCancel={onCancel} />
         ) : (
-          <InputBody request={request} onCancel={onCancel} firstRef={firstRef} />
+          <InputBody request={request} onCancel={onCancel} firstRef={firstRef} fieldRenderers={fieldRenderers} />
         )}
       </div>
     </div>
@@ -115,10 +158,12 @@ function InputBody({
   request,
   onCancel,
   firstRef,
+  fieldRenderers,
 }: {
   request: Extract<HumanPromptRequest, { kind: "input" }>;
   onCancel: () => void;
   firstRef: React.RefObject<HTMLElement | null>;
+  fieldRenderers?: HumanFieldRenderers;
 }) {
   const [values, setValues] = useState<Record<string, unknown>>(() => initialValues(request.fields));
   const set = (k: string, v: unknown) => setValues((prev) => ({ ...prev, [k]: v }));
@@ -152,6 +197,7 @@ function InputBody({
               value={values[f.key]}
               onChange={(v) => set(f.key, v)}
               autoFocusRef={i === 0 ? firstRef : undefined}
+              renderers={fieldRenderers}
             />
           </div>
         ))}
@@ -180,13 +226,25 @@ function FieldControl({
   value,
   onChange,
   autoFocusRef,
+  renderers,
 }: {
   field: HumanField;
   id: string;
   value: unknown;
   onChange: (v: unknown) => void;
   autoFocusRef?: React.RefObject<HTMLElement | null>;
+  renderers?: HumanFieldRenderers;
 }) {
+  // A host override wins, but only if it actually renders something. `null`
+  // is the documented way to decline a field, so a partial map falls through
+  // to the built-in below instead of leaving an empty row where a control
+  // belongs -- which would read as a rendering bug rather than a seam working.
+  const override = renderers?.[field.type ?? "text"];
+  if (override) {
+    const rendered = override({ field, id, value, onChange, autoFocusRef });
+    if (rendered !== null && rendered !== undefined) return <>{rendered}</>;
+  }
+
   const handle = { id, "data-ff-field": field.key } as const;
 
   if (field.type === "textarea") {

@@ -12,6 +12,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-08-25
+
+### Added
+
+- **`humanFieldRenderers` — opt into react-fancy controls in the pause form.**
+  A new `<FlowEditor humanFieldRenderers={…}>` prop, keyed by canonical field
+  type, with a ready map exported from
+  `@particle-academy/fancy-flow/fields/react-fancy`:
+
+  ```tsx
+  import { humanFieldRenderers } from "@particle-academy/fancy-flow/fields/react-fancy";
+
+  <FlowEditor … humanFieldRenderers={humanFieldRenderers} />
+  ```
+
+  A renderer returning `null` **declines** that field and falls through to the
+  built-in, so a partial map is safe to spread — the same convention the config
+  panel's `fieldRenderers` already uses.
+
+  **Why this is opt-in rather than the default.** react-fancy is an OPTIONAL
+  peer and `HumanPrompt` ships in the main entry, so importing it there would
+  make a standalone `npm install @particle-academy/fancy-flow` fail to resolve
+  at import time, and would bypass the `--ff-*` token layer hosts theme
+  `.ff-editor` with. The built-ins stay native and themed; nobody who does not
+  want react-fancy pays for it. Purely additive — **existing code needs no
+  change.**
+
+  Two types are deliberately NOT claimed by the shipped map, each for its own
+  stated reason: `datetime`, because react-fancy's `DatePicker` is date-only and
+  would silently drop the time half of the value; and `time`, because
+  `TimePickerProps` is a closed interface of nine props with **no `id` and no
+  `data-*` passthrough**, so it cannot carry the two handles every control in
+  this form owes — the `id` its `<label htmlFor>` points at, and the
+  `data-ff-field` an agent drives the surface by. Both fall through to built-ins
+  that do carry them. The `TimePicker` half is a **react-fancy finding**, not a
+  fancy-flow limitation.
+
+### Fixed
+
+- **Two tests could fail as `Test timed out in 5000ms` under parallel load.**
+  `core-nodes` and `rich-input` each `await import()` a large module graph, and
+  vitest's timeout covers the cold TRANSFORM of everything that graph pulls in —
+  measured well past five seconds on a loaded machine. Both now declare 30s
+  explicitly, with the reason at the call site.
+
+  Worth fixing rather than re-running: a timeout is indistinguishable from a
+  real failure in CI, and a red build that goes green on retry is how a suite
+  stops being trusted. Found independently twice in one session, by two people
+  who were not looking for it.
+
 ## [0.53.0] - 2026-08-25
 
 ### Added

@@ -87,6 +87,16 @@ describe("rich_user_input node kind", () => {
 });
 
 describe("fancy-cms wiring (/rich-input entry)", () => {
+  // 30s, not the default 5s: this test `await import()`s a large module graph,
+  // and vitest's timeout covers the TRANSFORM of everything that graph pulls in
+  // on a cold cache. Under parallel load that has been measured at well over
+  // five seconds here, so the default made this fail as
+  // `Test timed out in 5000ms` -- never as an assertion.
+  //
+  // That failure mode is the reason for the explicit number rather than a
+  // re-run: a timeout is indistinguishable from a real failure in CI, and a red
+  // build that goes green on retry is how a suite stops being trusted. The
+  // bound still exists, it is just set to something a cold transform can meet.
   it("registers fancy-cms as the document engine on import", async () => {
     const mod = await import("../src/rich-input");
     // Importing the entry self-registers — a host writes one import line.
@@ -96,7 +106,7 @@ describe("fancy-cms wiring (/rich-input entry)", () => {
     expect(a.renderEditor).toBeTypeOf("function");
     expect(a.FauxClient).toBeTruthy();
     dispose = mod.useFancyCmsForRichInput();
-  });
+  }, 30_000);
 
   it("builds an empty doc that is a real fancy-cms PageDoc", async () => {
     const { emptyRichInputDoc, isPageDoc } = await import("../src/rich-input");
