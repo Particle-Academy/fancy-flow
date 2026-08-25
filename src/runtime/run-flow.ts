@@ -12,6 +12,7 @@ import type {
 import { getNodeKind, kindIds } from "../registry/registry";
 import { resolveNodePorts } from "../registry/ports";
 import { RunIdentity, type RunIdentityJson } from "./run-identity";
+import { resolveWorkflowProps } from "./workflow-props";
 
 export type RunOptions = {
   /** Stop the run after this many ms. Default: no timeout. */
@@ -20,6 +21,15 @@ export type RunOptions = {
   signal?: AbortSignal;
   /** Initial inputs supplied to entry-point nodes (no incoming edges). */
   initialInputs?: Record<string, Record<string, unknown>>;
+  /**
+   * Values for the inputs the graph DECLARES, passed by name.
+   *
+   * The flat, node-id-free way to configure a run. `initialInputs` is keyed by
+   * node id, so a caller had to know the trigger was called `t` and a rename
+   * broke every caller while the graph stayed valid. Props are checked against
+   * `graph.inputs`, so a misspelling fails the run instead of sitting unread.
+   */
+  props?: Record<string, unknown>;
   /** Nesting depth — set by `subflow` when it runs a child graph. */
   depth?: number;
   /**
@@ -87,6 +97,20 @@ export async function runFlow(
     onEvent({ type: "run-error", error: msg });
     return { ok: false, outputs, error: msg };
   }
+
+  // Props are checked BEFORE anything runs, and a failure aborts the run.
+  //
+  // Before a node executes, not after: a workflow whose third node needed a
+  // value the caller misspelled would otherwise do two nodes' worth of real
+  // work — sending, writing, charging — and only then discover the call was
+  // malformed. Validation that happens after a side effect is not validation.
+  const propsCheck = resolveWorkflowProps(graph.inputs, options.props);
+  if (!propsCheck.ok) {
+    onEvent({ type: "run-error", error: propsCheck.error });
+    return { ok: false, outputs, error: propsCheck.error };
+  }
+  const props = propsCheck.props;
+  const declaresProps = (graph.inputs?.length ?? 0) > 0;
 
   const incomingByNode = indexIncoming(graph.edges);
   const timer = timeoutMs ? setTimeout(() => errors.push(`Run timed out after ${timeoutMs}ms`), timeoutMs) : null;
@@ -157,7 +181,7 @@ export async function runFlow(
       onEvent({ type: "node-status", nodeId: node.id, status: "running" });
       announce(onEvent, node, "start");
 
-      const inputs = collectInputs(node, incoming, portValues, initialInputs);
+      const inputs = collectInputs(node, incoming, portValues, initialInputs, props, declaresProps);
       const exec = pickExecutor(executors, node);
       if (!exec) {
         const msg = `No executor registered for kind=${node.type}`;
@@ -251,8 +275,25 @@ function collectInputs(
   incoming: FlowEdge[],
   portValues: Map<string, unknown>,
   initial: Record<string, Record<string, unknown>>,
+  props: Record<string, unknown>,
+  declaresProps: boolean,
 ): Record<string, unknown> {
   const inputs: Record<string, unknown> = { ...(initial[node.id] ?? {}) };
+
+  // ENTRY POINTS are seeded with the props by their bare names.
+  //
+  // This is what lets an existing graph keep working unchanged. A trigger that
+  // reads `{{ topic }}` was fed by `initialInputs[triggerId].topic`; a caller
+  // moving to props passes `{ topic }` and the node sees exactly what it saw
+  // before. Only entry points, because a node in the middle of a graph reading
+  // a bare `topic` would be shadowing whatever its upstream edge is called.
+  //
+  // Never clobbers: a value already seeded by the host is the host's.
+  if (incoming.length === 0) {
+    for (const [name, value] of Object.entries(props)) {
+      if (!(name in inputs)) inputs[name] = value;
+    }
+  }
   for (const e of incoming) {
     const portId = e.targetHandle ?? "in";
     const key = `${e.source}:${e.sourceHandle ?? "out"}`;
@@ -291,6 +332,34 @@ function collectInputs(
       inputs[e.source] = portValues.get(key);
     }
   }
+
+  // EVERY node gets `$props` — but ONLY when the workflow declares inputs.
+  //
+  // The first half is what makes props usable at depth. Seeding entry points
+  // alone would mean a node six hops downstream had the value threaded through
+  // every edge in between, and every hop is somewhere it can be dropped. It
+  // costs nothing to resolve because `$props` is an ORDINARY KEY in the inputs
+  // object: `resolvePath` already walks dot-paths against it, so
+  // `{{ $props.topic }}` works with no change to any expression resolver in any
+  // of the three runtimes.
+  //
+  // The second half is a CORRECTION, and the golden parity fixtures caught it.
+  // An earlier draft wrote `$props` unconditionally, justified as "so
+  // `{{ $props.x }}` resolves to null rather than throwing" — which is not
+  // true. `resolvePath` returns null for any unresolvable path, so on a graph
+  // declaring nothing the key changes no behaviour at all. What it DOES do is
+  // add a key to every executor's inputs, on every graph, forever — which
+  // showed up instantly as a diff in every stored golden.
+  //
+  // `ConnectorFacet::from` states the same rule for the same reason: a payload
+  // gaining a key on every entry is a wire change for no gain, and the ABSENCE
+  // of a key is already the honest way to say "this one takes no props".
+  //
+  // Keyed on the DECLARATION rather than on whether a value arrived: a workflow
+  // whose inputs are all optional and all omitted still declared a contract, so
+  // `$props` is present and empty.
+  if (declaresProps) inputs.$props = props;
+
   return inputs;
 }
 

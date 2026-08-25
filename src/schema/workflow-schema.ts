@@ -1,4 +1,4 @@
-import type { FlowEdge, FlowGraph, FlowNode, PortDescriptor } from "../types";
+import type { FlowEdge, FlowGraph, FlowNode, PortDescriptor, WorkflowInput } from "../types";
 import { defaultConfigFor, getNodeKind, validateConfig } from "../registry/registry";
 import { resolveNodePorts } from "../registry/ports";
 
@@ -10,6 +10,17 @@ export type WorkflowSchema = {
   $schema: typeof WORKFLOW_SCHEMA_URL;
   version: typeof WORKFLOW_SCHEMA_VERSION;
   metadata?: WorkflowMetadata;
+  /**
+   * What this workflow accepts at run start, passed BY NAME.
+   *
+   * Lives beside `graph` rather than inside it because it describes the
+   * workflow's CONTRACT, not its topology: a caller reads this to know what to
+   * pass, and reading it should not mean walking nodes looking for a trigger.
+   *
+   * Omitted entirely when a workflow takes none, so every existing saved
+   * document is unchanged byte for byte.
+   */
+  inputs?: WorkflowInput[];
   graph: {
     nodes: WorkflowSchemaNode[];
     edges: WorkflowSchemaEdge[];
@@ -109,6 +120,9 @@ export function exportWorkflow(
     $schema: WORKFLOW_SCHEMA_URL,
     version: WORKFLOW_SCHEMA_VERSION,
     metadata: metadata ? { ...metadata, updatedAt: Date.now() } : undefined,
+    // Round-trips, or a saved workflow silently forgets its own contract and
+    // every caller's props become "unknown input" on the next load.
+    ...(graph.inputs && graph.inputs.length > 0 ? { inputs: graph.inputs } : {}),
     graph: {
       nodes: graph.nodes.map(toSchemaNode),
       edges: graph.edges.map(toSchemaEdge),
@@ -266,7 +280,26 @@ export function importWorkflow(schema: unknown, options: ImportOptions = {}): Im
     .filter((e): e is FlowEdge => e !== null);
 
   const ok = issues.every((i) => i.level !== "error");
-  return { ok, graph: { nodes, edges }, issues };
+  // The declaration comes back with the graph. Dropping it on import would be
+  // the worse half of losing it on export: the document still says what it
+  // accepts, the loaded graph does not, and every prop a caller passes becomes
+  // "unknown input" — an error pointing at the caller for a bug in the loader.
+  const declaredInputs = Array.isArray(s.inputs)
+    ? (s.inputs as WorkflowInput[]).filter(
+        (input): input is WorkflowInput =>
+          input !== null && typeof input === "object" && typeof (input as WorkflowInput).name === "string",
+      )
+    : undefined;
+
+  return {
+    ok,
+    graph: {
+      nodes,
+      edges,
+      ...(declaredInputs && declaredInputs.length > 0 ? { inputs: declaredInputs } : {}),
+    },
+    issues,
+  };
 }
 
 /** Convenience: serialize a schema as a downloadable JSON Blob. */

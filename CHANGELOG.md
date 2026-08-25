@@ -12,6 +12,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-08-25
+
+### Added
+
+- **Workflow props — a workflow now DECLARES what it accepts.** `graph.inputs`
+  is a list of `{ name, type?, required?, default?, description? }`, and callers
+  pass a flat object BY NAME via the new `RunOptions.props`.
+
+  **What this replaces was silence.** `initialInputs` is keyed by NODE ID, so a
+  caller had to know the trigger happened to be called `t` — renaming that node
+  broke every caller while the graph stayed perfectly valid, and nothing
+  reported it. And nothing declared what a workflow accepted at all, so a
+  **misspelled key was not an error**: the value sat unread, the node saw
+  nothing, and the run reported success with output that was quietly wrong.
+
+  Now an unknown key, a missing required value and a wrong type each **fail the
+  run**, and they fail it **before any node executes** — a workflow whose third
+  node needed the misspelled value would otherwise have done two nodes of real
+  work (sending, writing, charging) before discovering the call was malformed.
+
+  Props reach nodes two ways, because either alone leaves a hole:
+
+  - **Entry nodes are seeded by bare name**, so a graph reading `{{ topic }}` on
+    its trigger keeps working when a caller moves from `initialInputs` to props.
+    Nothing about existing graphs changes.
+  - **Every node gets `$props`** when the workflow declares inputs, so a node six
+    hops downstream reads `{{ $props.topic }}` without the value being threaded
+    through every edge in between. This needed **no change to any expression
+    resolver**: `$props` is an ordinary key and `resolvePath` already walks
+    dot-paths against the inputs object.
+
+  Neither reach ever clobbers — a value from an edge or from `initialInputs`
+  wins, on the same rule the source-node-id alias follows.
+
+  **Nothing to do on upgrade.** A graph that declares no `inputs` behaves
+  exactly as before and carries no `$props` key at all; passing `props` to one
+  is an error rather than a silent no-op. `initialInputs` is unchanged and not
+  deprecated — it is still the right tool for seeding a specific node.
+
+  Pinned by `flow/workflow-props` in `@particle-academy/fancy-conformance`
+  (21 cases), which `fancy-flow-php` and `fancy-flow` (Python) run from the same
+  file. The table was written ALONGSIDE this implementation rather than after
+  it, so the other two runtimes were built against a published specification.
+
 ## [0.50.0] - 2026-08-24
 
 ### Added

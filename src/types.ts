@@ -87,10 +87,47 @@ export type FlowNodeData =
 export type FlowNode = Node<FlowNodeData>;
 export type FlowEdge = Edge;
 
+/**
+ * One value a workflow DECLARES that it accepts at run start.
+ *
+ * The declaration is the point. Before this existed, a caller passed
+ * `initialInputs` keyed BY NODE ID — so they had to know the trigger happened
+ * to be called `t`, and renaming that node broke every caller while the graph
+ * itself stayed valid. Nothing reported it.
+ *
+ * And nothing said what a workflow accepted at all: no names, no types, no
+ * defaults. An agent composing a call had nothing to read, and a misspelled key
+ * did not fail — the value simply sat unused while the run reported success.
+ */
+export type WorkflowInput = {
+  /** What a caller passes it as. */
+  name: string;
+  /**
+   * Optional. Omitting it means "I am not asserting a shape", which must not
+   * degrade into "nothing is allowed" — an undeclared type accepts anything.
+   */
+  type?: "string" | "number" | "boolean" | "object" | "array";
+  /**
+   * The run needs a value. Satisfied by a `default`, so `required` means
+   * "this must resolve to something" rather than "the caller must type it".
+   */
+  required?: boolean;
+  /** Used when the caller omits the key. An explicit value always wins. */
+  default?: unknown;
+  description?: string;
+};
+
 /** A serializable graph — what hosts persist, what agents read/write. */
 export type FlowGraph = {
   nodes: FlowNode[];
   edges: FlowEdge[];
+  /**
+   * What this workflow accepts. Callers pass a flat object BY NAME.
+   *
+   * Omitted entirely when a graph takes none, so existing saved graphs are
+   * unchanged byte for byte and every diff stays readable.
+   */
+  inputs?: WorkflowInput[];
 };
 
 /** Per-node executor signature. Inputs are keyed by input-port id. */
