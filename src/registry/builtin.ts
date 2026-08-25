@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { registerNodeKind } from "./registry";
+import { humanFieldType, type HumanFieldType } from "../components/FlowEditor/human-fields";
 import { RichInputPreview } from "./rich-input";
 import { LaneNode } from "../components/nodes/LaneNode";
 import { NoteNode } from "../components/nodes/NoteNode";
@@ -13,6 +14,29 @@ import type { ConfigField, NodeKindDefinition } from "./types";
  * NO executor — host apps wire executors per kind so they control where
  * memory, data, network, and AI calls actually go.
  */
+
+/**
+ * What each `user_input` control actually resolves to, in the vocabulary
+ * `OutputField.type` uses.
+ *
+ * Date / time controls are strings deliberately — the form resolves the input's
+ * `value`, which is an ISO-ish string, not a `Date`. Claiming otherwise here
+ * would make the picker lie in the other direction.
+ */
+const HUMAN_FIELD_OUTPUT_TYPE: Record<HumanFieldType, "string" | "number" | "boolean"> = {
+  text: "string",
+  textarea: "string",
+  select: "string",
+  date: "string",
+  datetime: "string",
+  time: "string",
+  email: "string",
+  url: "string",
+  tel: "string",
+  password: "string",
+  number: "number",
+  switch: "boolean",
+};
 
 /**
  * Ports for `switch_case`, derived from its `cases` map (match value → port).
@@ -118,10 +142,20 @@ const KINDS: NodeKindDefinition[] = [
     name: "@particle-academy/user_input",
     // The keys an author declared on THIS node — the case a static list cannot
     // express, and the one issue #5 named.
-    outputShape: (config: { fields?: Array<{ key?: string; label?: string }> }) =>
+    //
+    // The TYPE comes from the same normalizer the form renders with, so the
+    // variable picker agrees with what the run actually resolves. It used to say
+    // `string` for every field, which was wrong the moment a field was a number
+    // or a switch — the picker told an author `{{ $json.age }}` was text while
+    // the form handed the next node a number.
+    outputShape: (config: { fields?: Array<{ key?: string; label?: string; type?: unknown }> }) =>
       (config.fields ?? [])
         .filter((f) => typeof f.key === "string" && f.key !== "")
-        .map((f) => ({ path: f.key as string, type: "string" as const, description: f.label })),
+        .map((f) => ({
+          path: f.key as string,
+          type: HUMAN_FIELD_OUTPUT_TYPE[humanFieldType(f.type)],
+          description: f.label,
+        })),
     aliases: ["user_input", "@fancy/user_input"],
     pausesForHuman: "input",
     category: "human",
@@ -145,13 +179,37 @@ const KINDS: NodeKindDefinition[] = [
           { type: "text", key: "label", label: "Label", required: true, placeholder: "Your answer" },
           {
             type: "select", key: "type", label: "Type", default: "text",
+            // Every control `HumanPrompt` can render. A type the form supports
+            // but the panel cannot select is reachable only by hand-editing the
+            // workflow JSON — which is the audience this panel exists for.
             options: [
               { value: "text", label: "Text" },
               { value: "textarea", label: "Long text" },
               { value: "number", label: "Number" },
               { value: "select", label: "Select" },
-              { value: "switch", label: "Switch" },
+              { value: "switch", label: "Switch (yes / no)" },
+              { value: "date", label: "Date" },
+              { value: "datetime", label: "Date + time" },
+              { value: "time", label: "Time" },
+              { value: "email", label: "Email" },
+              { value: "url", label: "URL" },
+              { value: "tel", label: "Phone" },
+              { value: "password", label: "Password" },
             ],
+          },
+          {
+            // Without this a panel-authored select had nothing to choose from,
+            // so it rendered an empty dropdown — the type was declarable and
+            // unusable in the same breath.
+            type: "keyvalue",
+            key: "options",
+            label: "Choices",
+            description: "Select fields only. Left is the value the flow receives, right is what the person sees.",
+            keyLabel: "Value",
+            valueLabel: "Label",
+            keyPlaceholder: "small",
+            valuePlaceholder: "Small",
+            addLabel: "Add choice",
           },
           { type: "switch", key: "required", label: "Required", default: false },
         ],

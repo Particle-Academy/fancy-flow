@@ -12,6 +12,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-08-25
+
+### Added
+
+- **The User Input form understands far more type names, and can author them.**
+  `date`, `datetime`, `time`, `email`, `url`, `tel` and `password` are now real
+  controls, alongside the existing text / long text / number / select / switch.
+  Each also accepts the spellings people and peer runtimes actually write —
+  `boolean`, `bool`, `checkbox`, `toggle` for a switch; `enum`, `choice`,
+  `dropdown`, `radio` for a select; `integer`, `int`, `float`, `decimal` for a
+  number; `string`, `long_text`, `multiline`, `paragraph` for the text pair;
+  `datetime-local`, `timestamp` for datetime. Matching is case-insensitive, and
+  a name that is still unrecognised renders as text rather than disappearing.
+
+  All twelve are selectable in the node's config panel, so nothing here is
+  reachable only by hand-editing workflow JSON.
+
+- **A Select field can finally be given its choices.** The `user_input` node's
+  field editor gained a `Choices` control (value on the left, what the person
+  sees on the right). The runtime also accepts the two shorthand shapes that
+  turn up in hand-written and agent-emitted configs: bare strings
+  (`["small", "large"]`, the same shorthand `choices` already accepts elsewhere
+  in this package) and a plain `{ value: label }` map.
+
+- `humanFieldType`, `humanFieldOptions`, `HUMAN_FIELD_TYPE_ALIASES` and the
+  `HumanFieldType` / `HumanFieldOption` types, exported beside `humanInputFields`
+  for hosts rendering their own pause form. The pure vocabulary now lives in
+  `src/components/FlowEditor/human-fields.ts` — a React-free module, because
+  `builtin.ts` reads it and `builtin.ts` is on the `/engine` entry's import path.
+
+### Changed
+
+- **A field declared with a type name that used to be ignored now resolves in
+  that type.** This is the fix below seen from the consumer's side, and it is
+  the one thing worth checking. A field declared `boolean` previously rendered
+  as a text box and resumed the run with whatever was typed — commonly the
+  string `"true"`; it now resumes with the boolean `true`. Likewise `integer`
+  and `float` now resume with a number rather than a string.
+
+  **What to do:** if a downstream node or expression was written to cope with
+  the string a mis-rendered field used to produce — `{{ $json.agree == "true" }}`
+  or a `parseInt` on the way in — simplify it to compare against the real value.
+  Nothing breaks if you leave it in the `==` form. Fields declared with the five
+  names that already worked (`text`, `textarea`, `number`, `select`, `switch`)
+  behave exactly as before.
+
+- A `number` field whose `default` was written as a string (`"5"`) now starts
+  the form as the number `5`, so an untouched number field no longer resumes
+  the run with a string.
+
+### Fixed
+
+- **The User Input form rendered every field as a plain text box, whatever type
+  it declared.** The normalizer accepted exactly five literal type names and
+  coerced everything else to `text`, so a field declared `boolean`, `date`,
+  `email` or `enum` reached the person as free text.
+
+  This is worse than it looks. The value that resumes a paused run is whatever
+  that box collected, so the run continued with the right key and the wrong
+  type, and nothing downstream could tell — because a string is a perfectly
+  good string.
+
+- **A `select` with no choices fell through to a text input**, quietly turning a
+  constrained field into a free-text one. It now stays a select and says
+  "No choices configured", so the authoring mistake is visible instead of
+  collecting an unconstrained value the next node was told to expect from a
+  fixed list.
+
+- **Bare-string select options rendered as blank rows.** The renderer read
+  `.value` and `.label` off each entry, which on a string is `undefined` — a
+  dropdown of empty options.
+
+- **The form's controls had no `id` and no `data-ff-field` handle**, so a label
+  click focused nothing and an agent driving the pause form had to guess at the
+  DOM. Every control now carries both, keyed by the field rather than its
+  position, with ids scoped per modal instance so two prompts on one page never
+  collide. Same convention as `NodeConfigPanel`.
+
+- **The variable picker reported every User Input field as `string`.** It now
+  reports the type the form actually resolves — `number` for a number field,
+  `boolean` for a switch — so `{{ $json.age }}` is no longer described as text
+  while the run hands the next node a number.
+
+  Date, time and datetime fields are reported as `string` on purpose: the form
+  resolves the input's ISO-ish `value`, not a `Date`.
+
 ## [0.52.0] - 2026-08-25
 
 ### Fixed

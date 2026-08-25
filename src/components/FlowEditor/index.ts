@@ -1,7 +1,17 @@
 export { FlowEditor, type FlowEditorProps } from "./FlowEditor";
 // The in-editor human-input modal + its field-normalizer, exported so a host can
 // reuse them (e.g. in a custom run harness) or render the modal themselves.
-export { HumanPrompt, humanInputFields, type HumanField, type HumanPromptRequest } from "./HumanPrompt";
+export {
+  HumanPrompt,
+  humanInputFields,
+  humanFieldOptions,
+  humanFieldType,
+  HUMAN_FIELD_TYPE_ALIASES,
+  type HumanField,
+  type HumanFieldType,
+  type HumanFieldOption,
+  type HumanPromptRequest,
+} from "./HumanPrompt";
 export {
   useFlowEditor,
   useFlowEditorOptional,

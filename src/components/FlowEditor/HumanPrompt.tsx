@@ -1,4 +1,55 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { HumanField, HumanFieldType } from "./human-fields";
+
+/** What the modal was asked to collect — a form, or a yes/no decision. */
+export type HumanPromptRequest =
+  | { kind: "input"; title: string; submitLabel?: string; fields: HumanField[]; resolve: (values: Record<string, unknown>) => void }
+  | { kind: "approval"; title: string; description?: string; resolve: (approved: boolean) => void };
+
+export {
+  humanInputFields,
+  humanFieldType,
+  humanFieldOptions,
+  HUMAN_FIELD_TYPE_ALIASES,
+  type HumanField,
+  type HumanFieldType,
+  type HumanFieldOption,
+} from "./human-fields";
+
+/** The `<input type>` each canonical field renders with. */
+const INPUT_TYPE: Partial<Record<HumanFieldType, string>> = {
+  text: "text",
+  number: "number",
+  date: "date",
+  datetime: "datetime-local",
+  time: "time",
+  email: "email",
+  url: "url",
+  tel: "tel",
+  password: "password",
+};
+
+/**
+ * The value a field starts on, in the type the field will resolve in.
+ *
+ * A switch starts `false` rather than `""` so the submitted value is a boolean
+ * whether or not the person touched it — a form that returns `""` for an
+ * untouched checkbox and `true` for a touched one hands the next node two
+ * different types for the same field.
+ */
+function initialValues(fields: HumanField[]): Record<string, unknown> {
+  const v: Record<string, unknown> = {};
+  for (const f of fields) {
+    if (f.type === "switch") {
+      v[f.key] = !!f.default;
+    } else if (f.type === "number") {
+      v[f.key] = typeof f.default === "number" ? f.default : f.default === undefined || f.default === "" ? "" : Number(f.default);
+    } else {
+      v[f.key] = f.default ?? "";
+    }
+  }
+  return v;
+}
 
 /**
  * The in-editor human-input modal. When a run reaches a `user_input` or
@@ -6,54 +57,26 @@ import { useEffect, useRef, useState } from "react";
  * run (the executor returns a Promise) until the person submits — the same
  * async-executor pattern the headless engine already supports. A host that
  * passes its own `user_input` / `human_approval` executor overrides this.
+ *
+ * ## Why the controls are native elements and not react-fancy primitives
+ *
+ * Same reason the config panel's are, and it is a hard constraint rather than a
+ * preference: `@particle-academy/react-fancy` is an OPTIONAL peer of this
+ * package (`peerDependenciesMeta`) and is listed `external` in `tsup.config.ts`.
+ * This file ships in the main `.` entry, so importing react-fancy here would
+ * make a standalone `npm install @particle-academy/fancy-flow` fail to resolve
+ * at import time — and it would break the `--ff-*` token layer a host overrides
+ * on `.ff-editor`, because react-fancy's primitives are hardcoded Tailwind
+ * palette classes that read no custom properties. See the docblock on
+ * `src/fields/react-fancy.tsx` and the one on `tests/panel-labels.test.tsx`.
+ *
+ * A host that wants react-fancy controls here already has the seam: pass its
+ * own `user_input` executor to `<FlowEditor executors={…}>` and render whatever
+ * it likes. Host executors are spread last, so they win.
  */
-
-/** A field the input modal renders. Mirrors a `user_input` `fields` row. */
-export type HumanField = {
-  key: string;
-  label?: string;
-  type?: "text" | "textarea" | "number" | "select" | "switch";
-  required?: boolean;
-  placeholder?: string;
-  options?: Array<{ value: string; label: string }>;
-  default?: unknown;
-};
-
-export type HumanPromptRequest =
-  | { kind: "input"; title: string; submitLabel?: string; fields: HumanField[]; resolve: (values: Record<string, unknown>) => void }
-  | { kind: "approval"; title: string; description?: string; resolve: (approved: boolean) => void };
-
-/**
- * Normalize a `user_input` node's `fields` config into renderable fields. Falls
- * back to a single text field so even an unconfigured User Input node still
- * collects something rather than silently returning nothing.
- */
-export function humanInputFields(config: Record<string, unknown>): HumanField[] {
-  const raw = Array.isArray((config as any)?.fields) ? ((config as any).fields as any[]) : [];
-  const fields: HumanField[] = raw
-    .filter((f) => f && typeof f === "object" && typeof (f as any).key === "string" && (f as any).key)
-    .map((f: any) => ({
-      key: f.key,
-      label: typeof f.label === "string" && f.label ? f.label : f.key,
-      type: ["text", "textarea", "number", "select", "switch"].includes(f.type) ? f.type : "text",
-      required: !!f.required,
-      placeholder: typeof f.placeholder === "string" ? f.placeholder : undefined,
-      options: Array.isArray(f.options) ? f.options : undefined,
-      default: f.default,
-    }));
-  if (fields.length) return fields;
-  const title = typeof (config as any)?.title === "string" && (config as any).title ? (config as any).title : "Your answer";
-  return [{ key: "value", label: title, type: "textarea", required: true }];
-}
-
-function initialValues(fields: HumanField[]): Record<string, unknown> {
-  const v: Record<string, unknown> = {};
-  for (const f of fields) v[f.key] = f.type === "switch" ? !!f.default : (f.default ?? "");
-  return v;
-}
 
 export function HumanPrompt({ request, onCancel }: { request: HumanPromptRequest; onCancel: () => void }) {
-  const firstRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const firstRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     firstRef.current?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
@@ -95,10 +118,17 @@ function InputBody({
 }: {
   request: Extract<HumanPromptRequest, { kind: "input" }>;
   onCancel: () => void;
-  firstRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
+  firstRef: React.RefObject<HTMLElement | null>;
 }) {
   const [values, setValues] = useState<Record<string, unknown>>(() => initialValues(request.fields));
   const set = (k: string, v: unknown) => setValues((prev) => ({ ...prev, [k]: v }));
+
+  // Ids are scoped to this modal instance so two prompts on one page — a split
+  // view, a comparison — never share an id and make one label focus the other's
+  // control. Keyed by the FIELD, not its position, so an agent that stored
+  // `data-ff-field="email"` still finds it after the schema is reordered.
+  const uid = useId();
+  const fieldId = (key: string) => `${uid}-${key}`;
 
   const missing = request.fields.filter((f) => f.required && (values[f.key] === undefined || values[f.key] === ""));
   const submit = () => { if (missing.length === 0) request.resolve(values); };
@@ -110,10 +140,20 @@ function InputBody({
     >
       <div className="ff-prompt__fields">
         {request.fields.map((f, i) => (
-          <label key={f.key} className="ff-prompt__field">
-            <span className="ff-prompt__label">{f.label ?? f.key}{f.required && <span className="ff-prompt__req"> *</span>}</span>
-            {renderControl(f, values[f.key], (v) => set(f.key, v), i === 0 ? firstRef : undefined)}
-          </label>
+          <div key={f.key} className="ff-prompt__field">
+            <label className="ff-prompt__label" htmlFor={fieldId(f.key)}>
+              {f.label ?? f.key}
+              {/* aria-hidden so the field is announced "Email", not "Email star". */}
+              {f.required && <span className="ff-prompt__req" aria-hidden="true"> *</span>}
+            </label>
+            <FieldControl
+              field={f}
+              id={fieldId(f.key)}
+              value={values[f.key]}
+              onChange={(v) => set(f.key, v)}
+              autoFocusRef={i === 0 ? firstRef : undefined}
+            />
+          </div>
         ))}
       </div>
       <div className="ff-prompt__actions">
@@ -126,49 +166,87 @@ function InputBody({
   );
 }
 
-function renderControl(
-  f: HumanField,
-  value: unknown,
-  onChange: (v: unknown) => void,
-  ref?: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>,
-) {
-  const common = { className: "ff-prompt__input", placeholder: f.placeholder };
-  if (f.type === "textarea") {
+/**
+ * One control, chosen by the field's canonical type.
+ *
+ * Every branch is controlled (`value` + `onChange`) and carries the same two
+ * handles — the `id` its label points at, and `data-ff-field` keyed by the
+ * field — because this modal is a Human+ surface an agent drives through an
+ * MCP bridge rather than by guessing at the DOM.
+ */
+function FieldControl({
+  field,
+  id,
+  value,
+  onChange,
+  autoFocusRef,
+}: {
+  field: HumanField;
+  id: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  autoFocusRef?: React.RefObject<HTMLElement | null>;
+}) {
+  const handle = { id, "data-ff-field": field.key } as const;
+
+  if (field.type === "textarea") {
     return (
       <textarea
-        {...common}
-        ref={ref as React.RefObject<HTMLTextAreaElement>}
+        {...handle}
+        className="ff-prompt__input"
+        placeholder={field.placeholder}
+        ref={autoFocusRef as React.RefObject<HTMLTextAreaElement> | undefined}
         rows={3}
         value={String(value ?? "")}
         onChange={(e) => onChange(e.target.value)}
       />
     );
   }
-  if (f.type === "switch") {
+
+  if (field.type === "switch") {
     return (
       <input
+        {...handle}
         type="checkbox"
         className="ff-prompt__switch"
+        ref={autoFocusRef as React.RefObject<HTMLInputElement> | undefined}
         checked={!!value}
         onChange={(e) => onChange(e.target.checked)}
       />
     );
   }
-  if (f.type === "select" && f.options && f.options.length) {
+
+  if (field.type === "select") {
+    // A select stays a select even with nothing to choose. Falling through to a
+    // text box — which is what used to happen — hid the authoring mistake AND
+    // collected an unconstrained string for a field whose whole point is that
+    // the downstream node gets one of a fixed set.
+    const options = field.options ?? [];
     return (
-      <select className="ff-prompt__input" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
-        <option value="" disabled>Choose…</option>
-        {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      <select
+        {...handle}
+        className="ff-prompt__input"
+        ref={autoFocusRef as React.RefObject<HTMLSelectElement> | undefined}
+        value={String(value ?? "")}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="" disabled>{options.length ? "Choose…" : "No choices configured"}</option>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     );
   }
+
   return (
     <input
-      {...common}
-      ref={ref as React.RefObject<HTMLInputElement>}
-      type={f.type === "number" ? "number" : "text"}
+      {...handle}
+      className="ff-prompt__input"
+      placeholder={field.placeholder}
+      ref={autoFocusRef as React.RefObject<HTMLInputElement> | undefined}
+      type={INPUT_TYPE[field.type ?? "text"] ?? "text"}
       value={String(value ?? "")}
-      onChange={(e) => onChange(f.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
+      onChange={(e) =>
+        onChange(field.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)
+      }
     />
   );
 }
