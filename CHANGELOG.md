@@ -25,9 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pickExecutor` resolves a kind NAME (`data.kind ?? node.type`) and then tries
   every id that kind answers to. Both halves were right; the bug was committing
   to ONE name. A node typed `manual_trigger` carrying
-  `data: { kind: "trigger" }` — a category label rather than a kind id, which is
-  easy to write and says nothing false — made `getNodeKind("trigger")` return
-  null, so the alias loop never ran and `node.type`'s aliases were never tried.
+  `data: { kind: "trigger" }` made `getNodeKind("trigger")` return null, so the
+  alias loop never ran and `node.type`'s aliases were never tried.
+
+  **That input is not unusual authoring — it is what the TYPE REQUIRES.**
+  `TriggerNodeData` is `BaseNodeData & { kind: "trigger" }`, and every member of
+  the `FlowNodeData` union pins `kind` to a category literal the same way
+  (`trigger` / `action` / `decision` / `output` / `note` / `subgraph`). So every
+  node authored against the published types carried a `data.kind` that disabled
+  the fallback. The reporter established this after the fix shipped; an earlier
+  draft of this entry called it "easy to write", which understated who was
+  affected.
 
   Both names are now resolved. `data.kind` is still preferred; it no longer
   silently disables the fallback.
