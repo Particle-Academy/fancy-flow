@@ -315,7 +315,9 @@ async function resume(
     const port = node.id.slice("probe:".length);
     executors[node.id] = ((c: { inputs: Record<string, unknown> }) => {
       fired.push(port);
-      carried = c.inputs?.in ?? c.inputs;
+      // Key PRESENCE: a port bound to null is not an absent port, and
+      // only the absent one falls back to the whole map.
+      carried = c.inputs && Object.hasOwn(c.inputs, "in") ? c.inputs.in : c.inputs;
       return undefined;
     }) as unknown as NodeExecutor;
   }
@@ -366,7 +368,7 @@ export async function runFixtures(
       const port = node.id.slice("probe:".length);
       executors[node.id] = ((ctx: { inputs: Record<string, unknown> }) => {
         fired.push(port);
-        carried = ctx.inputs?.in ?? ctx.inputs;
+        carried = ctx.inputs && Object.hasOwn(ctx.inputs, "in") ? ctx.inputs.in : ctx.inputs;
         return undefined;
       }) as unknown as NodeExecutor;
     }
