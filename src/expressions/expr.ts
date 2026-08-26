@@ -97,20 +97,88 @@ function interpolate(template: string, resolve: (path: string) => string): strin
 const FALSY_STRINGS = new Set(["", "0", "false", "no", "off", "null"]);
 
 /**
- * Resolve a dot-path against the context, honouring the `$json` / `$input`
- * alias.
+ * What a resolution attempt ANSWERS — did the path resolve, and to what.
  *
- * Both aliases point at the `in` port value when the context has one, and at
- * the whole context otherwise — the same fallback the PHP does, which is what
- * makes `{{ $json.x }}` work on a trigger node that has no upstream input.
+ * `resolvePath` cannot express this, and that is the defect it exists to fix:
+ * it returns `null` both for "this path does not exist" and for "this path
+ * exists and holds null". One value standing for two states.
  *
- * A path that does not resolve returns `null`, never `undefined`: PHP has one
- * absent value and JS has two, and letting the difference leak would make the
- * two runtimes disagree about `{{ missing }}` for no useful reason.
+ * At the interpolation layer the collapse is worse, because `null` stringifies
+ * to `""`. A consumer put it exactly:
+ *
+ * > "An unresolvable path yields `''`, so a wrong field is indistinguishable
+ * > from an empty one at runtime."
+ *
+ * A misspelled field renders as an empty string, which looks precisely like a
+ * field that is legitimately empty. The graph runs, the node succeeds, and the
+ * output is quietly missing a value nobody is told about — worst on
+ * LLM-authored graphs, where the field name was guessed in the first place.
+ *
+ * Same shape as the four `??` collapses fixed across all four runtimes on
+ * 2026-08-26 (absent vs null), one layer up: **presence is the only correct
+ * test, and a return value that cannot express presence cannot be tested for
+ * it.** Hence a second return channel rather than a cleverer sentinel — every
+ * sentinel is a legal value for somebody.
  */
-export function resolvePath(path: string, context: ExprContext): ExprValue {
+export interface Resolution {
+  /** Whether the path resolved at all. `false` means it does not exist. */
+  resolved: boolean;
+  /** The value, when `resolved`. `null` when not — do not read it blind. */
+  value: ExprValue;
+}
+
+/** Thrown by the `"throw"` policy when a path does not resolve. */
+export class UnresolvedPathError extends Error {
+  constructor(readonly path: string) {
+    super(
+      `Expression path "${path}" did not resolve. ` +
+        `Under the "throw" policy an unresolvable path is an error rather than an empty string.`,
+    );
+    this.name = "UnresolvedPathError";
+  }
+}
+
+/**
+ * What evaluation does with a path that does not resolve.
+ *
+ * - `"empty"` — today's behaviour, and the DEFAULT. Interpolates to `""`; a
+ *   whole expression yields `null`. Unchanged so that widening this API breaks
+ *   nobody: 40 call sites across the runtimes assume it.
+ * - `"keep"` — leave the `{{ … }}` text in place. The failure becomes VISIBLE
+ *   in the output without stopping the run, which is what you want for
+ *   human-reviewed content: a rendered `{{ in.recipient_naem }}` is self-
+ *   diagnosing in a way an absence never is.
+ * - `"throw"` — refuse. For hosts that would rather fail a run than deliver a
+ *   silently incomplete result.
+ *
+ * Opt-in before default at the request of the consumer who reported it — the
+ * host with the most LLM-authored graphs, and so both the biggest beneficiary
+ * and the right place for it to break first if it is going to.
+ */
+export type UnresolvedPolicy = "empty" | "keep" | "throw";
+
+/** Options for {@link evaluateExpression} / {@link evaluateConfig}. */
+export interface EvaluateOptions {
+  /** What to do with a path that does not resolve. Default `"empty"`. */
+  onUnresolved?: UnresolvedPolicy;
+}
+
+/**
+ * Resolve a dot-path, reporting WHETHER it resolved.
+ *
+ * The same walk as `resolvePath` — deliberately, so the two can never disagree
+ * about what resolves; `resolvePath` is defined in terms of this one below.
+ *
+ * A note on JS having two absent values: a key present with the value
+ * `undefined` reports `resolved: false`, matching `resolvePath`'s long-standing
+ * behaviour. It cannot arise from graph data (JSON has no `undefined`), and
+ * changing it would make the two functions disagree for no reachable gain.
+ */
+export function tryResolvePath(path: string, context: ExprContext): Resolution {
+  const unresolved: Resolution = { resolved: false, value: null };
+
   const trimmed = path.trim();
-  if (trimmed === "") return null;
+  if (trimmed === "") return unresolved;
 
   const segments = trimmed.split(".");
   let cursor: ExprValue;
@@ -124,15 +192,35 @@ export function resolvePath(path: string, context: ExprContext): ExprValue {
   }
 
   for (const segment of segments) {
-    if (cursor === null || cursor === undefined) return null;
-    if (typeof cursor !== "object") return null;
+    if (cursor === null || cursor === undefined) return unresolved;
+    if (typeof cursor !== "object") return unresolved;
     // Arrays are indexed by their numeric keys, matching PHP's list access.
     const next = (cursor as Record<string, ExprValue>)[segment];
-    if (next === undefined) return null;
+    if (next === undefined) return unresolved;
     cursor = next;
   }
 
-  return cursor === undefined ? null : cursor;
+  return { resolved: true, value: cursor === undefined ? null : cursor };
+}
+
+/**
+ * Resolve a dot-path against the context, honouring the `$json` / `$input`
+ * alias.
+ *
+ * Both aliases point at the `in` port value when the context has one, and at
+ * the whole context otherwise — the same fallback the PHP does, which is what
+ * makes `{{ $json.x }}` work on a trigger node that has no upstream input.
+ *
+ * A path that does not resolve returns `null`, never `undefined`: PHP has one
+ * absent value and JS has two, and letting the difference leak would make the
+ * two runtimes disagree about `{{ missing }}` for no useful reason.
+ */
+export function resolvePath(path: string, context: ExprContext): ExprValue {
+  // Defined in terms of `tryResolvePath` rather than repeating the walk. Two
+  // copies of a traversal agree right up until someone edits one of them, and
+  // nothing anywhere reports that -- the same reason the shared conformance
+  // tables exist instead of hand-copied fixture rows.
+  return tryResolvePath(path, context).value;
 }
 
 /**
@@ -146,13 +234,33 @@ export function resolvePath(path: string, context: ExprContext): ExprValue {
  * Non-string templates pass through untouched, so this is safe to map over a
  * whole config object.
  */
-export function evaluateExpression(template: ExprValue, context: ExprContext): ExprValue {
+export function evaluateExpression(
+  template: ExprValue,
+  context: ExprContext,
+  options: EvaluateOptions = {},
+): ExprValue {
   if (typeof template !== "string") return template;
 
-  const whole = wholeExpression(template.trim());
-  if (whole !== null) return resolvePath(whole, context);
+  const policy = options.onUnresolved ?? "empty";
 
-  return interpolate(template, (path) => stringify(resolvePath(path, context)));
+  const whole = wholeExpression(template.trim());
+  if (whole !== null) {
+    const r = tryResolvePath(whole, context);
+    if (r.resolved) return r.value;
+
+    // The whole-expression branch returns `null` under `"empty"`, not `""` --
+    // that is what it has always done, and the asymmetry is deliberate: this
+    // branch preserves TYPE, so its absent value is the typed one.
+    if (policy === "throw") throw new UnresolvedPathError(whole);
+    return policy === "keep" ? template : null;
+  }
+
+  return interpolate(template, (path) => {
+    const r = tryResolvePath(path, context);
+    if (r.resolved) return stringify(r.value);
+    if (policy === "throw") throw new UnresolvedPathError(path);
+    return policy === "keep" ? `{{${path}}}` : "";
+  });
 }
 
 /**
@@ -195,14 +303,18 @@ function stringify(value: ExprValue): string {
  * The convenience most hosts actually want, and the shape their hand-rolled
  * version usually takes. Opt-in like the rest of this module.
  */
-export function evaluateConfig<T extends Record<string, ExprValue>>(config: T, context: ExprContext): T {
+export function evaluateConfig<T extends Record<string, ExprValue>>(
+  config: T,
+  context: ExprContext,
+  options: EvaluateOptions = {},
+): T {
   const out: Record<string, ExprValue> = {};
   for (const [key, value] of Object.entries(config)) {
     out[key] = Array.isArray(value)
-      ? value.map((v) => evaluateExpression(v, context))
+      ? value.map((v) => evaluateExpression(v, context, options))
       : value !== null && typeof value === "object"
-        ? evaluateConfig(value as Record<string, ExprValue>, context)
-        : evaluateExpression(value, context);
+        ? evaluateConfig(value as Record<string, ExprValue>, context, options)
+        : evaluateExpression(value, context, options);
   }
   return out as T;
 }

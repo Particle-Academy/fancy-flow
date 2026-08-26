@@ -104,6 +104,28 @@ export type { NodeKindDefinition, ConfigField, NodeCategory, PortSpec, EmitsRela
 // typechecked inside the sandbox, where they resolve from source.
 export type { OutputField, OutputShape } from "./expressions/variables";
 
+// The `{{ }}` resolver, on the zero-React entry point too. A host resolving
+// expressions does it inside its own executors, which is `/engine` territory --
+// `OutputField` was declared here and NOT exported until 0.47.1, and two shipped
+// marketplace nodes imported it by name and only typechecked against source.
+// Once is a bug; twice would be a pattern.
+export {
+  evaluateExpression,
+  evaluateConfig,
+  resolvePath,
+  tryResolvePath,
+  UnresolvedPathError,
+  truthy,
+  text,
+} from "./expressions/expr";
+export type {
+  ExprContext,
+  ExprValue,
+  EvaluateOptions,
+  Resolution,
+  UnresolvedPolicy,
+} from "./expressions/expr";
+
 /**
  * The human-pause contract.
  *

@@ -216,7 +216,15 @@ export {
   evaluateExpression,
   evaluateConfig,
   resolvePath,
+  tryResolvePath,
+  UnresolvedPathError,
   truthy,
   text,
 } from "./expressions/expr";
-export type { ExprContext, ExprValue } from "./expressions/expr";
+export type {
+  ExprContext,
+  ExprValue,
+  EvaluateOptions,
+  Resolution,
+  UnresolvedPolicy,
+} from "./expressions/expr";

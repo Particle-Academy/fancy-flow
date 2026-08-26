@@ -10,6 +10,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [Unreleased]
+
+## [0.63.0] - 2026-08-26
+
+### Added
+
+- **`tryResolvePath()` — telling "did not resolve" apart from "resolved to
+  empty".**
+
+  `resolvePath()` returns `null` both for a path that does not exist and for one
+  that exists holding `null`, and at the interpolation layer that collapses
+  further to `""`. In the reporting consumer's words: *"An unresolvable path
+  yields `''`, so a wrong field is indistinguishable from an empty one at
+  runtime."* A misspelled field renders as an empty string, which looks exactly
+  like a field that is legitimately empty — worst on LLM-authored graphs, where
+  the field name was guessed to begin with.
+
+  Same shape as the `??` collapses in 0.60.0–0.62.0, one layer up. A second
+  return channel rather than a cleverer sentinel, because **every sentinel is a
+  legal value for somebody**: `""`, `null` and `false` are all things a real
+  payload carries.
+
+- **`evaluateExpression(template, context, { onUnresolved })`** and the same
+  option on `evaluateConfig` — `"empty"` (today's behaviour, the DEFAULT),
+  `"keep"` (leave the `{{ … }}` text so the failure is visible in the output
+  without stopping the run), `"throw"` (refuse, with the path on
+  `UnresolvedPathError`).
+
+  **Do you have to do anything? No.** The default is unchanged and every
+  existing call keeps its behaviour. Opt-in before default was the reporting
+  consumer's own condition. Implemented identically in `fancy-flow-php` and
+  `fancy-flow-py`, with the three test files mirroring each other case for case.
+
+- `tryResolvePath`, `UnresolvedPathError`, `Resolution`, `UnresolvedPolicy` and
+  `EvaluateOptions` are exported from **both** the root entry and `/engine`. A
+  host resolving expressions does it inside its own executors, which is
+  `/engine` territory — `OutputField` was declared there and not exported until
+  0.47.1, and two shipped marketplace nodes imported it by name and only
+  typechecked against source. Once is a bug; twice would be a pattern.
+
+### Changed
+
+- `resolvePath()` is now DEFINED in terms of `tryResolvePath()` rather than
+  repeating the walk. No answer changes — two copies of a traversal agree right
+  up until someone edits one of them, and nothing anywhere reports that.
+
+## Versions 0.60.0 – 0.62.0 were tagged but NEVER PUBLISHED
+
+Read this before looking for them on npm: **`npm install
+@particle-academy/fancy-flow@0.61.0` will 404.** The registry went 0.59.0 →
+0.63.0, and every change described in the three entries below reached consumers
+in **0.63.0**.
+
+What happened is worth recording, because the tooling behaved correctly
+throughout. `publish.yml` fails a tag whose version has no `CHANGELOG.md` entry,
+checked right after checkout, before anything is built — so all three publishes
+were refused for exactly the right reason. Three red runs, and nobody was
+looking at them. The gate was never the weak link.
+
+The entries are kept at their own version numbers rather than folded into
+0.63.0, because the git tags exist and someone reading `git log` needs to find
+them. A preflight now runs the same assertion before `git tag`, which is the
+only moment the failure is still preventable.
+
+## [0.62.0] - 2026-08-26 — tagged, not published (see above)
+
+### Added
+
+- **`emits: "input-map-merged"` — merging the input MAP is not merging the
+  payloads**, and one keyword was covering both.
+
+  `manual_trigger` and `schedule_trigger` merge the raw input map; `merge` unions
+  each port's PAYLOAD. Those coincide only at an entry point, because
+  `collectInputs` seeds an entry node FLAT and keys every other node by handle.
+  Give a `schedule_trigger` an inbound edge and it emits `{cron, timezone, in:
+  {…}}` — the single keyword over-permitted `{{ in.<upstream field> }}` when the
+  real path is `{{ in.in.<field> }}`.
+
+  **Nothing to do.** This is a DECLARATION about existing behaviour; no node
+  changed what it emits. Named by the reference consumer, who found the boundary
+  by reading `inputs` in both shapes rather than by reading the relation
+  description.
+
+## [0.61.0] - 2026-08-26 — tagged, not published (see above)
+
+### Fixed
+
+- **A port bound to NULL was treated as an ABSENT port.** Reading an input fell
+  back to its default when the port held an explicit `null`, so a null `in` did
+  not yield null — it yielded every input the node had.
+
+  Worse than the wrapper leak below it, and for a specific reason: the wrapper
+  was visibly odd, while an inputs map is PLAUSIBLE. It looks exactly like real
+  data, so a downstream node reads fields from the wrong place and nothing looks
+  wrong anywhere.
+
+  The fallback itself is right and stays — a trigger has no `in` edge. Only the
+  ABSENT case may fall back now. **The rule: `??` is safe only where null is not
+  a legal value**; key presence is the only correct test.
+
+  Found by the consumer asking whether the CAUSE had been fixed or only the
+  symptom.
+
+## [0.60.0] - 2026-08-26 — tagged, not published (see above)
+
+### Fixed
+
+- **A branching node whose payload is NULL emitted the wrapper downstream.**
+  The two port sugars unwrapped asymmetrically: `Port.only` yielded `null`,
+  while `Port.branch` fell back to the whole wrapper object — so a downstream
+  node received `{branch: "x", value: null}`, two fields no kind declares, while
+  the fields it does declare were absent.
+
+  **Do you have to do anything?** Only if a node of yours was reading the
+  wrapper's `branch`/`value` keys off its input, which was never intended.
+
 ## [0.59.0] - 2026-08-26
 
 ### Added
@@ -115,8 +231,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into the TOP level, so a partial list of `["cron","timezone"]` would make a
   validator **refuse every merged-in key**. A partial static list on a merging
   kind is a false-rejection generator.
-
-## [Unreleased]
 
 ## [0.56.0] - 2026-08-25
 
