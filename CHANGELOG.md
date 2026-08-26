@@ -10,6 +10,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [0.59.0] - 2026-08-26
+
+### Added
+
+- **Runs the shared `flow/kind-declaration-surface` table** — 20 cases asserting
+  every runtime declares the same things about the same kinds: field SETS and
+  `emits` relations, not behaviour.
+
+  **This runtime is the SPECIFICATION for that table, not a peer.** It ships no
+  executors, so its declarations are the contract a conforming executor must
+  satisfy — and they are the only ones that cannot be checked against code. PHP,
+  Python and Rust each ship executors and can fall back to reading their own
+  source; here there is nothing to fall back to, which makes this table the only
+  verification these declarations have.
+
+### Fixed
+
+- **`@particle-academy/fancy-conformance` was pinned at `^0.13.0`** and had been
+  frozen six minors behind. A caret on a `0.x` admits only that minor, so
+  `npm update` reported success while installing nothing, and every shared table
+  added since 0.13.0 reached this runtime never — including the one this release
+  adds.
+
+  A conformance dependency has to TRACK, unlike a normal dev dependency where a
+  caret pin is deliberately the version the suite was built against. The whole
+  point of this one is that new shared rows arrive and fail whichever runtime
+  drifted; frozen, it stays green on the rows it already had and slowly stops
+  checking.
+
 ## [0.58.0] - 2026-08-26
 
 ### Added
