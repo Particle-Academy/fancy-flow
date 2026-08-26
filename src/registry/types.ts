@@ -217,7 +217,11 @@ export type RenderBodyContext<TConfig = unknown> = {
  * Every value is TOP-LEVEL by construction — a relation cannot describe a value
  * nested under a key, which is why `wait` declares a field list instead.
  */
-export type EmitsRelation = "input" | "inputs-merged" | `expression:${string}`;
+export type EmitsRelation =
+  | "input"
+  | "inputs-merged"
+  | "input-map-merged"
+  | `expression:${string}`;
 
 /**
  * NodeKindDefinition — declares an authorable node type. Register one
@@ -285,7 +289,12 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
    * form it met first.
    *
    * - `"input"` — emits its input unchanged
-   * - `"inputs-merged"` — the union of every input's fields
+   * - `"inputs-merged"` — the union of every input PAYLOAD's fields
+   * - `"input-map-merged"` — the raw input MAP merged in, whose shape
+   *   DEPENDS ON POSITION: `collectInputs` seeds an entry node flat and
+   *   keys every other node by handle, so a `schedule_trigger` with an
+   *   inbound edge emits `{ cron, timezone, in: {...} }`. Two names because
+   *   they are two operations, not one plus a positional rule.
    * - `` `expression:${string}` `` — the shape the expression in THAT CONFIG KEY
    *   names. The key is part of the value because a consumer hardcoding "the
    *   field called expression" has copied our knowledge one level down, which is

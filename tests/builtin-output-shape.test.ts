@@ -111,9 +111,9 @@ describe("emits — the relation a field list cannot express", () => {
     ["switch_case", "input"],
     ["output", "input"],
     ["human_approval", "input"],
-    ["manual_trigger", "input"],
+    ["manual_trigger", "input-map-merged"],
     ["variable", "expression:value"],
-    ["schedule_trigger", "inputs-merged"],
+    ["schedule_trigger", "input-map-merged"],
   ])("%s declares `%s`", (id, expected) => {
     expect(relation(`@particle-academy/${id}`)).toBe(expected);
   });

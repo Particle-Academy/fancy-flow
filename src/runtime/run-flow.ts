@@ -513,7 +513,7 @@ function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; val
       // `Port.only`'s `?? null` never had it. All four runtimes shared this,
       // identically -- so no parity table could catch it; they agreed on being
       // wrong.
-      return { ports: [r.branch], value: Object.hasOwn(r, "value") ? r.value : r };
+      return { ports: [r.branch], value: Object.prototype.hasOwnProperty.call(r, "value") ? r.value : r };
     }
   }
   // Resolve through the shared helper so the ports the runtime activates are

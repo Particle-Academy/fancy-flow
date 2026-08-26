@@ -98,8 +98,9 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── Triggers ─────────────
   {
     name: "@particle-academy/manual_trigger",
-    // returns the inputs it was started with
-    emits: "input",
+    // Returns the raw inputs MAP, not the `in` port -- flat at an entry
+    // point, port-keyed the moment the node has an inbound edge.
+    emits: "input-map-merged",
     aliases: ["manual_trigger", "@fancy/manual_trigger"],
     category: "trigger",
     label: "Manual",
@@ -131,8 +132,9 @@ const KINDS: NodeKindDefinition[] = [
       { path: "cron", type: "string" as const, description: "The cron expression that fired." },
       { path: "timezone", type: "string" as const, description: "The timezone it was evaluated in." },
     ],
-    // merges its inputs into the TOP level beside cron/timezone
-    emits: "inputs-merged",
+    // Merges $ctx->inputs ITSELF beside cron/timezone -- the MAP, whose
+    // shape depends on position, not each port's payload the way `merge` does.
+    emits: "input-map-merged",
     aliases: ["schedule_trigger", "@fancy/schedule_trigger"],
     category: "trigger",
     label: "Schedule",
