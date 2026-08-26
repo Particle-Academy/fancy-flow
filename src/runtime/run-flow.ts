@@ -501,7 +501,19 @@ function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; val
       return { ports: [r.__port], value: r.value };
     }
     if (typeof r.branch === "string") {
-      return { ports: [r.branch], value: r.value ?? r };
+      // `Object.hasOwn`, NOT `??`. The two are different questions:
+      //   no `value` key at all -> the whole result IS the payload (the case
+      //                            this fallback exists for)
+      //   `value` present, null -> the payload is null; pass null on
+      // `r.value ?? r` cannot tell them apart, so a branch whose payload was
+      // null leaked the WRAPPER downstream -- every following node received
+      // `{ branch, value }`, two fields no kind declares, while the fields it
+      // does declare were absent. The reachable path is an upstream `transform`
+      // whose dot-path did not resolve, which is exactly the silent-null case.
+      // `Port.only`'s `?? null` never had it. All four runtimes shared this,
+      // identically -- so no parity table could catch it; they agreed on being
+      // wrong.
+      return { ports: [r.branch], value: Object.hasOwn(r, "value") ? r.value : r };
     }
   }
   // Resolve through the shared helper so the ports the runtime activates are
