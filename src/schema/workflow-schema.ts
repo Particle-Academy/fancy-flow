@@ -177,15 +177,70 @@ export type ImportOptions = {
   lenient?: boolean;
 };
 
+/** A migration step: takes a version-N document to version N+1. */
+export type MigrationStep = (schema: Record<string, unknown>) => Record<string, unknown>;
+
 /**
- * Migrate a raw schema object up to the current version. Additive changes need
- * no migration (an older document simply lacks the newer optional fields); this
- * is the seam for a future BREAKING bump — add `case N → N+1` steps here and
- * `importWorkflow` runs them before validating the version.
+ * Every migration step, keyed by the version it upgrades FROM.
+ *
+ * Empty today because v1 is current — when a BREAKING bump lands, add the step
+ * here and every stored document upgrades on read, in this runtime and its
+ * PHP and Python twins.
  */
-export function migrateSchema(schema: unknown): unknown {
-  // v1 is current — nothing to migrate yet.
-  return schema;
+export const MIGRATIONS: Record<number, MigrationStep> = {};
+
+/**
+ * Migrate a raw schema object up to the current version, as far as it can go.
+ *
+ * Additive changes need no migration — an older document simply lacks the newer
+ * optional fields. This is the seam for a future BREAKING bump, and
+ * `importWorkflow` runs it before validating the version.
+ *
+ * ## The three rules, each with a reason
+ *
+ *  - **A PAST version migrates forward**, step by step, to the current one.
+ *  - **A FUTURE version is left ALONE.** We cannot know what a later schema
+ *    means, and migrating downward would be guessing. Untouched hands it to the
+ *    version check, which reports it honestly.
+ *  - **A GAP in the table is left alone too.** A missing step is not a licence
+ *    to guess.
+ *
+ * ## Why `steps` is a parameter
+ *
+ * With only v1 in existence there is no old document to migrate, so a seam
+ * tested against the built-in (empty) table is a check that CANNOT fail — it
+ * would pass identically against a function that returned its input untouched,
+ * which is what this was until the twins needed the same seam.
+ *
+ * The PHP and Python runtimes carry the identical shape. That mattered more
+ * than it sounds: they had no migration at all and errored on any version
+ * mismatch, so a v2 bump would have made every stored Op unreadable on exactly
+ * the runtimes where durable runs resume.
+ */
+export function migrateSchema(
+  schema: unknown,
+  steps: Record<number, MigrationStep> = MIGRATIONS,
+): unknown {
+  if (!schema || typeof schema !== "object") return schema;
+
+  const doc = schema as Record<string, unknown>;
+  let version = doc.version;
+
+  if (typeof version !== "number" || !Number.isInteger(version) || version >= WORKFLOW_SCHEMA_VERSION) {
+    return schema;
+  }
+
+  let out = doc;
+  while (version < WORKFLOW_SCHEMA_VERSION) {
+    const step = steps[version];
+    if (!step) return out;
+
+    out = step(out);
+    version += 1;
+    out.version = version;
+  }
+
+  return out;
 }
 
 /**

@@ -12,6 +12,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-08-25
+
+### Changed
+
+- **`migrateSchema()` gained a real step table** — and, more importantly, its two
+  twins gained the seam at all.
+
+  This runtime always migrated; `fancy-flow-php` and `fancy-flow` (Python)
+  compared the version and **errored on any mismatch**. So the day schema v2 was
+  cut, every stored Op would have hard-failed to import on both SERVER runtimes —
+  which is where durable runs RESUME. A run parked on a human approval would have
+  become unresumable, and it could only ever be fixed BEFORE the bump: afterwards
+  the graphs are already unreadable by the very code meant to migrate them.
+
+  All three now carry the identical shape. `migrateSchema(schema, steps?)` walks
+  a table keyed by the version each step upgrades FROM, with three rules: a
+  **past** version migrates forward; a **future** version is left ALONE, because
+  guessing what a later schema means is worse than the version check reporting
+  it; and a **gap** in the table is left alone for the same reason.
+
+  **What to do: nothing.** `MIGRATIONS` is empty because v1 is current, so every
+  document passes through untouched. Purely additive: `migrateSchema` keeps its
+  old single-argument signature.
+
+  The `steps` parameter is load-bearing rather than decorative — with only v1 in
+  existence there is no old document to migrate, so a seam tested against the
+  built-in table is a check that **cannot fail**, and would pass identically
+  against the no-op this function used to be.
+
 ## [0.55.0] - 2026-08-25
 
 ### Added
