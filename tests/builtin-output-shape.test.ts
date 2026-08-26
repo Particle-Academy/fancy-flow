@@ -66,7 +66,11 @@ describe("builtin output shapes", () => {
     for (const id of [
       "branch", "switch_case", "output", "transform", "merge",
       "manual_trigger", "webhook_trigger", "human_approval",
-      "variable", "schedule_trigger",
+      "variable",
+      // schedule_trigger LEFT this list when `emits` arrived: a partial
+      // ["cron","timezone"] list was unsafe only while nothing could say the
+      // inputs also merge. With emits: "inputs-merged" beside it the two are
+      // complete together.
     ]) {
       expect(paths(`@particle-academy/${id}`), `${id} should not declare a shape`).toBeNull();
     }
@@ -90,5 +94,59 @@ describe("builtin output shapes", () => {
         expect(f.path, `${kind.name} declared a field with no path`).not.toBe("");
       }
     }
+  });
+});
+
+describe("emits — the relation a field list cannot express", () => {
+  const relation = (kindId: string, config: Record<string, unknown> = {}) => {
+    const kind = getNodeKind(kindId);
+    expect(kind, `\`${kindId}\` is not registered`).not.toBeNull();
+    const e = kind!.emits;
+    if (e === undefined) return null;
+    return typeof e === "function" ? e(config as never) : e;
+  };
+
+  test.each([
+    ["branch", "input"],
+    ["switch_case", "input"],
+    ["output", "input"],
+    ["human_approval", "input"],
+    ["manual_trigger", "input"],
+    ["variable", "expression:value"],
+    ["schedule_trigger", "inputs-merged"],
+  ])("%s declares `%s`", (id, expected) => {
+    expect(relation(`@particle-academy/${id}`)).toBe(expected);
+  });
+
+  test("transform's relation depends on its config", () => {
+    // Two behaviours: the input unchanged with no expression, else the shape
+    // that expression names.
+    expect(relation("@particle-academy/transform")).toBe("input");
+    expect(relation("@particle-academy/transform", { expression: "" })).toBe("input");
+    expect(relation("@particle-academy/transform", { expression: "{{ in.user }}" }))
+      .toBe("expression:expression");
+  });
+
+  test("merge concatenating declares NO relation, and no empty field list", () => {
+    // A list's elements are not addressable as top-level fields. `[]` would
+    // claim "emits no fields", which is false and would refuse everything.
+    expect(relation("@particle-academy/merge")).toBe("inputs-merged");
+    expect(relation("@particle-academy/merge", { mode: "concat" })).toBeNull();
+    expect(paths("@particle-academy/merge")).toBeNull();
+  });
+
+  test("wait declares a LIST and NO relation, because it NESTS", () => {
+    // It returns { waited, duration, input } -- the input goes UNDER a key.
+    // emits: "input" would make a reader accept {{ in.<any inbound field> }} at
+    // top level, which resolves to nothing at run time. This is the case that
+    // proved a relation needs a destination.
+    expect(relation("@particle-academy/wait")).toBeNull();
+    expect(paths("@particle-academy/wait")).toEqual(["waited", "duration", "input"]);
+  });
+
+  test("webhook_trigger declares no relation, because its choice is DATA-dependent", () => {
+    // `inputs.payload ?? inputs` cannot be answered from config, so no relation
+    // is honest. Under-claiming is free.
+    expect(relation("@particle-academy/webhook_trigger")).toBeNull();
   });
 });

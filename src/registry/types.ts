@@ -212,6 +212,14 @@ export type RenderBodyContext<TConfig = unknown> = {
 };
 
 /**
+ * How a kind's output relates to its input. See `NodeKindDefinition.emits`.
+ *
+ * Every value is TOP-LEVEL by construction — a relation cannot describe a value
+ * nested under a key, which is why `wait` declares a field list instead.
+ */
+export type EmitsRelation = "input" | "inputs-merged" | `expression:${string}`;
+
+/**
  * NodeKindDefinition — declares an authorable node type. Register one
  * via `registerNodeKind()`. Hosts (and the agent bridge) introspect the
  * registry to know what's authorable.
@@ -266,6 +274,39 @@ export type NodeKindDefinition<TConfig = Record<string, unknown>, TIn = any, TOu
    * emits the field keys its author defined, which no static list can know.
    */
   outputShape?: OutputShape<TConfig>;
+
+  /**
+   * How this kind's output RELATES to its input, when the relation is what is
+   * knowable rather than a field list.
+   *
+   * `outputShape` answers *which fields*; this answers *where they come from*.
+   * Separate because they are separate questions, and one field carrying
+   * sometimes-a-list-sometimes-a-keyword is one a reader handles only in the
+   * form it met first.
+   *
+   * - `"input"` — emits its input unchanged
+   * - `"inputs-merged"` — the union of every input's fields
+   * - `` `expression:${string}` `` — the shape the expression in THAT CONFIG KEY
+   *   names. The key is part of the value because a consumer hardcoding "the
+   *   field called expression" has copied our knowledge one level down, which is
+   *   the thing this removes: `transform` reads `expression`, `variable` reads
+   *   `value`.
+   * - a function of config, for a kind whose relation depends on how it was
+   *   configured.
+   *
+   * **A relation with no destination can only express a TOP-LEVEL merge.**
+   * `wait` returns `{ waited, duration, input }` — it NESTS its input under a
+   * key. `emits: "input"` there would make a reader accept
+   * `{{ in.<any inbound field> }}` at top level, which resolves to nothing at
+   * run time. It keeps a static `outputShape` with an opaque `input` field
+   * instead. Read the executor and ask *merge or nest* before assigning one;
+   * under-claiming is free.
+   *
+   * An `expression` relation is knowable only when the whole config string is a
+   * SINGLE reference. Interpolating several yields a string with no addressable
+   * fields, and a reader that expands it anyway over-permits.
+   */
+  emits?: EmitsRelation | ((config: TConfig) => EmitsRelation | null);
 
   /** Optional custom body rendered inside the node card. */
   renderBody?: (ctx: RenderBodyContext<TConfig>) => ReactNode;

@@ -96,7 +96,7 @@ export {
   defaultConfigFor,
   validateConfig,
 } from "./registry/registry";
-export type { NodeKindDefinition, ConfigField, NodeCategory, PortSpec } from "./registry/types";
+export type { NodeKindDefinition, ConfigField, NodeCategory, PortSpec, EmitsRelation } from "./registry/types";
 // `outputShape` on the definition above is built from these. Declaring a public
 // type that refers to an unexported one puts it in the shipped `.d.ts` under a
 // mangled name -- present, and unreachable by the name a consumer would write.

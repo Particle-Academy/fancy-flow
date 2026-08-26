@@ -101,6 +101,7 @@ export {
   RichInputPreview,
   type RichInputAdapter,
   type NodeKindDefinition,
+  type EmitsRelation,
   type NodeCategory,
   type ConfigField,
   type RepeaterConfigField,

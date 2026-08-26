@@ -98,6 +98,8 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── Triggers ─────────────
   {
     name: "@particle-academy/manual_trigger",
+    // returns the inputs it was started with
+    emits: "input",
     aliases: ["manual_trigger", "@fancy/manual_trigger"],
     category: "trigger",
     label: "Manual",
@@ -125,6 +127,12 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/schedule_trigger",
+    outputShape: [
+      { path: "cron", type: "string" as const, description: "The cron expression that fired." },
+      { path: "timezone", type: "string" as const, description: "The timezone it was evaluated in." },
+    ],
+    // merges its inputs into the TOP level beside cron/timezone
+    emits: "inputs-merged",
     aliases: ["schedule_trigger", "@fancy/schedule_trigger"],
     category: "trigger",
     label: "Schedule",
@@ -284,6 +292,8 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── Logic ─────────────
   {
     name: "@particle-academy/branch",
+    // returns its input on the chosen port
+    emits: "input",
     aliases: ["branch", "@fancy/branch"],
     category: "logic",
     label: "Branch",
@@ -341,6 +351,8 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/switch_case",
+    // returns its input on the chosen port
+    emits: "input",
     aliases: ["switch_case", "@fancy/switch_case"],
     category: "logic",
     label: "Switch",
@@ -387,6 +399,13 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/merge",
+    // `merge` mode unions every object input at the TOP level; `concat` builds
+    // a list instead, whose elements are not addressable as fields. So concat
+    // declares NOTHING rather than an empty list -- `[]` would claim "emits no
+    // fields" of a kind that emits a list, which is false and refuses every
+    // reference.
+    emits: (config: { mode?: string }) =>
+      (config?.mode ?? "merge") === "concat" ? null : ("inputs-merged" as const),
     aliases: ["merge", "@fancy/merge"],
     category: "logic",
     label: "Merge",
@@ -419,6 +438,10 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/transform",
+    // Two behaviours: the input unchanged when no expression is configured,
+    // else the shape that expression names. So the RELATION is config-dependent.
+    emits: (config: { expression?: string }) =>
+      (config?.expression ?? "") === "" ? ("input" as const) : ("expression:expression" as const),
     aliases: ["transform", "@fancy/transform"],
     category: "logic",
     label: "Transform",
@@ -495,6 +518,8 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/variable",
+    // evaluates the expression in config.value
+    emits: "expression:value",
     aliases: ["variable", "@fancy/variable"],
     category: "data",
     label: "Variable",
@@ -706,6 +731,8 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── Human ─────────────
   {
     name: "@particle-academy/human_approval",
+    // returns its input on approved/denied
+    emits: "input",
     aliases: ["human_approval", "@fancy/human_approval"],
     pausesForHuman: "approval",
     category: "human",
@@ -747,6 +774,8 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── Output ─────────────
   {
     name: "@particle-academy/output",
+    // returns its input unchanged
+    emits: "input",
     aliases: ["output", "@fancy/output"],
     category: "output",
     label: "Output",

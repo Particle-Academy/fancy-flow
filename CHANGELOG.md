@@ -10,6 +10,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [0.58.0] - 2026-08-26
+
+### Added
+
+- **`emits` — how a kind's output RELATES to its input.** The half a field list
+  cannot express, and the reason a consumer was reimplementing our executors'
+  semantics in a static analyser with nothing to fail when they changed.
+
+  `outputShape` answers *which fields*; `emits` answers *where they come from*.
+  `EmitsRelation` is `"input" | "inputs-merged" | \`expression:${string}\``, or a
+  function of config for a kind whose relation depends on how it is configured.
+
+  **The config key is part of the value.** `transform` reads `expression`,
+  `variable` reads `value` — a consumer hardcoding "the field called expression"
+  has copied our knowledge one level down, which is the thing this removes.
+
+  Declared: `branch`, `switch_case`, `output`, `human_approval`,
+  `manual_trigger` (`input`); `variable` (`expression:value`); `transform` and
+  `merge` (functions of config); `schedule_trigger` (`inputs-merged`, composed
+  with its own `cron`/`timezone` list).
+
+### Two rules this design needed, both from a consumer reading executors
+
+- **A relation with no destination can only express a TOP-LEVEL merge.** `wait`
+  returns `{ waited, duration, input }` — it **nests** its input under a key, so
+  `emits: "input"` there would make a reader accept
+  `{{ in.<any inbound field> }}` at top level, which resolves to nothing at run
+  time. `wait` keeps a static list with an opaque `input` field and no relation.
+  Read the executor and ask *merge or nest* before assigning one.
+
+- **`merge` in `concat` mode declares NO relation and no field list.** It emits
+  a list, whose elements are not addressable as top-level fields; `[]` would
+  claim "emits no fields", which is false and would refuse every reference.
+  Under-claiming is free.
+
+  `schedule_trigger` moved the other way for the same reason: its partial
+  `["cron","timezone"]` list was unsafe only while nothing could say the inputs
+  also merge. With the relation declared beside it, the two are complete
+  together.
+
+- `webhook_trigger` deliberately declares nothing: its choice is **data**-
+  dependent (`inputs.payload ?? inputs`), not config-dependent, so no relation
+  is honest.
+
 ## [0.57.0] - 2026-08-26
 
 ### Added

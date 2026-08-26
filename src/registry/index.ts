@@ -14,6 +14,7 @@ export type {
   DocumentConfigField,
   NodeCategory,
   NodeKindDefinition,
+  EmitsRelation,
   PortSpec,
   RenderBodyContext,
 } from "./types";
