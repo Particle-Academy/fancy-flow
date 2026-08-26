@@ -10,6 +10,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > breaking change below is paired with what a consumer actually has to DO, and
 > in most cases the answer is "nothing".
 
+## [0.57.0] - 2026-08-26
+
+### Added
+
+- **Five more builtin kinds declare what they emit** — `llm_router`, `notify`,
+  `webhook_out`, `wait`, `log` — bringing the declared set to ten alongside
+  `api_request`, `embed_search`, `for_each`, `llm_call` and `user_input`.
+
+  **What a declaration means here is not what it means in the PHP twin, and the
+  difference matters.** This package ships NO executors; a host supplies them.
+  So `outputShape` here is the **contract a conforming executor must satisfy**,
+  not a description of code in this repo. The PHP twin ships its executors, so
+  the same declaration there describes real behaviour — which is why these rows
+  were read line-by-line from those executors rather than invented.
+
+  For a host: if your `notify` executor returns something other than
+  `{ sent, channel, to, message }`, the declaration is not wrong — your executor
+  is not conforming, and anything reading the shape will mislead an author about
+  your graph.
+
+### Deliberately still undeclared
+
+- `branch`, `switch_case`, `output`, `transform`, `merge`, `manual_trigger`,
+  `webhook_trigger`, `human_approval`, `variable`, `schedule_trigger`. They emit
+  what arrived, so their shape is not knowable from the kind alone, and
+  undeclared is the honest answer — read it as *unknown, do not refuse*, never
+  as *emits nothing*. A test asserts they stay that way.
+
+  `schedule_trigger` is the sharp case: the reference executor merges its inputs
+  into the TOP level, so a partial list of `["cron","timezone"]` would make a
+  validator **refuse every merged-in key**. A partial static list on a merging
+  kind is a false-rejection generator.
+
 ## [Unreleased]
 
 ## [0.56.0] - 2026-08-25

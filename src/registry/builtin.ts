@@ -401,6 +401,11 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/wait",
+    outputShape: [
+      { path: "waited", type: "string" as const, description: "Which wait mode ran." },
+      { path: "duration", type: "number" as const, description: "How long it waited." },
+      { path: "input", type: "unknown" as const, description: "The value that arrived, carried forward." },
+    ],
     aliases: ["wait", "@fancy/wait"],
     category: "logic",
     label: "Wait",
@@ -567,6 +572,11 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/llm_router",
+    outputShape: [
+      { path: "route", type: "string" as const, description: "The port the model chose." },
+      { path: "reason", type: "string" as const, description: "Why the model chose it." },
+      { path: "input", type: "unknown" as const, description: "The value that arrived, carried forward." },
+    ],
     // Every id this node has ever shipped under keeps resolving — MOIC's saved
     // flows carry the bare `llm_branch`.
     aliases: ["llm_router", "llm_branch", "@fancy/llm_branch", "@fancy/llm_router"],
@@ -675,6 +685,11 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/webhook_out",
+    outputShape: [
+      { path: "sent", type: "boolean" as const, description: "True once the request was made." },
+      { path: "status", type: "number" as const, description: "HTTP status, when the transport reported one." },
+      { path: "response", type: "unknown" as const, description: "The response body, when there was one." },
+    ],
     aliases: ["webhook_out", "@fancy/webhook_out"],
     category: "io",
     label: "Send Webhook",
@@ -707,6 +722,12 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/notify",
+    outputShape: [
+      { path: "sent", type: "boolean" as const, description: "True once the message was handed to the channel." },
+      { path: "channel", type: "string" as const, description: "The channel it went to." },
+      { path: "to", type: "string" as const, description: "The recipient." },
+      { path: "message", type: "string" as const, description: "The rendered message." },
+    ],
     aliases: ["notify", "@fancy/notify"],
     category: "human",
     label: "Notify",
@@ -736,6 +757,10 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/log",
+    outputShape: [
+      { path: "logged", type: "string" as const, description: "The message that was written." },
+      { path: "level", type: "string" as const, description: "The level it was written at." },
+    ],
     aliases: ["log", "@fancy/log"],
     category: "output",
     label: "Log",
