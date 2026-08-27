@@ -215,6 +215,21 @@ rather than dropped:
 { type: "text", key: "tier", label: "Tier", choices: [{ value: "p1", label: "Priority 1" }] }
 ```
 
+A host whose runtime owns selected values can hide those authoring controls
+without replacing the panel or redefining the node kind. `fieldFilter` is
+forwarded by `FlowEditor` and receives the selected node, its resolved kind,
+and each schema field. Returning `false` removes the field's label,
+description, and control; it does not mutate the registered schema:
+
+```tsx
+<FlowEditor
+  fieldFilter={({ kind, field }) =>
+    kind.name !== "@particle-academy/llm_call"
+      || !["provider", "model", "credential"].includes(field.key)
+  }
+/>
+```
+
 ### Ports that follow config
 
 `inputs` / `outputs` accept a function of the node's config, for kinds whose

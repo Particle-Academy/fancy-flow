@@ -12,6 +12,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-08-27
+
+### Added
+
+- **`fieldFilter` on `NodeConfigPanel` and `FlowEditor`.** A host can now omit
+  selected schema-driven controls without replacing the panel or forking a
+  built-in node definition. The callback receives `{ node, kind, field }`; a
+  `false` result removes the complete field wrapper, including its label and
+  description. This is presentation-only—the registered schema and runtime
+  behavior remain intact.
+
+  ```tsx
+  <FlowEditor
+    fieldFilter={({ kind, field }) =>
+      kind.name !== "@particle-academy/llm_call"
+        || !["provider", "model", "credential"].includes(field.key)
+    }
+  />
+  ```
+
+  **What to do:** nothing unless your host currently replaces the entire config
+  panel solely to hide controls; it can now use `fieldFilter` instead.
+
 ## [0.64.0] - 2026-08-26
 
 ### Added

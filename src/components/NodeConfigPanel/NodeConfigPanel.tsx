@@ -1,5 +1,6 @@
 import { type ReactNode, useId, useMemo } from "react";
 import type { FlowNode, FlowGraph} from "../../types";
+import type { ConfigField, NodeKindDefinition } from "../../registry/types";
 import { categoryAccent, getNodeKind, validateConfig } from "../../registry/registry";
 import { getRichInputAdapter } from "../../registry/rich-input";
 import { ConfigFieldRenderer, type ConfigFieldRenderFn } from "./ConfigFieldRenderer";
@@ -34,6 +35,16 @@ export type NodeConfigPanelProps = {
   /** Host renderers keyed by field `type`. See {@link ConfigFieldRenderer}. */
   fieldRenderers?: Record<string, ConfigFieldRenderFn>;
   /**
+   * Presentation-only visibility policy for schema fields. Returning `false`
+   * omits the complete field wrapper (label, description, and control) while
+   * leaving the registered kind and its runtime schema untouched.
+   */
+  fieldFilter?: (context: {
+    node: FlowNode;
+    kind: NodeKindDefinition;
+    field: ConfigField;
+  }) => boolean;
+  /**
    * The graph the node lives in. Supplying it is what makes the `{{ }}` variable
    * picker context-aware — it reads the UPSTREAM node's declared `outputShape`
    * to list what is actually reachable here (issue #5). Without it the picker
@@ -62,6 +73,7 @@ export function NodeConfigPanel({
   renderCredentialField,
   renderDocumentField,
   fieldRenderers,
+  fieldFilter,
   graph,
   className,
   style,
@@ -139,6 +151,9 @@ export function NodeConfigPanel({
     onChange({ ...node, data: { ...node.data, config: { ...config, [key]: value } } });
 
   const issues = validateConfig(kind, config);
+  const configFields = (kind.configSchema ?? []).filter((field) =>
+    fieldFilter ? fieldFilter({ node, kind, field }) : true,
+  );
 
   // An explicit prop wins; otherwise fall back to the rich-input adapter, so a
   // single registerRichInputAdapter() call enables BOTH authoring here and the
@@ -227,8 +242,8 @@ export function NodeConfigPanel({
         })
       ) : (
         <>
-          {(kind.configSchema ?? []).length > 0 && <hr className="ff-panel__divider" />}
-          {(kind.configSchema ?? []).map((field) => (
+          {configFields.length > 0 && <hr className="ff-panel__divider" />}
+          {configFields.map((field) => (
             <div key={field.key} className="ff-panel__field">
               <label className="ff-panel__label" htmlFor={fieldId(field.key)}>
                 {field.label}

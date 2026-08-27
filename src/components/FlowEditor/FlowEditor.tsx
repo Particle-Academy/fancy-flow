@@ -97,6 +97,8 @@ export type FlowEditorProps = {
    * editor and composing one by hand.
    */
   fieldRenderers?: ComponentProps<typeof NodeConfigPanel>["fieldRenderers"];
+  /** Presentation-only config-field filter, forwarded to `NodeConfigPanel`. */
+  fieldFilter?: ComponentProps<typeof NodeConfigPanel>["fieldFilter"];
   /** Show run feed below the canvas. Default true. */
   showFeed?: boolean;
   /** Total editor height. Default 720. */
@@ -163,6 +165,7 @@ function FlowEditorInner({
   showPalette = true,
   showPanel = true,
   fieldRenderers,
+  fieldFilter,
   showFeed = true,
   extraToolbar,
   actions = [],
@@ -829,6 +832,7 @@ function FlowEditorInner({
               node={api.selected}
               onChange={api.updateNode}
               fieldRenderers={fieldRenderers}
+              fieldFilter={fieldFilter}
               // The editor already holds the graph; passing it is what turns the
               // {{ }} picker from a static list into a context-aware one.
               graph={flow}
