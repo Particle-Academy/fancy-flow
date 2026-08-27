@@ -1,4 +1,5 @@
 import type { FlowEdge, FlowGraph, FlowNode, PortDescriptor, WorkflowInput } from "../types";
+import { checkGraphConnectivity } from "../analysis/graph-connectivity";
 import { defaultConfigFor, getNodeKind, validateConfig } from "../registry/registry";
 import { resolveNodePorts } from "../registry/ports";
 
@@ -333,6 +334,17 @@ export function importWorkflow(schema: unknown, options: ImportOptions = {}): Im
       } as FlowEdge;
     })
     .filter((e): e is FlowEdge => e !== null);
+
+  // WIRING, not merely dataflow: a node no edge reaches and that reaches no
+  // edge, and an edge reading from a node that publishes nothing.
+  //
+  // Deliberately AFTER the edge loop, so it sees the same edges the engine will
+  // -- a dangling edge is dropped with a warning above, and running this first
+  // would let a dropped edge count as a connection.
+  //
+  // Deliberately NOT gated on `lenient`. That flag is about unknown VOCABULARY
+  // (a kind this host has not registered), never about wiring.
+  issues.push(...checkGraphConnectivity({ nodes, edges }));
 
   const ok = issues.every((i) => i.level !== "error");
   // The declaration comes back with the graph. Dropping it on import would be

@@ -191,3 +191,4 @@ export {
  * The TS twin of `FancyFlow\Analysis\SubflowCycle` (fancy-flow-php#5).
  */
 export { findSubflowCycle } from "./analysis/subflow-cycle";
+export { checkGraphConnectivity, mayFloat } from "./analysis/graph-connectivity";

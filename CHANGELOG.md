@@ -12,6 +12,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-08-26
+
+### Added
+
+- **`importWorkflow` now refuses a graph containing a node that cannot take part
+  in it.** The TS twin of `fancy-flow-php` 0.48 — the two runtimes agree, so an
+  editor no longer lets you draw a graph the PHP validator then rejects.
+
+  Two shapes, both of which imported clean and then quietly did nothing. Both
+  were MEASURED against the engine first, and neither of them fails:
+
+  - **A floating node** — no inbound and no outbound edge. It is not skipped: a
+    node with no incoming edge is a root, so the topo sort runs it. A three-node
+    graph with one stray `log` executed `t,lonely,o`. It runs disconnected,
+    receiving nothing from the graph and reaching nobody in it.
+  - **An edge whose SOURCE is a terminal node** (`output`, `log` — the kinds
+    declaring an empty output-port list). Measured: `t -> output -> log`
+    imported clean and the `log` RAN, with `{{ input }}` resolving to `""`.
+    `collectInputs` binds only when `"<sourceId>:<handle>"` exists, and a node
+    publishing no ports never creates that key.
+
+  **What may float:** a `note` (across every id it answers to), any kind
+  categorised `annotation` or `layout` — a swimlane is never wired to anything,
+  that is what a lane IS — and any kind the registry does not know. That last
+  one is not a loophole: an unknown kind already produces its own issue, and we
+  cannot know whether it is a step, an annotation or a lane, so claiming it must
+  be wired would assert something unverifiable.
+
+  New export from `@particle-academy/fancy-flow/engine`:
+  `checkGraphConnectivity`, `mayFloat`.
+
+### What a consumer must do
+
+**Almost certainly nothing.** Only `importWorkflow` changed; nothing about
+running a graph did, and `FlowEditor` composes graphs in memory rather than
+through the importer, so authoring is unaffected until you load or validate.
+
+Where you WILL see it: loading a saved document with a stray node now returns
+`ok: false` with an error naming that node's id (or the edge id, for a
+terminator edge), and every offending node is reported at once rather than one
+per round trip. If a stray node was a comment, make it a `note`.
+
+### Known divergence from the PHP twin
+
+This importer PRESERVES node-level `outputs`; `fancy-flow-php`'s DROPS them
+(leaving the kind to decide). So a document carrying an explicit per-node port
+list is read differently by the two — here the node's own declaration wins, and
+there the kind's does. Pre-existing, surfaced by writing this check, and
+recorded rather than smoothed over.
+
+---
+
 ## [0.63.0] - 2026-08-26
 
 ### Added
