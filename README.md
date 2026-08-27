@@ -219,7 +219,8 @@ A host whose runtime owns selected values can hide those authoring controls
 without replacing the panel or redefining the node kind. `fieldFilter` is
 forwarded by `FlowEditor` and receives the selected node, its resolved kind,
 and each schema field. Returning `false` removes the field's label,
-description, and control; it does not mutate the registered schema:
+description, control, and built-in validation messages; it does not mutate the
+registered schema or runtime validation:
 
 ```tsx
 <FlowEditor

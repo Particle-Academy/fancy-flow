@@ -22,7 +22,7 @@ beforeAll(() => {
     outputs: [{ id: "out" }],
     configSchema: [
       { type: "text", key: "prompt", label: "Prompt" },
-      { type: "text", key: "provider", label: "Provider", description: "Secret host policy" },
+      { type: "text", key: "provider", label: "Provider", description: "Secret host policy", required: true },
     ],
   });
 });
@@ -47,6 +47,7 @@ describe("NodeConfigPanel fieldFilter", () => {
     expect(container.querySelector('[data-ff-field="provider"]')).toBeNull();
     expect(container.textContent).not.toContain("Provider");
     expect(container.textContent).not.toContain("Secret host policy");
+    expect(container.textContent).not.toContain("Provider is required");
     expect(fieldFilter).toHaveBeenCalledWith(expect.objectContaining({
       node: expect.objectContaining({ id: "n1" }),
       kind: expect.objectContaining({ name: "@test/filterable-fields" }),

@@ -150,10 +150,14 @@ export function NodeConfigPanel({
   const setConfigValue = (key: string, value: unknown) =>
     onChange({ ...node, data: { ...node.data, config: { ...config, [key]: value } } });
 
-  const issues = validateConfig(kind, config);
   const configFields = (kind.configSchema ?? []).filter((field) =>
     fieldFilter ? fieldFilter({ node, kind, field }) : true,
   );
+  const visibleFieldKeys = new Set(configFields.map((field) => field.key));
+  // Validation itself still runs against the complete registered schema. Only
+  // its presentation follows fieldFilter: a host-owned hidden value must not
+  // leave an impossible warning for a control the host deliberately removed.
+  const issues = validateConfig(kind, config).filter((issue) => visibleFieldKeys.has(issue.key));
 
   // An explicit prop wins; otherwise fall back to the rich-input adapter, so a
   // single registerRichInputAdapter() call enables BOTH authoring here and the

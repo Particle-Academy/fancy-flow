@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.1] - 2026-08-27
+
+### Fixed
+
+- **`fieldFilter` now hides the filtered field's built-in validation issue as
+  well as its wrapper.** Version 0.65.0 could remove a required control while
+  leaving an impossible “is required” warning behind. Validation still runs
+  against the complete registered schema; only the panel's presentation is
+  filtered.
+
 ## [0.65.0] - 2026-08-27
 
 ### Added
