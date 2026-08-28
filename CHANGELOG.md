@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.2] - 2026-08-28
+
+### Added
+
+- **Promise-backed UX effects can now be honest inline workflow steps.** Set
+  `meta.<effect>.passThrough` to give the generated `ux_<effect>` kind an output
+  port and emit its input after the effect settles; set `includeInputs` to pass
+  the exact resolved port map to the host as `$inputs`. A modal effect can now
+  keep a run paused until the person closes it, then let the graph continue,
+  without wrapping the generated executor or duplicating flow state in the host.
+  Existing effects remain terminal and receive config-only params unless these
+  flags are explicitly enabled.
+
 ## [0.65.1] - 2026-08-27
 
 ### Fixed

@@ -47,6 +47,18 @@ export type UxEffectMeta = {
   category?: NodeCategory;
   /** Config form fields = the effect's params. */
   configSchema?: ConfigField[];
+  /**
+   * Include the executor's exact resolved input-port map as `$inputs` in the
+   * effect params. Off by default so existing effects keep their payload shape.
+   */
+  includeInputs?: boolean;
+  /**
+   * Make this UX node an inline step instead of a terminal notification. It
+   * gains an `out` port, waits for the effect Promise, then emits its `in`
+   * payload unchanged. This is the native shape for dialogs/overlays whose
+   * lifetime gates the rest of a workflow.
+   */
+  passThrough?: boolean;
 };
 
 export type FlowRunnerUxOptions = {
@@ -86,8 +98,10 @@ export function createFlowRunnerUx(options: FlowRunnerUxOptions): FlowRunnerUx {
 
   const executors: ExecutorRegistry = {};
   for (const name of Object.keys(effects)) {
-    executors[kindFor(name)] = async ({ node }: { node: FlowNode }) => {
-      const params = (node.data as { config?: Record<string, unknown> } | undefined)?.config ?? {};
+    executors[kindFor(name)] = async ({ node, inputs }: { node: FlowNode; inputs: Record<string, unknown> }) => {
+      const m = meta[name] ?? {};
+      const config = (node.data as { config?: Record<string, unknown> } | undefined)?.config ?? {};
+      const params = m.includeInputs ? { ...config, $inputs: inputs } : config;
       const result = await dispatcher.dispatch(name, params);
       // A UX effect can drive flow control: if it returns the decision sugar
       // (`{ branch }` or `{ __port }`) — e.g. an interactive "choose" effect that
@@ -96,6 +110,7 @@ export function createFlowRunnerUx(options: FlowRunnerUxOptions): FlowRunnerUx {
       if (result && typeof result === "object" && ("branch" in result || "__port" in result)) {
         return result;
       }
+      if (m.passThrough) return inputs.in ?? inputs;
       return { effect: name, result };
     };
   }
@@ -111,7 +126,9 @@ export function createFlowRunnerUx(options: FlowRunnerUxOptions): FlowRunnerUx {
         icon: m.icon ?? "✨",
         accent: m.accent ?? "#8b5cf6",
         inputs: [{ id: "in" }],
-        outputs: [],
+        outputs: m.passThrough ? [{ id: "out" }] : [],
+        emits: m.passThrough ? "input" : undefined,
+        sideEffects: "unsafe-to-replay",
         configSchema: m.configSchema,
       });
     }
