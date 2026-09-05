@@ -74,11 +74,24 @@ export type WorkflowSchemaNode = {
   inputs?: PortDescriptor[];
   outputs?: PortDescriptor[];
   /**
-   * Visual layout — additive + optional. `parentId`/`extent` carry node grouping
-   * (swimlanes / containers); `width`/`height` carry an explicit (resized) size;
-   * `style` carries inline presentation. A runtime that only walks edges/ports
-   * (e.g. the PHP twin) ignores all of these — they exist purely for the canvas,
-   * so an older reader that doesn't know them simply drops them.
+   * Node grouping and visual layout — additive + optional. `parentId`/`extent`
+   * say which container a node sits in (swimlanes); `width`/`height` carry an
+   * explicit (resized) size; `style` carries inline presentation.
+   *
+   * **`parentId` is NOT decoration, and a runtime that drops it is wrong.** It
+   * decides which terminal a node talks to — a terminal lane owns one session
+   * and membership is this field, deliberately, so there is no second copy of
+   * the grouping in each node's config to drift from what the canvas shows.
+   *
+   * This comment used to say these fields exist "purely for the canvas", so a
+   * runtime that only walks edges and ports could ignore all of them. The
+   * Python twin read that literally and carried none of them: a graph loaded
+   * there and saved back lost every grouping a person had drawn, silently. The
+   * sentence was true when it was written and became false without being
+   * revisited, which is the more common way a comment does harm.
+   *
+   * An older reader that does not know these fields still drops them — that is
+   * forward-compatibility, not permission.
    */
   parentId?: string;
   extent?: "parent" | [[number, number], [number, number]];
