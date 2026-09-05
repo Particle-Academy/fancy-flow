@@ -1,3 +1,5 @@
+import type { TerminalSession } from "./registry/capabilities";
+
 /**
  * Public domain types for fancy-flow. Built-in nodes are layered on top of
  * @xyflow/react's `Node` so consumers can mix custom xyflow nodes alongside
@@ -172,6 +174,24 @@ export type NodeExecutor<TIn = Record<string, unknown>, TOut = unknown> = (
      * invent a key. See `RunIdentity`.
      */
     run?: RunIdentity;
+    /**
+     * The terminal this node's lane owns, if it is inside a terminal lane.
+     *
+     * `session()` is a FUNCTION, not an open session, and that is the whole
+     * lifetime rule in one shape: the terminal opens on first USE. A node that
+     * sits inside a terminal lane and never calls this never spawns a process,
+     * so drawing a lane around nodes that mostly do other things costs nothing.
+     * Every node in the lane gets the SAME session, which is what makes `cd`
+     * persist and an agent TUI still be running with its conversation intact.
+     *
+     * `undefined` when the node is not inside a terminal lane, and that is a
+     * real answer rather than a missing one — a terminal node outside a lane
+     * must say so rather than quietly opening a shell of its own, because one
+     * unmanaged process per node is exactly what the lane exists to prevent.
+     */
+    terminal?: {
+      session: () => Promise<TerminalSession>;
+    };
   },
 ) => Promise<TOut> | TOut;
 

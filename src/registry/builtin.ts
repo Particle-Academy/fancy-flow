@@ -827,6 +827,53 @@ const KINDS: NodeKindDefinition[] = [
     component: LaneNode,
   },
   {
+    // Terminal lane — a lane that OWNS a terminal for the length of the run.
+    //
+    // Visually a swimlane, and `layout` for the same reason the plain lane is:
+    // a lane is not a step, so it never executes and never appears in topo
+    // order. What is new is that it DECLARES a resource. The runtime opens its
+    // terminal lazily, when the first terminal node inside it runs, and closes
+    // it in the run's `finally` — so a graph that never reaches a terminal node
+    // never spawns a process, and one that does gets exactly one session no
+    // matter how many nodes use it.
+    //
+    // Membership is `parentId`, which already persists into the WorkflowSchema.
+    // That is what lets a headless runtime resolve the same grouping the canvas
+    // shows, without a second association to keep in sync.
+    name: "@particle-academy/terminal_lane",
+    aliases: ["terminal_lane", "@fancy/terminal_lane"],
+    category: "layout",
+    label: "Terminal lane",
+    description: "A lane that owns one terminal. Opens at the first terminal node, closes when the run ends.",
+    icon: "▣",
+    inputs: [],
+    outputs: [],
+    configSchema: [
+      { type: "text", key: "title", label: "Title", default: "Terminal" },
+      {
+        type: "text",
+        key: "command",
+        label: "Command",
+        placeholder: "Leave empty for the default shell",
+      },
+      { type: "text", key: "cwd", label: "Working directory", placeholder: "Host default" },
+      { type: "keyvalue", key: "env", label: "Environment" },
+      {
+        type: "select",
+        key: "orientation",
+        label: "Orientation",
+        default: "horizontal",
+        options: [
+          { value: "horizontal", label: "Row" },
+          { value: "vertical", label: "Column" },
+        ],
+      },
+    ],
+    defaultConfig: { title: "Terminal", orientation: "horizontal" },
+    resizable: { minWidth: 220, minHeight: 120 },
+    component: LaneNode,
+  },
+  {
     // Note — a sticky-note annotation. Portless + visual-only: the runtime skips
     // the `annotation` category, so a note's text NEVER reaches a runner — it
     // rides in the document purely for people, editors, and MCP tools. Uses its

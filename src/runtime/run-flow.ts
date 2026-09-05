@@ -12,6 +12,7 @@ import type {
 import { getNodeKind, kindIds } from "../registry/registry";
 import { resolveNodePorts } from "../registry/ports";
 import { RunIdentity, type RunIdentityJson } from "./run-identity";
+import { TerminalSessions, specForLane } from "./terminal-sessions";
 import { resolveWorkflowProps } from "./workflow-props";
 
 export type RunOptions = {
@@ -144,6 +145,28 @@ export async function runFlow(
   const declaresProps = (graph.inputs?.length ?? 0) > 0;
 
   const incomingByNode = indexIncoming(graph.edges);
+
+  // Terminal lanes. Constructed unconditionally and costing nothing until a
+  // node inside one actually runs — a graph with no terminal lane never asks
+  // for a host, so nothing spawns and nothing needs one registered.
+  const sessions = new TerminalSessions(graph);
+  const isTerminalLane = (candidate: FlowNode): boolean =>
+    getNodeKind(candidate.type ?? "")?.name === "@particle-academy/terminal_lane";
+
+  const terminalAccessorFor = (node: FlowNode) => {
+    const laneId = sessions.laneFor(node.id, isTerminalLane);
+    if (laneId === null) return undefined;
+
+    const lane = graph.nodes.find((n) => n.id === laneId);
+    if (!lane) return undefined;
+
+    // Returned as a FUNCTION rather than an open session, so the terminal opens
+    // on first USE rather than when a node in the lane starts. A node that
+    // never touches its terminal never spawns one, which is what makes the
+    // lane safe to draw around nodes that mostly do other things.
+    return { session: () => sessions.session(laneId, specForLane(lane)) };
+  };
+
   const timer = timeoutMs ? setTimeout(() => errors.push(`Run timed out after ${timeoutMs}ms`), timeoutMs) : null;
 
   onEvent({ type: "run-start" });
@@ -261,6 +284,7 @@ export async function runFlow(
             executors,
             depth,
             run,
+            terminal: terminalAccessorFor(node),
           }),
         );
         outputs[node.id] = result;
@@ -291,6 +315,18 @@ export async function runFlow(
     }
   } finally {
     if (timer) clearTimeout(timer);
+
+    // Terminals close HERE, in the same `finally` that clears the timer, so
+    // they go away on the error and abort paths too — not only when a run ends
+    // tidily. A PTY that outlives its run is a process nobody is watching and
+    // nothing will close.
+    //
+    // Failures are reported and swallowed rather than thrown: this is the
+    // teardown path, and throwing would replace the run's real error with a
+    // cleanup error, hiding what actually went wrong behind the consequence.
+    for (const error of await sessions.closeAll()) {
+      onEvent({ type: "log", level: "warn", message: `terminal close failed: ${error.message}` });
+    }
   }
 
   const ok = errors.length === 0;
