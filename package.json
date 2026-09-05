@@ -134,6 +134,16 @@
         "default": "./dist/llm/prism.cjs"
       }
     },
+    "./terminal/fancy-term-host": {
+      "import": {
+        "types": "./dist/terminal/fancy-term-host.d.ts",
+        "default": "./dist/terminal/fancy-term-host.js"
+      },
+      "require": {
+        "types": "./dist/terminal/fancy-term-host.d.cts",
+        "default": "./dist/terminal/fancy-term-host.cjs"
+      }
+    },
     "./fields/react-fancy": {
       "import": {
         "types": "./dist/fields/react-fancy.d.ts",

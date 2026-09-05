@@ -438,6 +438,25 @@ is derivable from `onData`, so putting it in the contract would mean every host
 implements it — two implementations of one agreed rule, which is how matching
 bugs end up differing per host. Core owns matching; the host owns the process.
 
+### The fancy-term-host adapter
+
+If you already run `@particle-academy/fancy-term-host`, the adapter is on its
+own subpath:
+
+```ts
+import { terminalManager } from "@particle-academy/fancy-term-host";
+import { useFancyTermHost } from "@particle-academy/fancy-flow/terminal/fancy-term-host";
+
+useFancyTermHost(terminalManager(), { cwd: "/srv/app" });
+```
+
+It takes the backend as an **argument** rather than importing the package.
+`fancy-term-host` requires `node-pty` as a peer and imports it at module scope,
+so depending on it here — even for types — would put a native build in every
+fancy-flow install, including browser consumers who will never open a terminal.
+Anyone who wants this adapter already holds a backend, so passing it in costs
+them one argument and costs everyone else nothing.
+
 **`fancy-flow-php` does not have this feature and is not going to.** It needs
 desktop execution, which is not what the PHP runtime is for.
 

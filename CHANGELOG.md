@@ -48,6 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   **`fancy-flow-php` is intentionally excluded** — this needs desktop execution.
 
+- **`@particle-academy/fancy-flow/terminal/fancy-term-host`** — a ready-made
+  `TerminalHost` over `fancy-term-host`'s `PtyBackend`. It takes the backend as
+  an argument rather than importing the package: `fancy-term-host` requires
+  `node-pty` as a peer and imports it at module scope, so a dependency here —
+  even a devDependency for types — would put a native build in every fancy-flow
+  install, browser consumers included. **fancy-flow gains no new dependency.**
+
 - **`capabilityStatus()` reports `terminal`.** A graph with a terminal lane and
   no host fails part-way through a run, which is precisely what asking up front
   is for.
