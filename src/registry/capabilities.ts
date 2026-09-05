@@ -68,6 +68,89 @@ export function getLlmClient(): LlmClient | null {
   return llmClient;
 }
 
+// ── Terminal ────────────────────────────────────────────────────────────────
+
+/** What to launch. Omit `command` for the host's default shell. */
+export type TerminalSessionSpec = {
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  cols?: number;
+  rows?: number;
+};
+
+export type TerminalExit = { exitCode: number; signal?: string };
+
+/**
+ * One live terminal, owned by the host for as long as the run needs it.
+ *
+ * Output arrives by SUBSCRIPTION rather than a `read()` the engine calls. A TUI
+ * emits continuously and on its own schedule — repainting, streaming a reply,
+ * redrawing a spinner — so a polled read either misses bytes between calls or
+ * has to buffer them anyway, and every host would invent that buffer
+ * differently.
+ */
+export type TerminalSession = {
+  id: string;
+  write: (data: string) => void | Promise<void>;
+  /** Subscribe to output. Returns an unsubscribe. */
+  onData: (listener: (chunk: string) => void) => () => void;
+  /**
+   * Resolves when the process exits.
+   *
+   * A promise rather than an `exited` flag the engine polls, so "the agent
+   * quit" and "the agent has not answered yet" are distinguishable while
+   * waiting. Without it a node awaiting output cannot tell a slow reply from a
+   * dead process, and waits out its timeout either way.
+   */
+  exited: Promise<TerminalExit>;
+  close: () => void | Promise<void>;
+};
+
+/**
+ * The only thing core asks of a terminal: open one.
+ *
+ * ## Why the contract stops at the PTY
+ *
+ * There is deliberately no `waitForOutput(pattern)` here, though every terminal
+ * node needs one. Matching is derivable from `onData`, so putting it in the
+ * contract would mean every host implements it — and two implementations of one
+ * agreed rule is precisely how a week of registry defects happened: both sides
+ * agreed output matching should work, and would have disagreed on whether a
+ * pattern spans chunk boundaries, whether ANSI escapes are stripped first, and
+ * what a timeout returns.
+ *
+ * So core owns the matching and the host owns the process. A host satisfies
+ * this in a few lines over `node-pty`; nothing about how a run interprets the
+ * bytes is up to it.
+ *
+ * ## Why this exists at all
+ *
+ * A terminal cannot live in the engine. `node-pty` is a native addon, so
+ * importing it would break every browser build of this package and force the
+ * dependency on consumers who never run a terminal node — the same reason the
+ * LLM client is a contract rather than an SDK import. The desktop app that CAN
+ * spawn a PTY registers one; everyone else never notices the capability exists.
+ */
+export type TerminalHost = {
+  open: (spec: TerminalSessionSpec) => Promise<TerminalSession> | TerminalSession;
+};
+
+let terminalHost: TerminalHost | null = null;
+
+/** Install the host's terminal. Returns an unregister function. */
+export function registerTerminalHost(host: TerminalHost): () => void {
+  terminalHost = host;
+  return () => {
+    if (terminalHost === host) terminalHost = null;
+  };
+}
+
+export function getTerminalHost(): TerminalHost | null {
+  return terminalHost;
+}
+
 // ── Workflow resolution ─────────────────────────────────────────────────────
 
 /**
