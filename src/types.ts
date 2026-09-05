@@ -1,4 +1,5 @@
 import type { TerminalSession } from "./registry/capabilities";
+import type { TerminalTranscript } from "./runtime/terminal-transcript";
 
 /**
  * Public domain types for fancy-flow. Built-in nodes are layered on top of
@@ -191,6 +192,21 @@ export type NodeExecutor<TIn = Record<string, unknown>, TOut = unknown> = (
      */
     terminal?: {
       session: () => Promise<TerminalSession>;
+      /**
+       * What the terminal has said, accumulated and matchable.
+       *
+       * Separate from `session()` because reading and writing are genuinely
+       * different jobs with different hazards. `session()` hands over the raw
+       * process; this hands over a buffer that already survived arbitrary
+       * chunking, escape sequences that straddle chunks, and output that
+       * arrived before any node was listening — none of which a node should be
+       * asked to get right on its own, and all of which fail intermittently
+       * when it doesn't.
+       *
+       * Opening the session is implied: a transcript with nothing feeding it
+       * would silently never match.
+       */
+      transcript: () => Promise<TerminalTranscript>;
     };
   },
 ) => Promise<TOut> | TOut;

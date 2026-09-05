@@ -164,7 +164,17 @@ export async function runFlow(
     // on first USE rather than when a node in the lane starts. A node that
     // never touches its terminal never spawns one, which is what makes the
     // lane safe to draw around nodes that mostly do other things.
-    return { session: () => sessions.session(laneId, specForLane(lane)) };
+    return {
+      session: () => sessions.session(laneId, specForLane(lane)),
+      // Awaits the session first on purpose. A transcript handed out before
+      // anything is feeding it would look perfectly healthy and match nothing,
+      // and "waited and nothing came" is the hardest failure here to tell apart
+      // from a process that is simply slow.
+      transcript: async () => {
+        await sessions.session(laneId, specForLane(lane));
+        return sessions.transcriptFor(laneId);
+      },
+    };
   };
 
   const timer = timeoutMs ? setTimeout(() => errors.push(`Run timed out after ${timeoutMs}ms`), timeoutMs) : null;
@@ -523,11 +533,29 @@ function pickExecutor(
   // The whole rule lives in `executorLookupIds` -- see its docblock. Walking
   // that one list is what keeps the resolution and the failure message from
   // ever disagreeing about which keys were tried.
+  //
+  // The HOST registry is consulted first, and that order is the contract: a
+  // kind ships an executor as a default, and a host that registers its own
+  // takes over. Reversing it would make a builtin unoverridable.
   for (const id of executorLookupIds(node)) {
     if (executors[id]) return executors[id];
   }
 
-  return undefined;
+  // Then the kind's own, for the kinds that ship one.
+  //
+  // This fallback did not exist, and `NodeKindDefinition.executor` was
+  // therefore a field nothing read. `subflow` and `llm_router` have both
+  // declared one since they were written, and both were unreachable through
+  // `runFlow`: a consumer who called `registerBuiltinKinds()` and ran a graph
+  // containing a subflow node got "No executor registered for kind=subflow"
+  // about a kind that ships its executor in the same object as its schema.
+  //
+  // It survived because the two are unit-tested by calling the executor
+  // directly — which proves the executor works and says nothing about whether
+  // anything can reach it. A declared capability with no reader is the shape
+  // this estate keeps finding, and the only reliable way to catch it is a test
+  // that goes through the front door.
+  return getNodeKind(node.type ?? "")?.executor;
 }
 
 function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; value: unknown } {

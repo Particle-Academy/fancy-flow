@@ -12,6 +12,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Terminal lanes — drive a running terminal, including an agent TUI, from a
+  workflow.** A `terminal_lane` owns ONE terminal for the length of a run: it
+  opens when the first node inside it actually uses it, every node in the lane
+  gets the same session (so `cd` persists and a TUI keeps its conversation), and
+  it closes when the run finishes — **including when the run fails**. Membership
+  is the canvas's own `parentId`, which already persists into the
+  `WorkflowSchema`, so a headless runtime resolves exactly the grouping a person
+  drew.
+
+  Three nodes go inside one:
+
+  - `terminal_run` — run a shell command and wait for its real **exit code**.
+    A non-zero exit fails the run by default; turn `failOnNonZero` off to branch
+    on the code instead.
+  - `terminal_send` — type at whatever is running, without waiting. Presses
+    Enter as a carriage return, which is what readline and Ink listen for.
+  - `terminal_await` — wait until the output matches, with capture groups in
+    regex mode.
+
+  Matching runs against ACCUMULATED output with escape sequences stripped, so a
+  pattern split across PTY chunks still resolves and you match what you see.
+  Output that arrived before an await started is not lost. A match is consumed,
+  so the same pattern does not resolve twice on one line. Matched, timed out and
+  *the process exited* are reported as three distinct outcomes — collapsing the
+  last two is how a dead shell gets reported as "timed out waiting for X".
+
+  The PTY is a host capability (`registerTerminalHost`, on the `/registry`
+  subpath), so core imports no native addon and a browser build is unaffected.
+  There is deliberately no `waitForOutput` in the contract: matching is
+  derivable from `onData`, and putting it there would mean every host
+  implementing the same rule twice.
+
+  **`fancy-flow-php` is intentionally excluded** — this needs desktop execution.
+
+- **`capabilityStatus()` reports `terminal`.** A graph with a terminal lane and
+  no host fails part-way through a run, which is precisely what asking up front
+  is for.
+
+### Fixed
+
+- **A node kind that ships its own executor is now reachable through
+  `runFlow`.** `NodeKindDefinition.executor` has existed since `subflow` was
+  written and `pickExecutor` never read it, so `subflow` and `llm_router` both
+  declared an executor beside their schema that the engine could not reach: a
+  consumer who called `registerBuiltinKinds()` and ran a graph containing a
+  subflow node got `No executor registered for kind=subflow` about a kind that
+  is registered and ships exactly the executor the message called missing.
+
+  Host-registered executors still win, so a host that overrides a builtin is
+  unaffected — this only adds a fallback where there was previously a failure.
+  **Nothing to do.** If you worked around it by registering `subflowExecutor` or
+  `llmRouterExecutor` yourself, that registration still takes precedence and can
+  stay.
+
+  It survived because both were unit-tested by calling the executor directly,
+  which proves the executor works and says nothing about whether anything
+  reaches it.
+
+- **The README's builtin count is now checked against the registry.** It said
+  27 while the registry held 28. The count and the per-kind list are both
+  asserted by a test, because a hand-maintained mirror nothing compares is this
+  kit's most repeated defect.
+
 ## [0.65.2] - 2026-08-28
 
 ### Added

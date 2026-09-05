@@ -1,4 +1,5 @@
 import { getTerminalHost, type TerminalSession, type TerminalSessionSpec } from "../registry/capabilities";
+import { TerminalTranscript } from "./terminal-transcript";
 import type { FlowGraph, FlowNode } from "../types";
 
 /**
@@ -33,6 +34,10 @@ export class TerminalSessions {
   private readonly open = new Map<string, Promise<TerminalSession>>();
 
   private readonly laneOf = new Map<string, string | null>();
+
+  private readonly transcripts = new Map<string, TerminalTranscript>();
+
+  private readonly listening = new Map<string, () => void>();
 
   constructor(private readonly graph: FlowGraph) {}
 
@@ -107,10 +112,38 @@ export class TerminalSessions {
       return failed;
     }
 
-    const opening = Promise.resolve(host.open(spec));
+    // Subscribed the moment the session resolves, not when a node first waits.
+    //
+    // A process answers on its own schedule, and the node that types at it and
+    // the node that reads the reply are two separate steps. Anything printed in
+    // between is unrecoverable if the buffer starts when the WAIT does — so a
+    // fast process would be missed and a slow one caught, which is the same bug
+    // presenting as flakiness rather than as a bug.
+    const opening = Promise.resolve(host.open(spec)).then((session) => {
+      const transcript = this.transcriptFor(laneId);
+      this.listening.set(laneId, session.onData((chunk) => transcript.append(chunk)));
+      return session;
+    });
+
     this.open.set(laneId, opening);
     opening.catch(() => {});
     return opening;
+  }
+
+  /**
+   * The accumulated output for a lane.
+   *
+   * Created on demand and kept for the run, so it exists before the session
+   * resolves and survives every node that reads it. Consuming is the reader's
+   * job — see `TerminalTranscript.waitFor`.
+   */
+  transcriptFor(laneId: string): TerminalTranscript {
+    const existing = this.transcripts.get(laneId);
+    if (existing) return existing;
+
+    const created = new TerminalTranscript();
+    this.transcripts.set(laneId, created);
+    return created;
   }
 
   /** True once a lane has a session — used to avoid opening one during teardown. */
@@ -132,6 +165,13 @@ export class TerminalSessions {
 
     for (const [laneId, pending] of this.open) {
       try {
+        // Unsubscribe BEFORE closing. A host that emits a final chunk while
+        // shutting down would otherwise append to a transcript nobody will read
+        // again, and a listener outliving its session is how a closed terminal
+        // keeps a run's objects alive.
+        this.listening.get(laneId)?.();
+        this.listening.delete(laneId);
+
         const session = await pending;
         await session.close();
       } catch (e) {
@@ -140,6 +180,8 @@ export class TerminalSessions {
     }
 
     this.open.clear();
+    this.listening.clear();
+    this.transcripts.clear();
     return errors;
   }
 }

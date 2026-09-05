@@ -6,6 +6,7 @@ import { LaneNode } from "../components/nodes/LaneNode";
 import { NoteNode } from "../components/nodes/NoteNode";
 import { llmRouterExecutor } from "./llm-router";
 import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
+import { terminalAwaitExecutor, terminalRunExecutor, terminalSendExecutor } from "./terminal-nodes";
 import type { PortDescriptor } from "../types";
 import type { ConfigField, NodeKindDefinition } from "./types";
 
@@ -873,6 +874,143 @@ const KINDS: NodeKindDefinition[] = [
     resizable: { minWidth: 220, minHeight: 120 },
     component: LaneNode,
   },
+  {
+    // Terminal nodes. All three live inside a terminal lane and talk to the
+    // session that lane owns; outside one they abort by name rather than
+    // opening a shell of their own.
+    name: "@particle-academy/terminal_run",
+    aliases: ["terminal_run", "@fancy/terminal_run"],
+    category: "io",
+    label: "Run in terminal",
+    description: "Run a shell command in the lane's terminal and wait for its exit code.",
+    icon: "$",
+    inputs: [{ id: "in" }],
+    outputs: [{ id: "out", label: "output" }],
+    executor: terminalRunExecutor,
+    configSchema: [
+      {
+        type: "textarea",
+        key: "command",
+        label: "Command",
+        rows: 3,
+        required: true,
+        placeholder: "npm test",
+        description:
+          "Runs in the lane's shell, so `cd` and exported variables persist between nodes. "
+          + "SHELL ONLY — a TUI never returns to a prompt, so use Send + Await for one.",
+      },
+      {
+        type: "number",
+        key: "timeoutMs",
+        label: "Timeout (ms)",
+        default: 120000,
+        description: "How long to wait for the command to finish before failing the run.",
+      },
+      {
+        type: "switch",
+        key: "failOnNonZero",
+        label: "Fail the run on a non-zero exit",
+        default: true,
+        description:
+          "On by default. Turning it off means a failed command lets the run report success — "
+          + "read the exit code on the output port and branch on it instead.",
+      },
+    ],
+    defaultConfig: { command: "", timeoutMs: 120000, failOnNonZero: true },
+  },
+
+  {
+    name: "@particle-academy/terminal_send",
+    aliases: ["terminal_send", "@fancy/terminal_send"],
+    category: "io",
+    label: "Send to terminal",
+    description: "Type text at whatever is running in the lane's terminal, without waiting.",
+    icon: "⌨",
+    inputs: [{ id: "in" }],
+    outputs: [{ id: "out", label: "sent" }],
+    executor: terminalSendExecutor,
+    configSchema: [
+      {
+        type: "textarea",
+        key: "text",
+        label: "Text",
+        rows: 4,
+        placeholder: "Summarise the failing test and propose a fix.",
+        description: "What to type. This is how a graph prompts an agent TUI such as Claude Code or Codex.",
+      },
+      {
+        type: "switch",
+        key: "submit",
+        label: "Press Enter",
+        default: true,
+        description: "Off leaves the text on the input line — useful for building one up across several nodes.",
+      },
+      {
+        type: "switch",
+        key: "clearFirst",
+        label: "Forget earlier output first",
+        default: false,
+        description:
+          "Discards anything the terminal said before this send, so a following Await cannot match "
+          + "a prompt left over from the previous exchange.",
+      },
+    ],
+    defaultConfig: { text: "", submit: true, clearFirst: false },
+  },
+
+  {
+    name: "@particle-academy/terminal_await",
+    aliases: ["terminal_await", "@fancy/terminal_await"],
+    category: "io",
+    label: "Await terminal output",
+    description: "Wait until the lane's terminal prints something that matches.",
+    icon: "⏱",
+    inputs: [{ id: "in" }],
+    outputs: [{ id: "out", label: "output" }],
+    executor: terminalAwaitExecutor,
+    configSchema: [
+      {
+        type: "text",
+        key: "pattern",
+        label: "Wait for",
+        required: true,
+        placeholder: "esc to interrupt",
+        description: "Matched against the output with colour codes already stripped, so match what you SEE.",
+      },
+      {
+        type: "select",
+        key: "mode",
+        label: "Match as",
+        default: "text",
+        options: [
+          { value: "text", label: "Plain text" },
+          { value: "regex", label: "Regular expression" },
+        ],
+        description: "Regex mode also returns capture groups, which is how a value gets out of a prompt.",
+      },
+      {
+        type: "number",
+        key: "timeoutMs",
+        label: "Timeout (ms)",
+        default: 120000,
+      },
+      {
+        type: "select",
+        key: "onTimeout",
+        label: "If it never appears",
+        default: "fail",
+        options: [
+          { value: "fail", label: "Fail the run" },
+          { value: "continue", label: "Continue with matched: false" },
+        ],
+        description:
+          "Failing is the default. Continuing lets the next node type at a process that never became "
+          + "ready while the run still reports success, so it has to be asked for.",
+      },
+    ],
+    defaultConfig: { pattern: "", mode: "text", timeoutMs: 120000, onTimeout: "fail" },
+  },
+
   {
     // Note — a sticky-note annotation. Portless + visual-only: the runtime skips
     // the `annotation` category, so a note's text NEVER reaches a runner — it

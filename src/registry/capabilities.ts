@@ -227,7 +227,7 @@ export function getWorkflowResolver(): WorkflowResolver | null {
 
 // ── Introspection ───────────────────────────────────────────────────────────
 
-export type CapabilityId = "llm" | "workflow_resolver" | "document";
+export type CapabilityId = "llm" | "workflow_resolver" | "document" | "terminal";
 
 /**
  * Which capabilities are currently satisfied.
@@ -249,5 +249,12 @@ export function capabilityStatus(): Record<CapabilityId, boolean> {
     llm: llmClient !== null,
     workflow_resolver: workflowResolver !== null,
     document: documentReady,
+    // Listed here for the reason this function exists at all. A graph with a
+    // terminal lane and no host registered fails PART WAY THROUGH — after the
+    // nodes before it have already run and possibly written somewhere — and the
+    // whole point of asking up front is to learn that before starting. Leaving
+    // it out would have made the one check designed to catch this report
+    // all-clear for exactly the case it was built for.
+    terminal: terminalHost !== null,
   };
 }

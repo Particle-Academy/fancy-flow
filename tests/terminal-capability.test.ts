@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import {
+  capabilityStatus,
   getTerminalHost,
   registerTerminalHost,
   type TerminalHost,
@@ -69,5 +70,22 @@ describe("terminal host capability", () => {
 
     unregisterSecond();
     expect(getTerminalHost()).toBeNull();
+  });
+});
+
+describe("capabilityStatus", () => {
+  test("reports the terminal, so a host can learn it is missing BEFORE a run", () => {
+    // `capabilityStatus` exists to answer "what does this graph need that I
+    // haven't wired?" up front. A graph with a terminal lane and no host fails
+    // PART WAY THROUGH — after earlier nodes have run and possibly written
+    // somewhere — so omitting the terminal would make the one check built to
+    // prevent that report all-clear for exactly the case it was built for.
+    expect(capabilityStatus().terminal).toBe(false);
+
+    const unregister = registerTerminalHost({ open: () => fakeSession() });
+    expect(capabilityStatus().terminal).toBe(true);
+
+    unregister();
+    expect(capabilityStatus().terminal).toBe(false);
   });
 });

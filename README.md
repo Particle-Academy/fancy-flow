@@ -339,9 +339,11 @@ function MyEditor() {
 
 ## Node kinds
 
-27 builtins, grouped by category. Ids are namespaced (`@particle-academy/<name>`)
+31 builtins, grouped by category. Ids are namespaced (`@particle-academy/<name>`)
 and every bare name below is a permanent alias, so graphs saved against either
-keep resolving.
+keep resolving. The count is checked against the registry by a test — a
+hand-maintained mirror that nothing compares is the defect this kit keeps
+finding, so it is compared.
 
 | Category | Kinds |
 |---|---|
@@ -352,7 +354,8 @@ keep resolving.
 | `data` | `variable`, `memory_store`, `data_store` |
 | `io` | `api_request`, `webhook_out` |
 | `output` | `output`, `log` |
-| `layout` / `annotation` | `lane`, `note` — visual only, never executed |
+| `io` (terminal) | `terminal_run`, `terminal_send`, `terminal_await` — inside a terminal lane |
+| `layout` / `annotation` | `lane`, `terminal_lane`, `note` — visual only, never executed |
 
 Don't hand-copy this list into generated graphs — it moves. Enumerate at
 runtime with `getNodeKind()` / the registry, or ask the Fancy MCP's `list_nodes`.
@@ -362,6 +365,81 @@ Custom nodes plug in via xyflow's standard `nodeTypes` prop:
 ```tsx
 <FlowCanvas nodeTypes={{ ...defaultNodeTypes, myNode: MyCustomNode }} ... />
 ```
+
+## Terminal lanes
+
+A **terminal lane** owns one running terminal for the length of a workflow run,
+so a graph can drive an interactive process — including an agent TUI like Claude
+Code or Codex — instead of only firing one-shot commands.
+
+Three promises, and all three are about WHEN rather than what:
+
+1. **One terminal per lane**, however many nodes are inside it. Two shells look
+   exactly like one that forgot a `cd`.
+2. **It opens at the first terminal node**, not at run start. A lane drawn
+   around nodes that mostly do other things costs nothing until something uses
+   it.
+3. **It stays open until the run finishes**, including when the run FAILS. A
+   leaked PTY looks like nothing at all until the machine is full of them.
+
+Membership is the canvas's own `parentId`, which already persists into the
+`WorkflowSchema` — so a headless runtime resolves exactly the grouping a person
+drew, with no second association to keep in step.
+
+### The nodes
+
+| Kind | For |
+|---|---|
+| `terminal_run` | Run a shell command and wait for its **exit code**. Shell only. |
+| `terminal_send` | Type at whatever is running, without waiting. |
+| `terminal_await` | Wait until the output matches. Returns capture groups in regex mode. |
+
+`terminal_run` is the shell node and `terminal_send` + `terminal_await` are the
+TUI pair, because a terminal is two different things depending on what is in it.
+A shell answers and returns to a prompt, so the useful unit is "run this, tell me
+what it said and whether it worked". A TUI never finishes — there is no exit code
+to wait for — so there is only text going in and text coming out.
+
+Matching runs against the **accumulated** output with escape sequences already
+stripped, so you match what you SEE and a pattern split across PTY chunks still
+resolves. Output that arrived before an await started is not lost. A wait
+consumes through its match, so the same pattern does not resolve twice on one
+line.
+
+Three outcomes are reported distinctly — matched, timed out, and *the process
+exited*. Collapsing the last two is how a dead shell gets reported as "timed out
+waiting for X", sending whoever debugs it to lengthen a timeout on a process
+that is not running.
+
+### Providing the terminal
+
+Core declares the contract and imports no PTY — `node-pty` is a native addon
+that would break every browser build. Same arrangement as `registerLlmClient`:
+
+```ts
+import { registerTerminalHost } from "@particle-academy/fancy-flow/registry";
+
+registerTerminalHost({
+  open: async ({ command, cwd, env, cols, rows }) => {
+    const pty = spawnYourPty(command ?? defaultShell(), { cwd, env, cols, rows });
+    return {
+      id: pty.pid.toString(),
+      write: (data) => pty.write(data),
+      onData: (listener) => { pty.onData(listener); return () => pty.dispose(); },
+      exited: new Promise((r) => pty.onExit(({ exitCode, signal }) => r({ exitCode, signal }))),
+      close: () => pty.kill(),
+    };
+  },
+});
+```
+
+There is deliberately **no `waitForOutput(pattern)` in the contract**. Matching
+is derivable from `onData`, so putting it in the contract would mean every host
+implements it — two implementations of one agreed rule, which is how matching
+bugs end up differing per host. Core owns matching; the host owns the process.
+
+**`fancy-flow-php` does not have this feature and is not going to.** It needs
+desktop execution, which is not what the PHP runtime is for.
 
 ## LLM adapters
 
