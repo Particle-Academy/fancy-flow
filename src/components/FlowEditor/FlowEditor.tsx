@@ -99,6 +99,13 @@ export type FlowEditorProps = {
   fieldRenderers?: ComponentProps<typeof NodeConfigPanel>["fieldRenderers"];
   /** Presentation-only config-field filter, forwarded to `NodeConfigPanel`. */
   fieldFilter?: ComponentProps<typeof NodeConfigPanel>["fieldFilter"];
+  /**
+   * Presentation-only KIND filter, forwarded to the default `NodePalette`.
+   * Lets a host offer a subset of the registered vocabulary without
+   * re-categorising anything (#14). Ignored when `slots.palette` replaces
+   * the palette, since that host is rendering its own.
+   */
+  kindFilter?: ComponentProps<typeof NodePalette>["kindFilter"];
   /** Show run feed below the canvas. Default true. */
   showFeed?: boolean;
   /** Total editor height. Default 720. */
@@ -166,6 +173,7 @@ function FlowEditorInner({
   showPanel = true,
   fieldRenderers,
   fieldFilter,
+  kindFilter,
   showFeed = true,
   extraToolbar,
   actions = [],
@@ -688,7 +696,12 @@ function FlowEditorInner({
 
   return (
     <FlowEditorProvider value={api}>
-      {showPalette && (slots.palette ? slots.palette(api) : <NodePalette className="ff-editor__palette" />)}
+      {showPalette &&
+        (slots.palette ? (
+          slots.palette(api)
+        ) : (
+          <NodePalette className="ff-editor__palette" kindFilter={kindFilter} />
+        ))}
       <div className="ff-editor__main" {...dropHandlers}>
         <FlowCanvas
           nodes={renderedNodes}

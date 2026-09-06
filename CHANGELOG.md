@@ -14,6 +14,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`NodePalette` takes a `kindFilter`, so a host can offer a SUBSET of the
+  vocabulary** (#14). Presentation-only, forwarded through `FlowEditor`, and
+  deliberately the same contract `fieldFilter` has on `NodeConfigPanel` (#8) —
+  one level up. A predicate over the full definition rather than a list of ids,
+  because it has to serve custom kinds a host registered and kinds vendored in
+  from the marketplace, whose names the palette cannot know.
+
+  `categories` could not express this: a host that cannot RESUME a paused run
+  has to hide `human_approval` / `user_input` / `rich_user_input`, and they sit
+  in a category alongside things it wants to keep. The only prior lever was
+  `overrideNodeKind` to re-categorise the host's OWN nodes until a category
+  filter happened to exclude ours — distorting a host's taxonomy to work around
+  a gap in ours.
+
+  Host policy is applied BEFORE the search box, so a hidden kind cannot
+  reappear the moment somebody types its name.
+
+- **The four pure-logic builtins ship default executors** (#13): `branch`,
+  `transform`, `merge`, `for_each`. **Host executors still win** —
+  `pickExecutor` consults the host registry first — so anyone who already wrote
+  these keeps theirs, unchanged. **Nothing to do.**
+
+  The kit's rule that hosts wire executors is right for `api_request` and
+  `llm_call`, where a default would decide something about the host's own
+  infrastructure. It is much weaker for `transform`, which does no I/O at all:
+  these four are pure functions of their inputs and config, with one correct
+  answer and nothing to choose. Leaving them out meant every host
+  reimplemented the same four from a schema with no reference to check against.
+
+  They implement the **full** TypeScript schema, both authoring paths: the
+  builders (`conditions[]` with `match`, `fields[]` with `mode`) that the
+  editor emits by default, and the raw escape hatches (`condition`,
+  `expression`) — with the escape hatch overriding, exactly as `branch`'s own
+  field description promises.
+
+  Two deliberate choices worth knowing: an unconfigured `branch` takes
+  **false** (an empty `all` is vacuously true, which would send a half-built
+  graph down the success path), and an unconfigured `transform` **passes
+  through** rather than returning `{}` (silently emptying a payload breaks
+  every node downstream with no clue where the data went).
+
+
+### Added
+
 - **Terminal lanes — drive a running terminal, including an agent TUI, from a
   workflow.** A `terminal_lane` owns ONE terminal for the length of a run: it
   opens when the first node inside it actually uses it, every node in the lane

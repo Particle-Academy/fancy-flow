@@ -6,6 +6,7 @@ import { LaneNode } from "../components/nodes/LaneNode";
 import { NoteNode } from "../components/nodes/NoteNode";
 import { llmRouterExecutor } from "./llm-router";
 import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
+import { branchExecutor, forEachExecutor, mergeExecutor, transformExecutor } from "./logic";
 import { terminalAwaitExecutor, terminalRunExecutor, terminalSendExecutor } from "./terminal-nodes";
 import type { PortDescriptor } from "../types";
 import type { ConfigField, NodeKindDefinition } from "./types";
@@ -298,6 +299,9 @@ const KINDS: NodeKindDefinition[] = [
     // returns its input on the chosen port
     emits: "input",
     aliases: ["branch", "@fancy/branch"],
+    // Pure logic: no I/O to choose, so a default is safe. A host
+    // executor still wins -- pickExecutor consults the registry first.
+    executor: branchExecutor,
     category: "logic",
     label: "Branch",
     description: "Multi-way branch on a condition or value.",
@@ -389,6 +393,9 @@ const KINDS: NodeKindDefinition[] = [
       { path: "count", type: "number" },
     ],
     aliases: ["for_each", "@fancy/for_each"],
+    // Pure logic: no I/O to choose, so a default is safe. A host
+    // executor still wins -- pickExecutor consults the registry first.
+    executor: forEachExecutor,
     category: "logic",
     label: "For Each",
     description: "Iterate over a list, emitting each item on `item`.",
@@ -410,6 +417,9 @@ const KINDS: NodeKindDefinition[] = [
     emits: (config: { mode?: string }) =>
       (config?.mode ?? "merge") === "concat" ? null : ("inputs-merged" as const),
     aliases: ["merge", "@fancy/merge"],
+    // Pure logic: no I/O to choose, so a default is safe. A host
+    // executor still wins -- pickExecutor consults the registry first.
+    executor: mergeExecutor,
     category: "logic",
     label: "Merge",
     description: "Combine multiple inputs into one object or array.",
@@ -446,6 +456,9 @@ const KINDS: NodeKindDefinition[] = [
     emits: (config: { expression?: string }) =>
       (config?.expression ?? "") === "" ? ("input" as const) : ("expression:expression" as const),
     aliases: ["transform", "@fancy/transform"],
+    // Pure logic: no I/O to choose, so a default is safe. A host
+    // executor still wins -- pickExecutor consults the registry first.
+    executor: transformExecutor,
     category: "logic",
     label: "Transform",
     description: "Reshape data with an expression.",
