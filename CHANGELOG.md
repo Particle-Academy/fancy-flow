@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.1] - 2026-09-06
+
 ### Fixed
 
 - **`/engine` is React-free again** (#11). It promised "zero React" and pulled
