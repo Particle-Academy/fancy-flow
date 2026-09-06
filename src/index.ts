@@ -4,6 +4,7 @@
 // first use, so a consumer importing a subpath (or only types) still gets the
 // kit -- this call just makes it eager for the common root import. Hosts can
 // replace individual kinds via re-registration after it fires.
+import { registerBuiltinKinds } from "./registry/builtin";
 import { ensureBuiltinKinds } from "./registry/registry";
 ensureBuiltinKinds();
 
@@ -228,3 +229,23 @@ export type {
   Resolution,
   UnresolvedPolicy,
 } from "./expressions/expr";
+
+// ── Attach the built-in React renderers ─────────────────────────────────────
+//
+// `registry.ts` self-populates from the React-FREE data module, so `/engine`
+// stays clean (#11). That leaves `lane`, `terminal_lane`, `note` and
+// `rich_user_input` without their renderers until somebody re-registers the
+// decorated versions, and this is that somebody.
+//
+// It lives HERE, at module scope in the root barrel, for a checkable reason
+// rather than a convenient one: `package.json`'s `sideEffects` lists
+// `./dist/index.js` and `./dist/index.cjs` and NOT `./dist/registry.js`. So a
+// consumer's bundler is obliged to keep a top-level statement in this file and
+// entitled to drop one in the registry chunk. Anywhere else works until a
+// tree-shaker disagrees, and the symptom would be silent — lanes rendering as
+// ordinary cards, no error anywhere.
+//
+// Importing the React entry is what says "I have a DOM". A queue worker that
+// never imports this still gets every kind, schema, port and executor from the
+// data module; it just gets no renderers, which is the correct answer for it.
+registerBuiltinKinds();

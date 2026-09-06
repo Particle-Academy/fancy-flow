@@ -12,6 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/engine` is React-free again** (#11). It promised "zero React" and pulled
+  a 444 KB chunk carrying `react`, `react-dom` and `react/jsx-runtime` — in
+  both the ESM and CJS builds. The exact edge was
+  `engine.ts → registry/registry.ts → registry/builtin.ts → react`.
+
+  It was a REGRESSION of a fix whose comment is still in `engine.ts`: that file
+  imports from the module rather than the barrel precisely to stay React-free,
+  and `registry.ts` later gained a `builtin.ts` import so the registry
+  self-populates — which fixed an equally real bug (an empty registry renders
+  raw kind ids on the canvas). Two correct changes collided, and nothing tested
+  the property.
+
+  The kind table moved to a React-free `builtin-kinds.ts`, which `registry.ts`
+  self-populates from. `builtin.ts` now re-attaches the four renderers
+  (`lane`, `terminal_lane`, `note`, `rich_user_input`) and the React root
+  barrel registers them at import.
+
+  **Nothing to do.** Every import path keeps working: `@particle-academy/fancy-flow`
+  gives the same kinds with the same renderers, `/registry` is unchanged and
+  still carries React, and `/engine` now hands a headless consumer all 31 kinds
+  with schema, ports and executors — and no components, which is the right
+  answer for a runtime with no DOM.
+
+  Guarded by a test that walks the BUILT `/engine` graph and fails on any
+  `react*` import. It has to assert on the artifact rather than the source:
+  `rich-input.tsx` has only a *type* import from react, so a source grep calls
+  it clean while the JSX transform injects `react/jsx-runtime` at build.
+  A second test pins that a host-registered kind resolves regardless — proposed
+  by a consumer who was worried the split might change WHEN the registry
+  exists rather than only what is in it.
+
+
 ## [0.66.0] - 2026-09-05
 
 ### Added

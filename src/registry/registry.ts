@@ -1,5 +1,7 @@
 import type { ConfigField, NodeKindDefinition } from "./types";
-import { registerBuiltinKinds } from "./builtin";
+// The DATA module, deliberately -- importing `./builtin` here is what put
+// React into `/engine` (#11). See that file for the whole story.
+import { registerBuiltinKindData } from "./builtin-kinds";
 
 const kinds = new Map<string, NodeKindDefinition<any, any, any>>();
 /** alias → canonical name. See `resolveKindId`. */
@@ -38,7 +40,7 @@ let builtinsEnsured = false;
 export function ensureBuiltinKinds(): void {
   if (builtinsEnsured) return;
   builtinsEnsured = true;
-  registerBuiltinKinds();
+  registerBuiltinKindData();
 }
 
 /**
