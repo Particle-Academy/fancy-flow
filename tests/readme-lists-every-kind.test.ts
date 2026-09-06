@@ -49,6 +49,19 @@ describe("README node kinds", () => {
       .map((k) => bareName(k.name))
       .filter((name) => !new RegExp(`\`${name}\``).test(table));
 
-    expect(missing).toEqual([]);
+    // Reports the DENOMINATOR, not just the misses. A failure saying "these 31
+    // kinds are absent" reads as the README being wiped; the same failure
+    // saying "checked 31 kinds against a 0-character table" says the section
+    // slicing broke instead. Same colour, opposite remedy — and without the
+    // count you cannot tell which without a second run.
+    expect(
+      missing,
+      [
+        `Checked ${BUILTIN_KINDS.length} kinds against ${table.length} characters of README table.`,
+        missing.length ? `Not listed: ${missing.join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    ).toEqual([]);
   });
 });
