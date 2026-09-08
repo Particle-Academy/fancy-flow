@@ -1,4 +1,4 @@
-import { registerNodeKind } from "./registry";
+import { registerBuiltinKindInternal } from "./registry";
 import { humanFieldType, type HumanFieldType } from "../components/FlowEditor/human-fields";
 import { llmRouterExecutor } from "./llm-router";
 import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
@@ -1054,7 +1054,7 @@ const KINDS: NodeKindDefinition[] = [
  * upgrades them in place.
  */
 export function registerBuiltinKindData(): void {
-  for (const k of KINDS) registerNodeKind(k);
+  for (const k of KINDS) registerBuiltinKindInternal(k);
 }
 
 /** The raw table, renderer-free. `builtin.ts` exports the decorated one. */

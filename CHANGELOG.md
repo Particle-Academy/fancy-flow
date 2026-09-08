@@ -12,6 +12,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.2] - 2026-09-08
+
+### Fixed
+
+- **A host's replacement of a builtin kind survives builtin registration.**
+  Reported from production by a consumer whose `llm_call` extension was
+  unauthorable in the editor while their server validated it happily.
+
+  Replacing a builtin — `registerNodeKind({ ...getNodeKind("llm_call"),
+  configSchema: [...] })` — is the only mechanism we offer for extending one,
+  and it worked. Then any later builtin registration silently put the original
+  back. No error, no warning; a field simply vanished from the palette.
+
+  **It was ordering-dependent, which is what made it vicious.** Builtin
+  registration is not a one-shot event: `registerBuiltinKinds()` is exported,
+  the four kinds with renderers are registered twice on purpose, and since
+  0.66.1 the root barrel calls it as an import side effect. So whether a
+  consumer's override survived depended on which module their bundler evaluated
+  second — a property they cannot see, test, or control, and which changes when
+  an unrelated import is added.
+
+  Builtin registration now steps aside for any name a host has claimed, rather
+  than consumers being told to sequence their imports. `registerNodeKind` claims
+  the name; the builtin kit refuses to overwrite it; a host can still replace its
+  own registration as often as it likes (HMR depends on that), and unregistering
+  releases the claim.
+
+  **This is the protection `overrides` already had.** Presentation patches were
+  deliberately kept in a separate map so they would survive re-registration —
+  the comment there says so. Behavioural replacement had the identical problem
+  and nothing marked the asymmetry.
+
+  **Nothing to do.** Every existing call keeps working; this only stops
+  registrations being lost. If you were sequencing imports to work around it,
+  you can stop.
+
+- **`registerBuiltinKinds()` no longer loses its own renderers.** It registered
+  the four decorated kinds without first laying down the React-free table, so
+  the flag stayed unset and the next read anywhere re-registered the plain table
+  over them — dropping the renderers the function exists to attach. It now
+  ensures the base table first.
+
+### Added
+
+- **`resetNodeKindsForTests()`** — empties the registry, builtins included. For
+  tests asserting how host and builtin registration interact, which cannot be
+  written against a registry still holding the previous test's kinds.
+
 ## [0.66.1] - 2026-09-06
 
 ### Fixed

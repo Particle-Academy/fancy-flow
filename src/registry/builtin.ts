@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { registerNodeKind } from "./registry";
+import { ensureBuiltinKinds, registerBuiltinKindInternal } from "./registry";
 import { RichInputPreview } from "./rich-input";
 import { LaneNode } from "../components/nodes/LaneNode";
 import { NoteNode } from "../components/nodes/NoteNode";
@@ -79,7 +79,14 @@ export const BUILTIN_KINDS: NodeKindDefinition[] = BUILTIN_KIND_DATA.map((kind) 
  * four kinds in place rather than duplicating anything.
  */
 export function registerBuiltinKinds(): void {
-  for (const kind of BUILTIN_KINDS) registerNodeKind(kind);
+  // Lay the React-free table down FIRST, through the same lazy path every other
+  // entry point uses. Without this the flag is still unset, so the next read
+  // anywhere — `getNodeKind`, the palette, a viewer — triggers
+  // `ensureBuiltinKinds()` and re-registers the plain table OVER the decorated
+  // kinds, silently dropping the four renderers this function exists to attach.
+  ensureBuiltinKinds();
+
+  for (const kind of BUILTIN_KINDS) registerBuiltinKindInternal(kind);
 }
 
 // Everything else the table exports keeps its old import path, so no consumer

@@ -17,6 +17,27 @@ const listeners = new Set<() => void>();
  */
 const overrides = new Map<string, NodeKindPresentation>();
 
+/**
+ * Names a HOST registered, as opposed to names the builtin kit registered.
+ *
+ * Builtin registration is not a one-shot event: `registerBuiltinKinds()` is
+ * exported, the four kinds with renderers are deliberately registered twice
+ * (React-free table, then decorated), and since 0.66.1 the root barrel calls it
+ * as an import side effect. So "the builtins register again" happens routinely
+ * and at times no consumer can predict.
+ *
+ * Without this set, every one of those occasions silently reverted a host's
+ * replacement of a builtin — the only mechanism we offer for extending one.
+ * A consumer's field would vanish from the editor while their server kept
+ * validating it, and whether it happened at all depended on which module their
+ * bundler evaluated second.
+ *
+ * This is the same protection `overrides` already had, and for the same stated
+ * reason. Presentation patches were kept safe from re-registration; behavioural
+ * replacement was not, and nothing marked the asymmetry.
+ */
+const hostOwned = new Set<string>();
+
 let builtinsEnsured = false;
 
 /**
@@ -72,18 +93,62 @@ export function registerNodeKind<TC = any, TI = any, TO = any>(
   definition: NodeKindDefinition<TC, TI, TO>,
 ): () => void {
   ensureBuiltinKinds();
+  // Claiming the name is what protects it: from here on the builtin kit will
+  // not overwrite this entry, however many times it re-registers.
+  hostOwned.add(definition.name);
   kinds.set(definition.name, definition as NodeKindDefinition<any, any, any>);
   for (const alias of definition.aliases ?? []) aliases.set(alias, definition.name);
   notify();
   return () => {
     if (kinds.get(definition.name) === (definition as any)) {
       kinds.delete(definition.name);
+      hostOwned.delete(definition.name);
       for (const alias of definition.aliases ?? []) {
         if (aliases.get(alias) === definition.name) aliases.delete(alias);
       }
       notify();
     }
   };
+}
+
+/**
+ * Register a kind AS PART OF THE BUILTIN KIT — never overwriting a host.
+ *
+ * The builtin modules use this instead of `registerNodeKind` so that repeated
+ * builtin registration is safe. It still replaces builtins (the four kinds with
+ * renderers are registered twice on purpose, plain table then decorated), but
+ * it steps aside for any name a host has claimed.
+ *
+ * Internal: not re-exported from the package. A consumer wanting to install a
+ * kind uses `registerNodeKind`, and gets ownership of the name by doing so.
+ */
+export function registerBuiltinKindInternal(
+  definition: NodeKindDefinition<any, any, any>,
+): void {
+  if (hostOwned.has(definition.name)) return;
+
+  kinds.set(definition.name, definition);
+  for (const alias of definition.aliases ?? []) {
+    if (!hostOwned.has(aliases.get(alias) ?? "")) aliases.set(alias, definition.name);
+  }
+}
+
+/**
+ * Empty the registry completely, builtins included.
+ *
+ * For tests that need a clean slate — in particular any test asserting how host
+ * and builtin registration interact, which cannot be written against a registry
+ * still holding the previous test's kinds. Production code has no reason to
+ * call it: a registry that can be emptied at runtime is a registry that can be
+ * emptied at the wrong moment.
+ */
+export function resetNodeKindsForTests(): void {
+  kinds.clear();
+  aliases.clear();
+  overrides.clear();
+  hostOwned.clear();
+  builtinsEnsured = false;
+  notify();
 }
 
 /**
