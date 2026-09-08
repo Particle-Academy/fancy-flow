@@ -12,6 +12,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.3] - 2026-09-08
+
+### Added
+
+- **`unregisterNodeKind(name)` — the supported way back to a builtin** after
+  replacing it. Restores the builtin definition rather than deleting the entry
+  (deleting leaves a worse state than before the override: the palette loses the
+  node and the canvas renders raw kind ids), releases the host's claim so builtin
+  registration owns the name again, resolves aliases like every other registry
+  call, and returns whether it actually released anything — so a typo'd name is
+  visible instead of a silent no-op.
+
+  Exported from the root, `/registry` and `/engine`.
+
+  **Why it was needed, and it is a fault in 0.66.2 rather than a new feature.**
+  0.66.2's notes said "unregistering releases the claim". That was true of the
+  closure `registerNodeKind` returns and **undiscoverable**: no named export
+  existed, so a consumer reading the export list correctly concluded there was no
+  such operation. They then hit the real problem — `registerBuiltinKinds()` had
+  been their test-isolation reset, 0.66.2 correctly stopped it clobbering host
+  registrations, and their isolation silently stopped isolating. They had to
+  invent a snapshot-and-restore of their own.
+
+  ```js
+  // in beforeEach, instead of registerBuiltinKinds()
+  unregisterNodeKind("llm_call");
+  ```
+
+### Fixed
+
+- **The 0.66.2 entry's "Nothing to do" was wrong**, and is corrected in place
+  below rather than quietly edited away. Anyone who used `registerBuiltinKinds()`
+  for test isolation before 0.66.2 has broken isolation now, and got no failing
+  build to tell them.
+
 ## [0.66.2] - 2026-09-08
 
 ### Fixed
@@ -44,9 +79,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the comment there says so. Behavioural replacement had the identical problem
   and nothing marked the asymmetry.
 
-  **Nothing to do.** Every existing call keeps working; this only stops
-  registrations being lost. If you were sequencing imports to work around it,
-  you can stop.
+  **Correction, added in 0.66.3:** this entry originally said "Nothing to do."
+  **That was wrong.** If you used `registerBuiltinKinds()` to reset the registry
+  between tests, it no longer restores anything a host has claimed, so overrides
+  leak across tests — and it surfaces as a wrong assertion in a later, unrelated
+  test rather than as a failure where the change is. Use `unregisterNodeKind()`
+  (0.66.3). A consumer hit this within the hour of the release.
+
+  Nothing to do in application code: every existing call keeps working, and this
+  only stops registrations being lost. If you were sequencing imports to work
+  around the bug, you can stop.
 
 - **`registerBuiltinKinds()` no longer loses its own renderers.** It registered
   the four decorated kinds without first laying down the React-free table, so

@@ -74,6 +74,7 @@ export { FlowRunFeed, type FlowRunFeedProps } from "./components/FlowRunFeed";
 // Registry (also: fancy-flow/registry)
 export {
   registerNodeKind,
+  unregisterNodeKind,
   overrideNodeKind,
   clearNodeKindOverrides,
   type NodeKindPresentation,

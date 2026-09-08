@@ -84,6 +84,7 @@ export {
 
 export {
   registerNodeKind,
+  unregisterNodeKind,
   overrideNodeKind,
   clearNodeKindOverrides,
   type NodeKindPresentation,

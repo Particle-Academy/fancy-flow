@@ -89,6 +89,7 @@ export type {
  */
 export {
   registerNodeKind,
+  unregisterNodeKind,
   getNodeKind,
   resolveKindId,
   kindIds,

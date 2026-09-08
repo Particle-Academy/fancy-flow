@@ -38,6 +38,15 @@ const overrides = new Map<string, NodeKindPresentation>();
  */
 const hostOwned = new Set<string>();
 
+/**
+ * The builtin definition for a name, kept even while a host owns the name.
+ *
+ * Without it, releasing a claim could only DELETE the entry — which is a worse
+ * state than before the override, not a return to it: the palette loses the
+ * node and the canvas renders raw kind ids where a label belongs.
+ */
+const builtinDefs = new Map<string, NodeKindDefinition<any, any, any>>();
+
 let builtinsEnsured = false;
 
 /**
@@ -125,12 +134,58 @@ export function registerNodeKind<TC = any, TI = any, TO = any>(
 export function registerBuiltinKindInternal(
   definition: NodeKindDefinition<any, any, any>,
 ): void {
+  // Recorded BEFORE the ownership check: a host owning the name now is exactly
+  // when we will later need the builtin to hand back.
+  builtinDefs.set(definition.name, definition);
+
   if (hostOwned.has(definition.name)) return;
 
   kinds.set(definition.name, definition);
   for (const alias of definition.aliases ?? []) {
     if (!hostOwned.has(aliases.get(alias) ?? "")) aliases.set(alias, definition.name);
   }
+}
+
+/**
+ * Release a host's claim on a name and restore the builtin behind it.
+ *
+ * The counterpart to `registerNodeKind` replacing a builtin. `registerNodeKind`
+ * does return an unregister closure, but a consumer reading the export list
+ * cannot find it, and one correctly concluded no such operation existed — so
+ * this is the named form.
+ *
+ * **Test isolation is the reason it matters.** Before 0.66.2, calling
+ * `registerBuiltinKinds()` restored the builtins over any override, and people
+ * reasonably used that to reset between tests. Since 0.66.2 it correctly
+ * refuses to overwrite a host's registration, so that reset silently stopped
+ * resetting — and it does not fail where it broke, it fails as a wrong
+ * assertion in a later, unrelated test. Use this instead.
+ *
+ * Returns whether anything was actually released, so a typo'd name is visible
+ * rather than a silent no-op — a reset helper that quietly stops resetting is
+ * the failure this exists to prevent.
+ */
+export function unregisterNodeKind(name: string): boolean {
+  const canonical = resolveKindId(name) ?? name;
+
+  const released = hostOwned.delete(canonical);
+  if (!released && !kinds.has(canonical)) return false;
+
+  const builtin = builtinDefs.get(canonical);
+  if (builtin) {
+    kinds.set(canonical, builtin);
+    for (const alias of builtin.aliases ?? []) aliases.set(alias, canonical);
+  } else {
+    const previous = kinds.get(canonical);
+    kinds.delete(canonical);
+    for (const alias of previous?.aliases ?? []) {
+      if (aliases.get(alias) === canonical) aliases.delete(alias);
+    }
+  }
+
+  notify();
+
+  return released;
 }
 
 /**
@@ -147,6 +202,7 @@ export function resetNodeKindsForTests(): void {
   aliases.clear();
   overrides.clear();
   hostOwned.clear();
+  builtinDefs.clear();
   builtinsEnsured = false;
   notify();
 }
