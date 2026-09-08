@@ -59,10 +59,22 @@ jobs:
       - name: Lint
         run: npm run lint --if-present
 
+      # BUILD BEFORE TEST, deliberately.
+      #
+      # Some guards can only assert against the ARTIFACT. `engine-is-react-free`
+      # is the clearest: `rich-input.tsx` has only a TYPE import from react, so a
+      # source grep calls `/engine` clean while the JSX transform injects
+      # `react/jsx-runtime` at build time. The only honest check walks the built
+      # graph.
+      #
+      # With Test first, that guard could never pass here — it failed with "run
+      # `npm run build` first" on every run from the moment it was added, and
+      # went unread through two releases. A gate nobody stands at is worse than
+      # no gate: it is a red tick people learn to scroll past.
+      - name: Build
+        run: npm run build --if-present
+
       - name: Test
         run: npm test --if-present
         env:
           FLOW_PHP_SRC: ${{ github.workspace }}/.php-flow/src/Laravel
-
-      - name: Build
-        run: npm run build --if-present
