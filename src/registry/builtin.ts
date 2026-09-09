@@ -75,8 +75,17 @@ export const BUILTIN_KINDS: NodeKindDefinition[] = BUILTIN_KIND_DATA.map((kind) 
  * Register every built-in kind, renderers included.
  *
  * Idempotent, and safe to call after `registry.ts` has already self-populated
- * the plain table: `registerNodeKind` replaces by name, so this UPGRADES the
- * four kinds in place rather than duplicating anything.
+ * the plain table: it goes through `registerBuiltinKindInternal`, which
+ * replaces a BUILTIN by name, so this UPGRADES the four kinds in place rather
+ * than duplicating anything.
+ *
+ * It does NOT replace a name a host has claimed with `registerNodeKind`. That
+ * is the whole point of 0.66.2 — a consumer's replacement of a builtin used to
+ * be silently reverted every time this ran, and since the root barrel calls it
+ * as an import side effect, whether that happened depended on bundler ordering.
+ *
+ * The distinction matters to anyone reading this to decide whether calling it
+ * is safe: safe against builtins, deliberately powerless against a host.
  */
 export function registerBuiltinKinds(): void {
   // Lay the React-free table down FIRST, through the same lazy path every other

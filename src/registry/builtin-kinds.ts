@@ -1050,8 +1050,12 @@ const KINDS: NodeKindDefinition[] = [
  *
  * This is what `registry.ts` self-populates with, so a headless consumer gets
  * the full vocabulary without React. `builtin.ts` re-registers the four kinds
- * that have renderers on top; `registerNodeKind` replaces by name, so that
- * upgrades them in place.
+ * that have renderers on top; `registerBuiltinKindInternal` replaces a BUILTIN
+ * by name, so that upgrades them in place.
+ *
+ * Both go through that internal registrar rather than the public
+ * `registerNodeKind`, so neither can overwrite a kind a HOST has claimed. See
+ * 0.66.2: that used to happen on every call, silently.
  */
 export function registerBuiltinKindData(): void {
   for (const k of KINDS) registerBuiltinKindInternal(k);
