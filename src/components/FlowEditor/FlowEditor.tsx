@@ -155,7 +155,19 @@ export const FlowEditor = forwardRef<FlowEditorApi, FlowEditorProps>(function Fl
   return (
     <ReactFlowProvider>
       <div
-        className={["ff-editor", props.className ?? ""].filter(Boolean).join(" ")}
+        // Which panes EXIST is declared on the root, so the grid columns can be
+        // a function of it. Before this the grid was a fixed `216px 1fr 300px`
+        // and the panes were merely conditionally rendered, so `showPalette=
+        // {false}` put the canvas in the 216px column with an empty 300px
+        // column beside it (#16). Two sources of truth for one fact.
+        className={[
+          "ff-editor",
+          props.showPalette === false ? "ff-editor--no-palette" : "",
+          props.showPanel === false ? "ff-editor--no-panel" : "",
+          props.className ?? "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={{ height: props.height ?? 720, ...props.style }}
       >
         <FlowEditorInner {...props} apiRef={ref} />

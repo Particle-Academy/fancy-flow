@@ -12,6 +12,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-09-09
+
+### Fixed
+
+- **`showPalette` / `showPanel` now change the COLUMNS, not just the children**
+  (#16). `.ff-editor` was a fixed `216px 1fr 300px` grid with the panes rendered
+  conditionally, so `showPalette={false}` left the canvas in the 216px track
+  with an empty 300px track beside it. The props were usable only in the one
+  combination the media queries happened to produce.
+
+  Which panes exist is now declared on the root — `ff-editor--no-palette` /
+  `ff-editor--no-panel` — and the tracks follow from it. One source of truth for
+  one fact.
+
+- **The responsive rules measure the EDITOR, not the viewport.** They were
+  viewport `@media` queries, and the editor is rarely the viewport: a consumer
+  embeds it as a tab in one window and the body of another, so the query fired
+  against a width it never had — too late in a narrow container inside a wide
+  window, too early the other way. They are now `@container` queries against
+  `.ff-editor` itself.
+
+  Note for anyone extending them: **an element cannot answer its own container
+  query**, which is why the queries size the panes and the modifiers set the
+  track count, rather than re-declaring `grid-template-columns` inside the
+  query.
+
+- **A narrow editor gets smaller panes, never fewer.** The old rules hid a pane
+  with `display: none`, which beats a prop that has no rule of its own — a host
+  that rendered the pane and positioned it itself still lost it, and was
+  carrying an override to undo ours. Worse, below 720px the palette was gone
+  with nothing offering it back, so a narrow editor **could not have a node
+  added to it at all**. That is not a smaller editor, it is a broken one.
+
+### What you may have to DO
+
+- **If you were overriding our `display: none`** to keep a pane the props said
+  you wanted — `.your-shell .ff-editor__panel-wrap { display: flex }` — you can
+  delete it. Nothing hides a pane any more.
+- **If you relied on the editor auto-hiding panes below 1024px / 720px**, it no
+  longer does; pass `showPalette` / `showPanel` from your own measurement. That
+  is the point: the host decides which panes exist, and now has a supported way
+  to say so.
+- Everything else is unchanged. A host passing neither prop gets the same three
+  columns it had.
+
 ### Security
 
 - **vitest 3 -> 4.1.11**, closing GHSA-82fw-gwwq-j7x9 (Dependabot fancy-flow#10):

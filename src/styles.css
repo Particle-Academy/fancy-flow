@@ -369,7 +369,16 @@
 /* ─── FlowEditor — unified shell ───────────────────────────────────────── */
 .ff-editor {
   display: grid;
-  grid-template-columns: 216px 1fr 300px;
+  /* Columns are sized by the PANES, not by fixed parent tracks, so a container
+     query can narrow a pane and the track follows. Counts come from the
+     modifiers below. */
+  grid-template-columns: auto 1fr auto;
+  /* The editor is its own container. It is rarely the viewport -- a consumer
+     embeds it as a tab in one window and the body of another, so a @media
+     query fires against a width it never had (#16). Note an element cannot
+     answer its OWN container query, which is why the queries below size the
+     panes rather than re-declaring these tracks. */
+  container-type: inline-size;
   gap: 0;
   font-family: var(--ff-font);
   background: var(--ff-surface);
@@ -626,13 +635,31 @@
 .ff-helper-line { background: var(--ff-accent); }
 
 /* ─── Responsive ───────────────────────────────────────────────────────── */
-@media (max-width: 1024px) {
-  .ff-editor { grid-template-columns: 190px 1fr; }
-  .ff-editor__panel-wrap { display: none; }
+/* WHICH panes exist is the host's call, declared on the root by FlowEditor.
+   Before this the grid was a fixed `216px 1fr 300px` while the panes were
+   merely conditionally rendered, so `showPalette={false}` left the canvas in
+   the 216px track with an empty 300px track beside it (#16). */
+.ff-editor--no-palette { grid-template-columns: 1fr auto; }
+.ff-editor--no-panel { grid-template-columns: auto 1fr; }
+.ff-editor--no-palette.ff-editor--no-panel { grid-template-columns: 1fr; }
+
+.ff-editor__palette { width: 216px; }
+.ff-editor__panel-wrap { width: 300px; }
+
+/* A narrow editor gets SMALLER panes, never fewer.
+   The old rules hid a pane with `display: none`, which beats a prop that has no
+   rule of its own -- a host rendering the pane and positioning it itself still
+   lost it, and had to carry an override to undo ours. Worse, below 720px the
+   palette was gone with nothing offering it back, so a narrow editor could not
+   have a node added to it at all. That is not a smaller editor, it is a broken
+   one. Resizing keeps every pane reachable and leaves removal to the host. */
+@container (max-width: 1024px) {
+  .ff-editor__palette { width: 190px; }
+  .ff-editor__panel-wrap { width: 260px; }
 }
-@media (max-width: 720px) {
-  .ff-editor { grid-template-columns: 1fr; }
-  .ff-editor__palette { display: none; }
+@container (max-width: 720px) {
+  .ff-editor__palette { width: 156px; }
+  .ff-editor__panel-wrap { width: 212px; }
 }
 
 /* ─── FlowViewer ─────────────────────────────────────────────────────────────
