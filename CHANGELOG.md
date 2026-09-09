@@ -12,6 +12,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-09-09
+
+### Added
+
+- **`applyKindSchemaOverlay(overlays)` — a host's SERVER can now own a builtin's
+  config schema, and the editor learns it.** This is the fix for the class that
+  0.66.2 and 0.66.3 only made more reliable.
+
+  fancy-flow has two kind registries. The PHP one lets a host decorate a builtin
+  — drop the fields its platform manages centrally, add its own — and that
+  decoration reaches the runtime and validation. **The editor never learned any
+  of it**, because the palette is built client-side. A consumer hit exactly
+  that: a field that existed, ran, and had no control in the config panel. Any
+  host extending `llm_call`, `api_request` or `branch` on the server hit the
+  same wall.
+
+  ```ts
+  applyKindSchemaOverlay([
+    { kind: "llm_call", configSchema: [...fieldsWeKeep, powerLevelField] },
+  ]);
+  ```
+
+  **`configSchema` REPLACES rather than merges**, deliberately: the motivating
+  case is *drop seven fields and add one*, and a merge cannot express a removal.
+  A `remove: string[]` beside a merge would be two mechanisms for one job whose
+  interaction is the next bug.
+
+  **It reports what it could not apply** — `{ applied, unknown, unapply }`. A
+  server lists kinds a client may not have registered, and applying what matches
+  while staying quiet about the rest is how a field goes missing with no error
+  anywhere. That is the defect this mechanism exists to end, so it must not be
+  reintroduced by the fix.
+
+  Exported from the root, `/registry` and `/engine` — a headless consumer
+  validates against these schemas too. `/engine` stays React-free.
+
+### Why an overlay rather than sending whole kinds
+
+  The obvious design is "serialise the server registry and build the palette
+  from it". **It cannot work, and the reason is worth recording before someone
+  tries it.** `executor`, `component`, `renderBody` and `icon` are functions or
+  React. And the one that decides it: **`PortSpec` may be a FUNCTION of config**,
+  and three builtins use that form.
+
+  Those three looked like declarative list-expansions, which would have made a
+  data format possible. **Two are not.** `switch_case` does a GROUP-BY — several
+  match keys collapse onto one port and the label is their join. `subflow`
+  branches on a derived mode and `unshift`s, so ordering carries meaning.
+  Expressing that as data needs a mini-language with grouping, conditionals and
+  ordering: a second implementation of logic that already exists, in a format
+  nothing type-checks, which is the same disagreement one level down.
+
+  So the split is **the server owns what a node is CONFIGURED with; the client
+  keeps what a node DOES.** Not a compromise — every host extension anyone has
+  asked for is a config change.
+
+### Fixed
+
+- **Overlays are stored beside the kinds, not on them**, so they survive
+  `registerBuiltinKinds()`, HMR and a package upgrade. This is 0.66.2's finding
+  one level up: builtin registration is not a one-shot event — it is exported,
+  the root barrel calls it at import, and the four decorated kinds are
+  registered twice on purpose. Pinned by a test, and mutation-verified: storing
+  the patch on the kind makes it go red naming that exact mistake.
+
+### Nothing to do
+
+- Opt-in and additive. A host that never calls it behaves exactly as before.
+  **What this does NOT do:** it does not register kinds (a kind must exist
+  locally for its executor, ports and renderer — the overlay corrects its
+  schema, it does not conjure one), and ports still cannot come from the server.
+
 ## [0.66.3] - 2026-09-08
 
 ### Added

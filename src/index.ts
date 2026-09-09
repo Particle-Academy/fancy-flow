@@ -75,6 +75,10 @@ export { FlowRunFeed, type FlowRunFeedProps } from "./components/FlowRunFeed";
 export {
   registerNodeKind,
   unregisterNodeKind,
+  applyKindSchemaOverlay,
+  clearKindSchemaOverlays,
+  type KindSchemaOverlay,
+  type KindSchemaOverlayResult,
   overrideNodeKind,
   clearNodeKindOverrides,
   type NodeKindPresentation,

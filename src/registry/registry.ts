@@ -1,4 +1,4 @@
-import type { ConfigField, NodeKindDefinition } from "./types";
+import type { ConfigField, NodeCategory, NodeKindDefinition } from "./types";
 // The DATA module, deliberately -- importing `./builtin` here is what put
 // React into `/engine` (#11). See that file for the whole story.
 import { registerBuiltinKindData } from "./builtin-kinds";
@@ -37,6 +37,17 @@ const overrides = new Map<string, NodeKindPresentation>();
  * replacement was not, and nothing marked the asymmetry.
  */
 const hostOwned = new Set<string>();
+
+/**
+ * canonical name -> schema patch from a SERVER. See `applyKindSchemaOverlay`.
+ *
+ * Kept in its own map for the reason `overrides` is: a patch stored ON the kind
+ * is reverted the next time that kind is registered, and builtin registration
+ * is not a one-shot event. 0.66.2 was exactly that bug for behavioural
+ * replacement; this is the same shape and gets the same protection rather than
+ * waiting to learn it twice.
+ */
+const schemaOverlays = new Map<string, KindSchemaOverlay>();
 
 /**
  * The builtin definition for a name, kept even while a host owns the name.
@@ -201,9 +212,111 @@ export function resetNodeKindsForTests(): void {
   kinds.clear();
   aliases.clear();
   overrides.clear();
+  schemaOverlays.clear();
   hostOwned.clear();
   builtinDefs.clear();
   builtinsEnsured = false;
+  notify();
+}
+
+/**
+ * A schema patch for a kind, sourced from a host's SERVER-side registry.
+ *
+ * fancy-flow has two kind registries. The PHP one lets a host decorate a
+ * builtin and that decoration reaches the runtime and validation; the editor,
+ * built from the JS registry, never learned any of it. A consumer hit this as a
+ * field that existed, ran, and had no control in the panel.
+ *
+ * **The server owns what a node is CONFIGURED with. The client keeps what a
+ * node DOES.** Only the serialisable half is here on purpose: `executor`,
+ * `component`, `renderBody` and `icon` cannot cross a wire, and neither can
+ * ports — `PortSpec` may be a FUNCTION of config, and three builtins use that
+ * form (`switch_case` groups match keys onto one port and joins their labels;
+ * `subflow` branches on a derived mode and cares about order). Expressing those
+ * as data needs a mini-language with grouping, conditionals and ordering, which
+ * is a second implementation of logic that already exists.
+ */
+export type KindSchemaOverlay = {
+  /** Canonical id or alias — resolved either way. */
+  kind: string;
+  /**
+   * REPLACES the kind's schema. Never merges.
+   *
+   * The motivating case is *drop seven fields and add one*, and a merge cannot
+   * express a removal. A `remove: string[]` beside a merge would be two
+   * mechanisms for one job, and their interaction would be the next bug. The
+   * server sends the schema it wants; that is the point of it owning one.
+   */
+  configSchema?: ConfigField[];
+  label?: string;
+  description?: string;
+  category?: NodeCategory;
+};
+
+export type KindSchemaOverlayResult = {
+  /** Canonical ids that matched a registered kind. */
+  applied: string[];
+  /**
+   * Ids that matched NOTHING, reported rather than dropped.
+   *
+   * A server lists many kinds and a client will not have registered all of
+   * them. Applying what matches and staying quiet about the rest is how a
+   * field goes missing with no error anywhere — which is the defect this whole
+   * mechanism exists to end, so it must not be reintroduced by the fix.
+   */
+  unknown: string[];
+  unapply: () => void;
+};
+
+/**
+ * Apply server-sourced schema patches to kinds this client already has.
+ *
+ * It does NOT register kinds. A kind must exist locally for its executor,
+ * ports and renderer; the overlay corrects its schema, it does not conjure one.
+ */
+export function applyKindSchemaOverlay(
+  overlays: readonly KindSchemaOverlay[],
+): KindSchemaOverlayResult {
+  ensureBuiltinKinds();
+
+  const applied: string[] = [];
+  const unknown: string[] = [];
+  const previous = new Map<string, KindSchemaOverlay | undefined>();
+
+  for (const overlay of overlays) {
+    const canonical = resolveKindId(overlay.kind);
+    if (!canonical) {
+      unknown.push(overlay.kind);
+      continue;
+    }
+
+    if (!previous.has(canonical)) previous.set(canonical, schemaOverlays.get(canonical));
+    schemaOverlays.set(canonical, { ...overlay, kind: canonical });
+    applied.push(canonical);
+  }
+
+  if (applied.length > 0) notify();
+
+  return {
+    applied,
+    unknown,
+    unapply: () => {
+      for (const [canonical, before] of previous) {
+        if (before) {
+          schemaOverlays.set(canonical, before);
+        } else {
+          schemaOverlays.delete(canonical);
+        }
+      }
+      notify();
+    },
+  };
+}
+
+/** Drop every server-sourced schema patch. Mostly for tests. */
+export function clearKindSchemaOverlays(): void {
+  if (schemaOverlays.size === 0) return;
+  schemaOverlays.clear();
   notify();
 }
 
@@ -273,8 +386,27 @@ export function clearNodeKindOverrides(): void {
 
 function withOverride(kind: NodeKindDefinition | undefined): NodeKindDefinition | null {
   if (!kind) return null;
+
+  // base -> SERVER schema -> LOCAL presentation override.
+  //
+  // The local override wins, and the order is pinned by a test because it is
+  // invisible until the two disagree: `overrideNodeKind` is the app author's
+  // explicit choice about naming, which is more specific than a server default.
+  const overlay = schemaOverlays.get(kind.name);
   const patch = overrides.get(kind.name);
-  return patch ? ({ ...kind, ...patch } as NodeKindDefinition) : kind;
+  if (!overlay && !patch) return kind;
+
+  const withSchema = overlay
+    ? ({
+        ...kind,
+        ...(overlay.configSchema !== undefined ? { configSchema: overlay.configSchema } : {}),
+        ...(overlay.label !== undefined ? { label: overlay.label } : {}),
+        ...(overlay.description !== undefined ? { description: overlay.description } : {}),
+        ...(overlay.category !== undefined ? { category: overlay.category } : {}),
+      } as NodeKindDefinition)
+    : kind;
+
+  return patch ? ({ ...withSchema, ...patch } as NodeKindDefinition) : withSchema;
 }
 
 /** Get a single kind by canonical id or alias, or null. */

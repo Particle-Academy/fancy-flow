@@ -90,6 +90,10 @@ export type {
 export {
   registerNodeKind,
   unregisterNodeKind,
+  applyKindSchemaOverlay,
+  clearKindSchemaOverlays,
+  type KindSchemaOverlay,
+  type KindSchemaOverlayResult,
   getNodeKind,
   resolveKindId,
   kindIds,

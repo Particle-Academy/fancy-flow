@@ -85,6 +85,10 @@ export {
 export {
   registerNodeKind,
   unregisterNodeKind,
+  applyKindSchemaOverlay,
+  clearKindSchemaOverlays,
+  type KindSchemaOverlay,
+  type KindSchemaOverlayResult,
   overrideNodeKind,
   clearNodeKindOverrides,
   type NodeKindPresentation,
