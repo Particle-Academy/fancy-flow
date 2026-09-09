@@ -12,6 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **vitest 3 -> 4.1.11**, closing GHSA-82fw-gwwq-j7x9 (Dependabot fancy-flow#10):
+  path traversal / arbitrary file read via `@vitest/mocker`'s redirect-mock
+  handling, vulnerable `>= 2.1.0 < 4.1.11`.
+
+  **Development scope**, so nothing a consumer installs is affected — the reach
+  is our own CI and machines. Fixed anyway: a path traversal in the thing that
+  runs every test is a poor place to carry a known hole.
+
+  A major runner bump, taken rather than pinned around because **nine repos in
+  the kit already run vitest 4**, so the path was proven rather than
+  speculative. All 895 tests pass unchanged, typecheck and build clean, and the
+  `/engine` React-free artifact guard still holds.
+
+  Worth recording for the rest of the sweep: `npm install` failed here with
+  `Cannot read properties of null (reading 'edgesOut')` until run with
+  `--legacy-peer-deps`, which is what CI already uses.
+
 ## [0.67.0] - 2026-09-09
 
 ### Added
