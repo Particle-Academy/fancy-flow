@@ -8,9 +8,28 @@ import type { PortDescriptor } from "../types";
 import type { ConfigField, NodeKindDefinition } from "./types";
 
 /**
- * Built-in agentic node kit. Every kind ships with schema + UI but
- * NO executor — host apps wire executors per kind so they control where
- * memory, data, network, and AI calls actually go.
+ * Built-in agentic node kit — schema + UI for every kind, and an executor for
+ * the ones that need nothing from the host.
+ *
+ * **MOST kinds ship no executor, not all of them.** This comment used to say
+ * "every kind ships with schema + UI but NO executor", and that was false for
+ * nine of the thirty-one — including `branch` and `transform`, which are
+ * exactly the ones a host is most likely to hand-write after reading it. A
+ * wrong comment on a library's front door is worse than no comment: it is
+ * confidently actionable, and the action it prompts is wasted work.
+ *
+ * The nine that DO carry one — `subflow`, `branch`, `for_each`, `merge`,
+ * `transform`, `llm_router`, `terminal_run`, `terminal_send`, `terminal_await`
+ * — are the ones whose behaviour is fully determined by the graph.
+ *
+ * The rest are left to the host because they need a decision only the host can
+ * make: where memory, data, network and AI calls actually go. Note that this is
+ * a choice this runtime makes for being a BROWSER library, not a property of
+ * the contract — the PHP and Python twins ship ~25 executors and take those
+ * decisions by injection (`ExecutorDeps` carries the notifier, store, llm,
+ * http). Which means the argument does not cover kinds that need no deps at
+ * all: `manual_trigger`, `output`, `log`, `variable` and `note` are host work
+ * here purely by omission, and every host writes the same one-liners.
  */
 
 /**
