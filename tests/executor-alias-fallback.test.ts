@@ -44,6 +44,34 @@ function graph() {
   };
 }
 
+/**
+ * The same shape on a kind that ships NO default executor.
+ *
+ * The two tests below need the "nothing resolves" path to be reachable, and
+ * `manual_trigger` stopped being able to reach it when the deps-free builtins
+ * gained default executors — it now always resolves, which is the point of
+ * that change.
+ *
+ * `webhook_trigger` is the honest substitute: same category, same graph shape,
+ * same unknown `data.kind` over a real `node.type`, and still host-wired
+ * because a webhook needs a host decision. The regression being pinned lives in
+ * `pickExecutor`'s alias lookup and never depended on WHICH kind was used, so
+ * moving it costs the test nothing.
+ */
+function unwiredGraph() {
+  return {
+    nodes: [
+      {
+        id: "start",
+        type: "webhook_trigger",
+        position: { x: 0, y: 0 },
+        data: { kind: "trigger", label: "start", config: {} },
+      },
+    ],
+    edges: [],
+  };
+}
+
 async function runKeyedBy(key: string) {
   let ran = false;
   const result = await runFlow(
@@ -77,19 +105,29 @@ test("an unknown data.kind does not cost the node its node.type aliases", async 
   expect(ok).toBe(true);
 });
 
+async function runUnwiredKeyedBy(key: string) {
+  let ran = false;
+  const result = await runFlow(
+    unwiredGraph() as never,
+    { [key]: async () => { ran = true; return { ok: 1 }; } } as never,
+    () => {},
+  );
+  return { ok: result.ok, error: result.error, ran };
+}
+
 test("the failure names what it LOOKED FOR, not just what the node calls itself", async () => {
   // The half of the report that actually cost the reporter time. The old
   // message was `kind=manual_trigger`, which reads as "that kind is missing"
   // about a kind that exists and is registered — under a different key.
   const result = await runFlow(
-    graph() as never,
+    unwiredGraph() as never,
     { something_else: async () => 1 } as never,
     () => {},
   );
 
   expect(result.ok).toBe(false);
-  expect(result.error).toContain("@particle-academy/manual_trigger");
-  expect(result.error).toContain("manual_trigger");
+  expect(result.error).toContain("@particle-academy/webhook_trigger");
+  expect(result.error).toContain("webhook_trigger");
   expect(result.error).toContain('"*"');
 });
 
@@ -97,13 +135,13 @@ test("the ids the message lists are the ids the lookup actually tries", async ()
   // An error listing keys that were never checked is worse than one listing
   // none: it sends the reader to verify something that never happened. So each
   // id the message names must, on its own, resolve an executor.
-  const failure = await runFlow(graph() as never, {} as never, () => {});
+  const failure = await runFlow(unwiredGraph() as never, {} as never, () => {});
   const listed = [...(failure.error ?? "").matchAll(/"([^"*]+)"/g)].map((m) => m[1]);
 
   expect(listed.length).toBeGreaterThan(2);
 
   for (const id of listed) {
-    const { ok } = await runKeyedBy(id);
+    const { ok } = await runUnwiredKeyedBy(id);
     expect(ok, `the message lists "${id}" but keying by it does not resolve`).toBe(true);
   }
 });

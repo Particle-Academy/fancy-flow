@@ -2,7 +2,17 @@ import { registerBuiltinKindInternal } from "./registry";
 import { humanFieldType, type HumanFieldType } from "../components/FlowEditor/human-fields";
 import { llmRouterExecutor } from "./llm-router";
 import { subflowExecutor, subflowPorts, DEFAULT_MAX_DEPTH } from "./subflow";
-import { branchExecutor, forEachExecutor, mergeExecutor, transformExecutor } from "./logic";
+import {
+  branchExecutor,
+  forEachExecutor,
+  logExecutor,
+  manualTriggerExecutor,
+  mergeExecutor,
+  outputExecutor,
+  switchCaseExecutor,
+  transformExecutor,
+  variableExecutor,
+} from "./logic";
 import { terminalAwaitExecutor, terminalRunExecutor, terminalSendExecutor } from "./terminal-nodes";
 import type { PortDescriptor } from "../types";
 import type { ConfigField, NodeKindDefinition } from "./types";
@@ -18,18 +28,22 @@ import type { ConfigField, NodeKindDefinition } from "./types";
  * wrong comment on a library's front door is worse than no comment: it is
  * confidently actionable, and the action it prompts is wasted work.
  *
- * The nine that DO carry one — `subflow`, `branch`, `for_each`, `merge`,
- * `transform`, `llm_router`, `terminal_run`, `terminal_send`, `terminal_await`
- * — are the ones whose behaviour is fully determined by the graph.
+ * The fourteen that DO carry one are the ones needing nothing from the host:
+ * `subflow`, `branch`, `for_each`, `merge`, `transform`, `llm_router`,
+ * `terminal_run`, `terminal_send`, `terminal_await`, and — added once the
+ * omission was noticed — `manual_trigger`, `output`, `log`, `variable` and
+ * `switch_case`.
  *
  * The rest are left to the host because they need a decision only the host can
- * make: where memory, data, network and AI calls actually go. Note that this is
- * a choice this runtime makes for being a BROWSER library, not a property of
- * the contract — the PHP and Python twins ship ~25 executors and take those
- * decisions by injection (`ExecutorDeps` carries the notifier, store, llm,
- * http). Which means the argument does not cover kinds that need no deps at
- * all: `manual_trigger`, `output`, `log`, `variable` and `note` are host work
- * here purely by omission, and every host writes the same one-liners.
+ * make: where memory, data, network and AI calls actually go. That is a choice
+ * this runtime makes for being a BROWSER library rather than a property of the
+ * contract — the PHP and Python twins ship ~25 and take those decisions by
+ * injection instead (`ExecutorDeps` carries the notifier, store, llm, http).
+ *
+ * `wait`, `user_input` and `human_approval` stay host-wired even though they
+ * look pure. Each HALTS a run, and how a run halts — a durable pause, a sleep,
+ * a queue re-drive — is the host's architecture, not a default anyone can pick
+ * on its behalf.
  */
 
 /**
@@ -115,6 +129,7 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── Triggers ─────────────
   {
     name: "@particle-academy/manual_trigger",
+    executor: manualTriggerExecutor,
     // Returns the raw inputs MAP, not the `in` port -- flat at an entry
     // point, port-keyed the moment the node has an inbound edge.
     emits: "input-map-merged",
@@ -370,6 +385,7 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/switch_case",
+    executor: switchCaseExecutor,
     // returns its input on the chosen port
     emits: "input",
     aliases: ["switch_case", "@fancy/switch_case"],
@@ -546,6 +562,7 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/variable",
+    executor: variableExecutor,
     // evaluates the expression in config.value
     emits: "expression:value",
     aliases: ["variable", "@fancy/variable"],
@@ -802,6 +819,7 @@ const KINDS: NodeKindDefinition[] = [
   // ───────────── Output ─────────────
   {
     name: "@particle-academy/output",
+    executor: outputExecutor,
     // returns its input unchanged
     emits: "input",
     aliases: ["output", "@fancy/output"],
@@ -814,6 +832,7 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/log",
+    executor: logExecutor,
     outputShape: [
       { path: "logged", type: "string" as const, description: "The message that was written." },
       { path: "level", type: "string" as const, description: "The level it was written at." },

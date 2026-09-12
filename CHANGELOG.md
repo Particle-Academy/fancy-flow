@@ -12,6 +12,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-09-12
+
+### Added
+
+- **Default executors for the five remaining deps-free builtins** —
+  `manual_trigger`, `output`, `log`, `variable` and `switch_case` now run
+  without a host wiring them, joining the four pure-logic kinds that already
+  did.
+
+  The kit's rule is that a kind ships schema + UI and the HOST wires the
+  executor, so it controls where memory, network and model calls go. That is
+  right for `api_request` and `llm_call`. It never applied to these five: they
+  need no notifier, no store, no client and no network, and the PHP and Python
+  twins have always shipped them. Leaving them out was omission, not a decision.
+
+  The cost was measured rather than assumed. A connector lab running one
+  WorkflowSchema on three engines had to hand-write `manual_trigger` and
+  `output` for its Node lane while PHP and Python got them from the engine, and
+  left a comment above them saying so — because a future parity failure on those
+  two kinds would otherwise be misattributed to this package. Every host writes
+  the same one-liners, slightly differently, and a parity suite then cannot tell
+  "the runtimes disagree" from "the two hosts disagree".
+
+  Ported from the PHP twin line for line, because parity is the contract: same
+  WorkflowSchema in, same `RunResult.outputs` out. A "better" implementation
+  here would be a divergence.
+
+  **A host executor still wins** — `pickExecutor` consults the host registry
+  first and falls back to the kind's own, so anyone who already wrote these
+  keeps theirs, unchanged. There is nothing to do on upgrade.
+
+  `wait`, `user_input` and `human_approval` deliberately stay host-wired. They
+  look pure and are not: each halts a run, and how a run halts (a durable pause,
+  a sleep, a queue re-drive) is the host's architecture rather than a default
+  anyone can pick on its behalf.
+
+  `switch_case` also emits a warning when an UNRESOLVED expression falls through
+  to `default`, matching the twins. An expression that does not resolve becomes
+  `""`, matches no case, and takes `default` — indistinguishable from a value
+  that genuinely matched nothing, which is the expensive kind of silent
+  mis-route. A literal miss does not warn, because it is visible in the config
+  and warning on it would train people to ignore the one that matters.
+
+### Fixed
+
+- **The builtin kit's front-door comment was false.** It read "Every kind ships
+  with schema + UI but NO executor", which was untrue for nine of thirty-one
+  kinds — including `branch` and `transform`, exactly the ones a host reads that
+  comment and then hand-writes. A wrong comment on a library's front door is
+  worse than none: it is confidently actionable, and the action it prompts is
+  wasted work.
+
 ## [0.68.0] - 2026-09-09
 
 ### Fixed

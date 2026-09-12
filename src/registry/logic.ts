@@ -227,3 +227,118 @@ export const forEachExecutor: NodeExecutor = (ctx) => {
 
   return { items, count: items.length };
 };
+
+/*
+ * ---------------------------------------------------------------------------
+ * The DEPS-FREE remainder.
+ *
+ * The four above shipped because "the host decides where I/O goes" does not
+ * apply to a pure function. The same argument covers five more, and leaving
+ * them out was omission rather than a decision: `manual_trigger`, `output`,
+ * `log`, `variable` and `switch_case` need no notifier, no store, no client and
+ * no network. The PHP and Python twins ship all five, and they are four lines
+ * each there.
+ *
+ * The cost of the gap was measured rather than guessed. A connector lab running
+ * one WorkflowSchema on three engines had to hand-write `manual_trigger` and
+ * `output` for its Node lane while PHP and Python got them from the engine, and
+ * left a comment above them saying so — because a future parity failure on
+ * those two kinds would otherwise be misattributed to this package. Every host
+ * writes the same one-liners, slightly differently, and a parity suite cannot
+ * tell "the runtimes disagree" from "the two hosts disagree".
+ *
+ * Ported from the PHP twin line for line, because parity is the contract: same
+ * WorkflowSchema in, same `RunResult.outputs` out. A "better" implementation
+ * here would be a divergence.
+ *
+ * `wait`, `user_input` and `human_approval` stay out. They look pure and are
+ * not: each halts a run, and how a run halts is the host's decision (a durable
+ * pause, a sleep, a queue re-drive) rather than a default anyone can pick.
+ * ---------------------------------------------------------------------------
+ */
+
+/**
+ * `manual_trigger` — the entry point, publishing whatever started the run.
+ *
+ * Returns `ctx.inputs` whole. On a trigger those inputs ARE the run's initial
+ * inputs, so this is what makes `{{ trigger.field }}` resolve downstream.
+ */
+export const manualTriggerExecutor: NodeExecutor = (ctx) => ctx.inputs;
+
+/**
+ * `output` — the terminal node, publishing what reached it.
+ *
+ * `in ?? inputs`, not `inputs`: a node wired through its declared `in` port
+ * publishes that port's value UNWRAPPED, which is what makes the terminal entry
+ * in `RunResult.outputs` the plain result rather than a port map. Falling back
+ * to the whole input map keeps a node with no inbound edge meaningful.
+ */
+export const outputExecutor: NodeExecutor = (ctx) => {
+  const inputs = ctx.inputs as Record<string, unknown>;
+
+  return inputs.in ?? inputs;
+};
+
+/**
+ * `variable` — resolve an expression and publish it.
+ *
+ * The value is returned bare, not under a key. `{{ }}`-resolution is the whole
+ * behaviour; a non-string config value is already a value and passes through.
+ */
+export const variableExecutor: NodeExecutor = (ctx) =>
+  resolve(configOf(ctx.node).value, ctx.inputs as Record<string, unknown>);
+
+/**
+ * `log` — emit a log event, and say what was logged.
+ *
+ * The message is emitted through `ctx.emit`, never written to a console: where
+ * a host's logs GO is a host decision, and a `console.log` here would be this
+ * package choosing one. The return value records what was emitted so a
+ * downstream node can read it, matching the twins.
+ */
+export const logExecutor: NodeExecutor = (ctx) => {
+  const config = configOf(ctx.node);
+  const inputs = ctx.inputs as Record<string, unknown>;
+
+  const level = (config.level as "info" | "warn" | "error") ?? "info";
+  const message = text(resolve(config.message ?? "", inputs) as never);
+
+  ctx.emit({ type: "log", nodeId: ctx.node.id, level, message });
+
+  return { logged: message, level };
+};
+
+/**
+ * `switch_case` — route to the port its resolved value names.
+ *
+ * An unmatched value falls to `default`, which is the same silent mis-route
+ * `branch` has one step over: an expression that does not resolve becomes `""`,
+ * matches no case, and takes `default` — indistinguishable from a value that
+ * genuinely matched nothing. The twins warn; this emits the same warning rather
+ * than staying quiet, because a routing decision nobody can account for is the
+ * expensive kind.
+ */
+export const switchCaseExecutor: NodeExecutor = (ctx) => {
+  const config = configOf(ctx.node);
+  const inputs = ctx.inputs as Record<string, unknown>;
+
+  const expression = config.value;
+  const value = text(resolve(expression, inputs) as never);
+  const cases = (config.cases ?? {}) as Record<string, unknown>;
+
+  const matched = Object.prototype.hasOwnProperty.call(cases, value);
+  const port = matched ? String(cases[value]) : "default";
+
+  if (!matched && typeof expression === "string" && expression.includes("{{")) {
+    ctx.emit({
+      type: "log",
+      nodeId: ctx.node.id,
+      level: "warn",
+      message:
+        `switch_case: "${expression}" resolved to "${value}", which matches no case — ` +
+        `taking "default". An unresolved expression looks identical to a genuine miss here.`,
+    });
+  }
+
+  return { __port: port, value: inputs.in ?? inputs };
+};
