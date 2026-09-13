@@ -540,6 +540,13 @@ is the parity-tested runtime twin — same `WorkflowSchema` JSON in, same output
 out — and adds queued durable runs with resume-from-checkpoint plus human
 approval / `user_input` pauses.
 
+**A document must carry `version: 1`, in every runtime.** `importWorkflow(doc,
+{ lenient: true })` softens an unknown kind to a warning, but never the schema
+version: a document without `version: 1` is refused (`ok: false`, empty graph)
+leniently or not, and the PHP and Python twins refuse it the same way. A
+runtime cannot honour a format it does not know, and one document must not run
+in one engine and be refused by another. `exportWorkflow` always writes it.
+
 ### One trigger, several flows
 
 `runFlow` runs one graph. When a single webhook, schedule, or record change fires

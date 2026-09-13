@@ -120,7 +120,8 @@ export type ImportResult = {
   graph: FlowGraph;
   issues: ImportIssue[];
   /** True when the import produced a usable graph (errors may have been
-   *  rewritten to warnings via `lenient: true`). */
+   *  rewritten to warnings via `lenient: true`, except an unsupported schema
+   *  version, which is always an error). */
   ok: boolean;
 };
 
@@ -187,7 +188,9 @@ function toSchemaEdge(e: FlowEdge): WorkflowSchemaEdge {
 
 export type ImportOptions = {
   /** When true, unknown kinds become warnings + a "custom" placeholder
-   *  instead of errors. Default false. */
+   *  instead of errors. Default false. It never softens the schema version:
+   *  a document that is not `version: 1` (after migration) is refused either
+   *  way, because no runtime can honour a format it does not know. */
   lenient?: boolean;
 };
 
@@ -271,12 +274,19 @@ export function importWorkflow(schema: unknown, options: ImportOptions = {}): Im
     return { ok: false, graph: { nodes: [], edges: [] }, issues: [{ level: "error", message: "Schema is not an object." }] };
   }
   const s = schema as Partial<WorkflowSchema>;
+  // NEVER softened by `lenient`. That flag is about unknown VOCABULARY (a kind
+  // this host has not registered); a version is the format itself, and a
+  // runtime cannot honour a format it does not know. It used to become a
+  // warning, and fancy-flow-php imports leniently on every run(), so one
+  // versionless document ran in Laravel and was refused by a default (strict)
+  // import here. Past versions were migrated above, so anything still unequal
+  // is refused.
   if (s.version !== WORKFLOW_SCHEMA_VERSION) {
     issues.push({
-      level: lenient ? "warning" : "error",
+      level: "error",
       message: `Unsupported workflow schema version: ${s.version} (expected ${WORKFLOW_SCHEMA_VERSION})`,
     });
-    if (!lenient) return { ok: false, graph: { nodes: [], edges: [] }, issues };
+    return { ok: false, graph: { nodes: [], edges: [] }, issues };
   }
 
   const rawNodes = s.graph?.nodes ?? [];

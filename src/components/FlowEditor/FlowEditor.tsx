@@ -29,7 +29,7 @@ import { FlowRunFeed } from "../FlowRunFeed";
 import { useFlowState } from "../../runtime/use-flow-state";
 import { useFlowHistory } from "../../runtime/use-flow-history";
 import { useFlowRun, applyStatusesToNodes, applyOutputsToNodes } from "../../runtime/use-flow-run";
-import { exportWorkflow, importWorkflow, workflowToBlob, type WorkflowMetadata, type WorkflowSchema } from "../../schema";
+import { exportWorkflow, importWorkflow, workflowToBlob, type ImportResult, type WorkflowMetadata, type WorkflowSchema } from "../../schema";
 import { buildNodeTypes, defaultConfigFor, getNodeKind, listNodeKinds, onNodeKindsChanged } from "../../registry";
 import type { ExecutorRegistry, FlowGraph, FlowNode } from "../../types";
 import {
@@ -911,13 +911,35 @@ function pickWorkflow(onLoad: (graph: FlowGraph) => void) {
     const file = input.files?.[0];
     if (!file) return;
     try {
-      const result = importWorkflow(JSON.parse(await file.text()), { lenient: true });
-      onLoad(result.graph);
+      loadImportedWorkflow(importWorkflow(JSON.parse(await file.text()), { lenient: true }), onLoad);
     } catch (e) {
       console.error("import failed", e);
     }
   };
   input.click();
+}
+
+/**
+ * Hand an imported graph to the editor unless the import REFUSED the document.
+ *
+ * A refused import (not an object, or not `version: 1`, which `lenient` never
+ * softens) is `ok: false` with an EMPTY graph. Loading it would replace
+ * whatever the person had on the canvas with nothing, so the refusal is logged
+ * and the canvas left alone.
+ *
+ * `ok: false` alone is not a refusal. A graph that was read but carries an
+ * error (a node wired to nothing, say) still loads, as it always has: the
+ * editor is where that gets fixed.
+ *
+ * @internal exported for tests
+ */
+export function loadImportedWorkflow(result: ImportResult, onLoad: (graph: FlowGraph) => void): boolean {
+  if (!result.ok && result.graph.nodes.length === 0 && result.graph.edges.length === 0) {
+    console.error("import refused", result.issues);
+    return false;
+  }
+  onLoad(result.graph);
+  return true;
 }
 
 /**

@@ -12,6 +12,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-09-13
+
+### Changed
+
+- **BREAKING: `importWorkflow(doc, { lenient: true })` no longer softens the
+  schema version.** A lenient import used to turn `Unsupported workflow schema
+  version` into a warning and carry on, in all three runtimes. fancy-flow-php
+  imports leniently on every `run()`, so a document with no `version` ran in
+  Laravel while a default import here, which is strict, refused it. One
+  document, two answers; the fancy-conformance `flow/connector-runs` manifest
+  recorded the split.
+
+  `lenient` exists for unknown vocabulary, a kind this host has not
+  registered. A version is the format itself, and a runtime cannot honour a
+  format it does not know. After migration of older numbered versions,
+  `version` must now be `1` in every mode, and a refused import returns
+  `ok: false` with an empty graph. fancy-flow-php 0.52.0 and fancy-flow
+  (Python) 0.20.0 apply the same rule, so the three agree on every value
+  (`"1"` and `true` are refused; `1.0` is read, as JavaScript cannot tell it
+  from `1`).
+
+  **What to do:** a document without `version: 1` is now refused by every
+  import, lenient or not; documents exported by fancy-flow always carry it, so
+  re-export or add `version: 1`. A strict `importWorkflow(doc)` (the default)
+  behaves exactly as before.
+
+### Fixed
+
+- **The editor's Import button no longer wipes the canvas on a refused
+  document.** It loaded `result.graph` whatever the import said, so with the
+  version now refused leniently too, opening a versionless file would have
+  replaced the canvas with an empty graph. A refused import (`ok: false` and an
+  empty graph) is logged to the console and the canvas left alone. A graph that
+  was read but carries an error, such as a node wired to nothing, still loads,
+  as it always has: the editor is where that gets fixed.
+
 ## [0.69.1] - 2026-09-13
 
 ### Fixed
