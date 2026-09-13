@@ -25,6 +25,8 @@ import { defaultNodeTypes } from "../nodes";
 import { createConnectionValidator, type ConnectionValidatorOptions } from "../../registry/connection";
 import { sortNodesParentFirst } from "../FlowEditor/graph-ops";
 import { getHelperLines } from "./helper-lines";
+import { collectMeasuredSizes, withMeasuredSizes, type MeasuredSizes } from "./measured-sizes";
+import { minimapNodeColor } from "./minimap";
 import { HelperLines } from "./HelperLines";
 import type { FlowNode } from "../../types";
 import { useResolvedColorMode } from "./use-resolved-color-mode";
@@ -173,12 +175,20 @@ export function FlowCanvas({
 
   // xyflow requires a parent node to precede its children in the array; grouping
   // (swimlanes) can produce any order, so normalize it here at the boundary.
-  const orderedNodes = useMemo(() => sortNodesParentFirst(nodes), [nodes]);
+  // Sizes the canvas has measured, supplied to nodes that arrived without one,
+  // so the minimap can draw a graph whose host never applies node changes (a
+  // read-only FlowViewer). See measured-sizes.ts.
+  const [measuredSizes, setMeasuredSizes] = useState<MeasuredSizes>({});
+  const orderedNodes = useMemo(
+    () => withMeasuredSizes(sortNodesParentFirst(nodes), measuredSizes),
+    [nodes, measuredSizes],
+  );
 
   // Helper lines: on a single-node drag, snap to aligned edges + show guides.
   const [helperLines, setHelperLines] = useState<{ horizontal?: number; vertical?: number }>({});
   const handleNodesChange = useCallback(
     (changes: any[]) => {
+      setMeasuredSizes((previous) => collectMeasuredSizes(previous, changes));
       if (showHelperLines) {
         const pos = changes.filter((c) => c.type === "position" && c.position);
         if (pos.length === 1 && pos[0].dragging) {
@@ -245,7 +255,9 @@ export function FlowCanvas({
             <Background variant={background as BackgroundVariant} gap={20} size={1} color="rgba(0,0,0,0.18)" />
           )}
           {showControls && <Controls className="ff-controls" position="bottom-right" />}
-          {showMinimap && <MiniMap className="ff-minimap" pannable zoomable />}
+          {showMinimap && (
+            <MiniMap className="ff-minimap" pannable zoomable nodeColor={minimapNodeColor} nodeBorderRadius={4} />
+          )}
           {showHelperLines && <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />}
         </ReactFlow>
       </div>

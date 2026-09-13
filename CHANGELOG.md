@@ -12,6 +12,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.1] - 2026-09-13
+
+### Fixed
+
+- **`showMinimap` drew an empty rectangle over the graph** (#15). Two causes,
+  both reproduced in a browser with the reporter's four-node read-only graph:
+
+  1. React Flow's `<MiniMap>` draws a node only when the node object the HOST
+     passed has dimensions (`nodeHasDimensions(node.internals.userNode)` in
+     @xyflow/react 12). The canvas itself draws from React Flow's internal copy,
+     which is measured either way. `FlowViewer` never applies node changes, so
+     its nodes never gained `measured`: the graph rendered and the minimap found
+     zero nodes. `FlowCanvas` now records the sizes React Flow reports and
+     supplies them to any node that arrived without its own; nodes a host
+     measured, e.g. in `FlowEditor`, are untouched.
+  2. With nodes drawn, React Flow's own dark defaults filled them #2b2b2b on a
+     #141414 panel, which still read as empty. The minimap is now themed from the
+     `--ff-*` tokens, and each node is filled with its kind's accent, the colour
+     of its header.
+
+  **Upgrade and do nothing.** Any `FlowCanvas` given static nodes gets a working
+  minimap, including one embedded read-only in a chat message.
+
 ## [0.69.0] - 2026-09-12
 
 ### Added

@@ -266,6 +266,21 @@
   stroke: currentColor !important;
 }
 
+/* xyflow minimap — themed via tokens. Without these it kept React Flow's own
+   greys, and in dark mode a #141414 panel under a grey mask read as an empty
+   rectangle even once it drew its nodes (fancy-flow #15). The `--xy-*` names
+   are React Flow's documented overrides and win over its `-default` values.
+   Node fills come from each kind's accent (see canvas/minimap.ts). */
+.ff-minimap {
+  --xy-minimap-background-color: var(--ff-surface-2);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--ff-canvas-bg) 55%, transparent);
+  --xy-minimap-mask-stroke-color: var(--ff-border-strong);
+  --xy-minimap-mask-stroke-width: 1;
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius-sm);
+  overflow: hidden;
+}
+
 /* NodeResizer chrome */
 .react-flow__resize-control.line { border-color: var(--ff-accent-ring); }
 .react-flow__resize-control.handle { width: 8px; height: 8px; border-radius: 2px; border: 1px solid var(--ff-surface); background: var(--ff-accent); }
