@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whose `shared/expr` 0021-0026 pin the fix above. Test-only; consumers install
   nothing new.
 
-## [0.70.3] - 2026-09-15
+## [0.70.3] - 2026-09-14
 
 ### Fixed
 
