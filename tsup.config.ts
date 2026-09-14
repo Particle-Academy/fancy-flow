@@ -73,7 +73,7 @@ export default defineConfig({
     "@particle-academy/fancy-screens",
     "ai",
   ],
-  noExternal: ["@xyflow/react", "@xyflow/system", "clsx", "@dagrejs/dagre"],
+  noExternal: ["@xyflow/react", "@xyflow/system", "@dagrejs/dagre"],
   treeshake: true,
   esbuildPlugins: [shimUseSyncExternalStore],
 });

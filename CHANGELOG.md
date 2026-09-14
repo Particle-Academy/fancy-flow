@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`clsx`, from the build config and devDependencies.** tsup was told to bundle
+  it into `dist/`, and nothing in `src/` ever imported it — the React Flow code
+  that IS bundled uses `classcat`. Its upstream (lukeed/clsx) has had no commit
+  since 2024-06, which fails the suite's rule that third-party code must be
+  actively maintained, so it was removed rather than replaced.
+
+  All 136 files in the built `dist/` are **byte-identical** with and without it.
+  A new test fails if tsup is told to bundle any package the source does not
+  reach.
+
+  **What you must do:** nothing. It was never a runtime dependency of this
+  package and never reached its output.
+
 ## [0.70.1] - 2026-09-13
 
 ### Fixed
