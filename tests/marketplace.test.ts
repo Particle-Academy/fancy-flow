@@ -37,7 +37,30 @@ describe("manifest validation", () => {
     const result = validateNodeManifest({ schemaVersion: 1 });
     const fields = result.problems.map((p) => p.field);
     expect(result.ok).toBe(false);
-    expect(fields).toEqual(expect.arrayContaining(["name", "kind", "runtimes", "fixtures"]));
+    expect(fields).toEqual(expect.arrayContaining(["kind", "runtimes", "fixtures"]));
+  });
+
+  it("accepts a node that is not published from a package, and names none", () => {
+    // First-party nodes are source served straight from the registry: there is
+    // no package. A REQUIRED package name could only be satisfied by inventing
+    // one, and the first-party manifests did exactly that —
+    // `particle-academy/fancy-flow-nodes`, which never existed, and which an
+    // agent then tried to `composer require`.
+    const { name, ...withoutName } = valid;
+    void name;
+    const result = validateNodeManifest(withoutName);
+    expect(result.ok).toBe(true);
+    expect(result.problems.filter((p) => p.field === "name")).toEqual([]);
+  });
+
+  it("still rejects a name that is present but says nothing", () => {
+    // Optional is not "anything goes": a blank or non-string name is a
+    // manifest that tried to name its package and failed.
+    for (const name of ["", "   ", 42, null]) {
+      const result = validateNodeManifest({ ...valid, name });
+      expect(result.ok).toBe(false);
+      expect(result.problems.find((p) => p.field === "name")?.message).toMatch(/omit it/i);
+    }
   });
 
   it("rejects a bare, un-namespaced kind id", () => {

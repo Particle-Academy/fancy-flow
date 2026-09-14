@@ -112,8 +112,21 @@ export type FancyDependency = {
 export type NodePackageManifest = {
   /** Must equal `NODE_MANIFEST_SCHEMA_VERSION`. */
   schemaVersion: number;
-  /** Package name, as installed (`@acme/fancy-flow-salesforce`). */
-  name: string;
+  /**
+   * The package this node is published from, WHEN it is published from one
+   * (`@acme/fancy-flow-salesforce`).
+   *
+   * Provenance only. `fancy-cli add node` vendors a node's source into the
+   * project and installs nothing named here.
+   *
+   * **Omit it when there is no package.** First-party nodes are source served
+   * straight from the registry, so they have none, and anything written here
+   * reads as something to install. While this field was required, the
+   * first-party manifests carried `particle-academy/fancy-flow-nodes`, a
+   * package that never existed, and an agent following it ran
+   * `composer require` into a 404.
+   */
+  name?: string;
   /**
    * The canonical kind id this package provides — namespaced, and the string
    * that gets persisted into every document using it.
@@ -250,8 +263,10 @@ export function validateNodeManifest(input: unknown): ManifestValidation {
     }
   }
 
-  if (typeof m.name !== "string" || m.name.trim() === "") {
-    problems.push(err("name", "Required — the package name as installed."));
+  // Optional — see `NodePackageManifest.name`. Present means the author named a
+  // package, so a blank or non-string value is still an error.
+  if ("name" in m && (typeof m.name !== "string" || m.name.trim() === "")) {
+    problems.push(err("name", "When present, the package this node is published from. Omit it if there is none."));
   }
 
   validateKind(m.kind, problems);
