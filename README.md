@@ -22,15 +22,15 @@ No more `@xyflow/react` peer install since `0.3.0` — it's bundled into our dis
 
 ## Which version range to depend on
 
-**Use a caret. `^0.46.0` is correct here, and it is deliberate.**
+**Use a caret. `^0.70.0` is correct here, and it is deliberate.**
 
 ```jsonc
-"@particle-academy/fancy-flow": "^0.46.0"
+"@particle-academy/fancy-flow": "^0.70.0"
 ```
 
 This package is **pre-1.0, and breaking changes land in MINOR releases** — see
 the note at the top of [`CHANGELOG.md`](./CHANGELOG.md). A caret on a `0.x` locks
-the minor (npm reads `^0.46.0` as `>=0.46.0 <0.47.0`), so it gives you patches and
+the minor (npm reads `^0.70.0` as `>=0.70.0 <0.71.0`), so it gives you patches and
 holds you at a surface you have already integrated against. That is the right
 default when the next minor may change something under you.
 
