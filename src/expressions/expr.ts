@@ -50,18 +50,28 @@ export type ExprContext = Record<string, ExprValue>;
  * number of times, so this is linear by construction rather than by careful
  * pattern-writing, and there is no next witness to find.
  *
- * The behaviour is deliberately identical to the regexes it replaces, including
- * the odd corner: `{{a}}{{b}}` is a WHOLE expression whose path is `a}}{{b`
- * (which resolves to null), because the old pattern was `$`-anchored and its
- * lazy capture had to grow to reach the end. The PHP twin does the same, and
- * `shared/expr` is what holds the two together.
+ * The behaviour matches the PHP twin's regexes, and `shared/expr` is what holds
+ * the two together.
  */
 
-/** The inner text of a template that is exactly one expression, else `null`. */
+/**
+ * The inner text of a template that is EXACTLY one expression, else `null`.
+ *
+ * Starting with `{{` and ending with `}}` is not enough: the inner text may
+ * contain neither `}}` nor `{{`. Without that check `{{ in.text }} --- {{
+ * user.transcript }}` was ONE path, `in.text }} --- {{ user.transcript`, that
+ * resolves to nothing, so the template returned null (fancy-flow-php#16). That
+ * corner came from PHP's end-anchored pattern, whose lazy capture grew to reach
+ * the end; it was documented here as deliberate and mirrored in every runtime,
+ * so no parity table could see it. A template with several references now
+ * interpolates each, and `{{a}}{{b}}` is two references.
+ */
 function wholeExpression(trimmed: string): string | null {
   if (trimmed.length < 4) return null;
   if (!trimmed.startsWith("{{") || !trimmed.endsWith("}}")) return null;
-  return trimmed.slice(2, -2);
+  const inner = trimmed.slice(2, -2);
+  if (inner.includes("}}") || inner.includes("{{")) return null;
+  return inner;
 }
 
 /**

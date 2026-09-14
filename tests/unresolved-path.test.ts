@@ -122,28 +122,26 @@ describe('the "keep" policy makes the failure visible instead of invisible', () 
   });
 
   it("still substitutes the paths that DO resolve", () => {
-    // NOTE the leading "x". Without it this string starts with `{{` and ends
-    // with `}}`, which makes it a WHOLE expression -- see the corner pinned
-    // below. My first draft of this test omitted it and asserted the wrong
-    // answer; the code was right.
+    // The leading "x" once mattered: without it this string starts with `{{`
+    // and ends with `}}`, which used to make it one WHOLE expression. That was
+    // fancy-flow-php#16, and it no longer does -- see the test below.
     expect(
       evaluateExpression("x {{ in.text }} / {{ in.missing }}", ctx, { onUnresolved: "keep" }),
     ).toBe("x hello / {{ in.missing }}");
   });
 
-  it("makes the documented `{{a}}{{b}}` corner VISIBLE rather than silently null", () => {
-    // A template that both starts with `{{` and ends with `}}` is one whole
-    // expression whose path contains the inner `}}{{` -- deliberate, inherited
-    // from the `$`-anchored regex this scanner replaced, and mirrored in PHP.
-    //
-    // Under the default policy that path resolves to `null`, so an author who
-    // wrote two expressions and got one null has nothing to go on. Under
-    // "keep" the original text comes back, which at least SHOWS them the
-    // template was never split. That is the policy earning its keep on a case
-    // it was not designed for.
-    const twoLooking = "{{ in.text }} / {{ in.text }}";
-    expect(evaluateExpression(twoLooking, ctx)).toBeNull();
-    expect(evaluateExpression(twoLooking, ctx, { onUnresolved: "keep" })).toBe(twoLooking);
+  it("interpolates a template that starts and ends with a reference but holds two", () => {
+    // This test used to PIN the corner: a template starting with `{{` and
+    // ending with `}}` was one whole expression whose path spanned the inner
+    // `}}{{`, so it returned null, and itself under "keep". That was the bug in
+    // fancy-flow-php#16, not a deliberate behaviour. See
+    // template-with-several-references.test.ts.
+    const two = "{{ in.text }} / {{ in.text }}";
+    expect(evaluateExpression(two, ctx)).toBe("hello / hello");
+    expect(evaluateExpression(two, ctx, { onUnresolved: "keep" })).toBe("hello / hello");
+    expect(
+      evaluateExpression("{{ in.text }} / {{ in.missing }}", ctx, { onUnresolved: "keep" }),
+    ).toBe("hello / {{ in.missing }}");
   });
 
   it("does NOT keep a path that resolved to null or empty", () => {

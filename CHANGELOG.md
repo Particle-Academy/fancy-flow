@@ -12,6 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.4] - 2026-09-14
+
+### Fixed
+
+- **A template that starts with `{{` and ends with `}}` but holds more than one
+  reference resolved to nothing** (fancy-flow-php#16).
+  `evaluateExpression("{{ in.text }} --- {{ user.transcript }}", ctx)` returned
+  `null`: `wholeExpression` asked only whether the trimmed template starts with
+  `{{` and ends with `}}`, so it read `in.text }} --- {{ user.transcript` as ONE
+  path, which never resolves. It returned the template itself under
+  `onUnresolved: "keep"` and threw under `"throw"`. A prompt or document
+  template shaped like that produced nothing, with every reference valid. The
+  whole-string branch now applies only when the inner text contains neither
+  `}}` nor `{{`; anything else interpolates each reference, under every policy.
+  `{{ a }}{{ b }}` is `"12"`. `evaluateConfig` inherits the fix.
+
+  This was documented as a deliberate corner, inherited from PHP's end-anchored
+  pattern and mirrored in all four runtimes, which is why no parity table caught
+  it. fancy-flow-php 0.52.2 fixed it first; fancy-flow (Python) 0.20.2 and
+  fancy-flow-rs carry the same rule.
+
+  **What to do:** nothing, unless something relied on such a template returning
+  `null` (or itself, under `"keep"`). It now returns the interpolated string. A
+  single expression, whitespace-padded or not, still returns its typed value.
+
+### Changed
+
+- **devDependency `@particle-academy/fancy-conformance` `^0.20.0` → `^0.23.0`**,
+  whose `shared/expr` 0021-0026 pin the fix above. Test-only; consumers install
+  nothing new.
+
 ## [0.70.3] - 2026-09-15
 
 ### Fixed

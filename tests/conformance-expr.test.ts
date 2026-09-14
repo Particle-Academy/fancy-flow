@@ -33,10 +33,11 @@ type Case = {
   fn: string;
   input: Record<string, unknown>;
   expected: unknown;
-  skip?: boolean;
+  /** Keyed by language, never a scalar: a row skipped for PHP still runs here. */
+  skip?: Record<string, string>;
 };
 
-const cases = (CASES as { cases: Case[] }).cases.filter((c) => !c.skip);
+const cases = (CASES as { cases: Case[] }).cases.filter((c) => c.skip?.node === undefined);
 
 const FNS: Record<string, (input: Record<string, unknown>) => unknown> = {
   evaluateExpression: (i) =>
@@ -51,6 +52,23 @@ describe("conformance: shared/expr", () => {
     expect(cases.length).toBeGreaterThan(15);
     for (const c of cases) {
       expect(FNS[c.fn], `case ${c.id} calls unimplemented fn "${c.fn}"`).toBeTypeOf("function");
+    }
+  });
+
+  it("includes the rows that pin a whole-string expression to exactly one `{{ }}`", () => {
+    // fancy-flow-php#16, pinned in fancy-conformance 0.23.0. An install older
+    // than that passes this file without ever asking the question, which is how
+    // the corner shipped in four runtimes at once.
+    const ids = cases.map((c) => c.id);
+    for (const id of [
+      "0021-several-references-interpolate-each",
+      "0022-several-references-across-newlines",
+      "0023-adjacent-references-are-two-references",
+      "0024-padded-single-expression-keeps-type",
+      "0025-one-unresolved-reference-of-several-interpolates-empty",
+      "0026-an-inner-opening-brace-is-not-one-expression",
+    ]) {
+      expect(ids, `shared/expr is missing ${id}; is fancy-conformance older than 0.23.0?`).toContain(id);
     }
   });
 
