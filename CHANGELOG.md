@@ -12,6 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.3] - 2026-09-15
+
+### Fixed
+
+- **A `subflow` with no `inputs` mapping handed its child NOTHING.** The
+  executor seeded `initialInputs: { __parent: <inputs> }`, but `initialInputs`
+  is keyed by node id and no node is called `__parent`, so the child's entry
+  node ran with no inputs. Nothing errored or warned: a child reading
+  `{{ in.ref }}` rendered empty. The comment on that line said the parent's
+  inputs go to the child's entry points, and that is now what happens: every
+  node of the child with no incoming edge receives the parent node's inputs,
+  the same rule as the PHP and Python engines. An empty `inputs: {}` counts as
+  no mapping, as it does there.
+
+  **What to do:** nothing, unless a child graph was written to cope with
+  receiving no inputs. Its entry nodes now receive the parent's inputs. A
+  subflow with an explicit, non-empty `inputs` mapping is unchanged.
+
+  Found by the flabs Flow lanes, which run one graph on every engine and
+  compare the runs.
+
 ## [0.70.2] - 2026-09-13
 
 ### Removed

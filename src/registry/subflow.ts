@@ -1,6 +1,6 @@
 import { getWorkflowResolver, isResolutionFailure } from "./capabilities";
 import { runFlow } from "../runtime/run-flow";
-import type { NodeExecutor, RunEvent } from "../types";
+import type { FlowGraph, NodeExecutor, RunEvent } from "../types";
 
 /**
  * `@fancy/subflow` — run another workflow and bring its result home.
@@ -36,6 +36,36 @@ export function subflowPorts(config: Record<string, unknown>) {
   const ports = [{ id: "out", label: "result" }];
   if (mode === "stream" || mode === "both") ports.unshift({ id: "stream", label: "stream" });
   return ports;
+}
+
+/**
+ * Entry-point inputs for the child run: the node's explicit `inputs` mapping,
+ * or — absent or empty — the parent's inputs handed to every entry node (a node
+ * with no incoming edge), so the simple case needs no configuration at all.
+ *
+ * The same rule as the PHP and Python engines. This used to seed
+ * `{ __parent: inputs }`: `initialInputs` is keyed by node id and nothing is
+ * called `__parent`, so the child ran with no inputs and nothing said so.
+ */
+export function childInputs(
+  config: Record<string, unknown>,
+  child: FlowGraph,
+  inputs: Record<string, unknown>,
+): Record<string, Record<string, unknown>> {
+  const mapping = config.inputs;
+
+  if (mapping && typeof mapping === "object" && !Array.isArray(mapping) && Object.keys(mapping).length > 0) {
+    return mapping as Record<string, Record<string, unknown>>;
+  }
+
+  const hasIncoming = new Set(child.edges.map((edge) => edge.target));
+  const seeded: Record<string, Record<string, unknown>> = {};
+
+  for (const node of child.nodes) {
+    if (!hasIncoming.has(node.id)) seeded[node.id] = inputs;
+  }
+
+  return seeded;
 }
 
 export const subflowExecutor: NodeExecutor = async (ctx) => {
@@ -115,12 +145,7 @@ export const subflowExecutor: NodeExecutor = async (ctx) => {
     { ...(ctx.executors ?? {}), ...((config.executors as Record<string, unknown>) ?? {}) } as never,
     forward,
     {
-      initialInputs: (config.inputs as Record<string, Record<string, unknown>>) ?? {
-        // With no explicit mapping, hand the parent's inputs to the child's
-        // entry points — the obvious default, and it makes the simple case
-        // require no configuration at all.
-        __parent: ctx.inputs as Record<string, unknown>,
-      },
+      initialInputs: childInputs(config, child!, ctx.inputs as Record<string, unknown>),
       depth: depth + 1,
       // Push THIS node onto the identity path, so a node inside the child graph
       // cannot share an idempotency key with a same-named node in the parent —
