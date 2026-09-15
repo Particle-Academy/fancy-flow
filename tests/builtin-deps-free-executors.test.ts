@@ -153,10 +153,36 @@ test("an unmatched value takes default AND says so, because the two look identic
   // The silent mis-route `branch` has one step over: an expression that does
   // not resolve becomes "", matches no case, and takes `default` —
   // indistinguishable from a value that genuinely matched nothing. The twins
-  // warn; so does this, or the routing decision is unaccountable.
+  // warn; so does this, or the routing decision is unaccountable. The wording
+  // is the twin's, pinned by `flow/run-diagnostics`.
   const warned = events.filter((e) => e.type === "log" && e.level === "warn");
   expect(warned).toHaveLength(1);
-  expect((warned[0] as { message: string }).message).toContain("matches no case");
+  expect((warned[0] as { message: string }).message).toContain(
+    'Node s took the "default" port because `value` resolved to NOTHING — the path in.missing',
+  );
+  expect((warned[0] as { detail?: unknown }).detail).toEqual({
+    node: "s",
+    configKey: "value",
+    path: "in.missing",
+    tookPort: "default",
+  });
+});
+
+test("an expression that RESOLVES but matches no case does NOT warn", async () => {
+  // A real value no case names is what `default` is FOR. This warned until
+  // `flow/run-diagnostics` 0007 pinned otherwise: a warning on a node's
+  // intended behaviour is the noise that trains people to ignore the real one.
+  const { result, events } = await run(
+    [
+      node("start", "manual_trigger"),
+      node("s", "switch_case", { value: "{{ in.tier }}", cases: { gold: "vip" } }),
+    ],
+    [{ id: "e1", source: "start", target: "s", targetHandle: "in" }],
+    { start: { tier: "bronze" } },
+  );
+
+  expect(result.outputs.s).toMatchObject({ __port: "default" });
+  expect(events.filter((e) => e.type === "log" && e.level === "warn")).toHaveLength(0);
 });
 
 test("a literal value that matches no case does NOT warn", async () => {

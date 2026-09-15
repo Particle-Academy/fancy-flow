@@ -12,6 +12,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-09-14
+
+### Added
+
+- **A graph that runs and delivers nothing now says so** (fancy-flow#17). Two
+  run-time `log` events at level `warn`, which fancy-flow-php has always emitted
+  and this engine did not. On the flabs smart-routing reference graph PHP warned
+  about a dead edge at once, while this engine ran the same graph, reported
+  success and said nothing.
+  - **Undelivered edge.** When a source node has COMPLETED, the edge's port was
+    not published, and its `sourceHandle` (default `out`) is not a port the
+    source could ever publish, the TARGET node gets
+    `Edge e2 reads port "result" from node tf, which never publishes it —
+    nothing would reach o at run time. Available: out. Leave sourceHandle off to
+    read the node's output.` with `detail: { edge, source, sourceHandle }`.
+    `Available:` lists what the source actually published on this run. When the
+    handle is a field of the source kind's `outputShape` (for example `count`
+    on `for_each`), a note says how to read the field instead. The remedy is
+    offered only when the edge has a `sourceHandle`. An untaken branch port is
+    ordinary branching and never warns. The check asks whether a port is
+    POSSIBLE, using the PHP twin's precedence: the node's own `outputs`, then
+    ports derived from config (`switch_case` `cases`, `llm_router` `routes`,
+    `subflow` stream modes), then the kind's ports, then `out`.
+  - **Route taken on an unresolved path.** When `branch`'s `condition` or
+    `switch_case`'s `value` is a single whole `{{ path }}` that does not resolve
+    against the node's inputs, that node gets ``Node b took the "false" port
+    because `condition` resolved to NOTHING — …`` with
+    `detail: { node, configKey, path, tookPort }`. A path holding `null` DID
+    resolve and is silent, as are text mixed with an expression and
+    `{{ a }}{{ b }}`.
+
+  Both are pinned by `flow/run-diagnostics` in
+  `@particle-academy/fancy-conformance` 0.24.0: 14 rows, 6 that warn and 8
+  that must stay silent.
+
+  **What you must do:** nothing. Routing is unchanged, and so is every port a
+  run publishes. A host that surfaces warn logs will now see these warnings for
+  graphs that were already broken.
+
+  **Known gap:** on durable runs the job coordinator forwards only events for
+  the node its job is running. So an undelivered-edge warning whose target is
+  skipped (the bad edge was its only inbound one) is emitted while other nodes
+  replay, and does not reach the host. `runFlow` delivers every warning.
+
+### Changed
+
+- **`switch_case` no longer warns on a value that resolved but matched no
+  case.** Its old `switch_case: "…" resolved to "…", which matches no case`
+  warning fired for any unmatched value that came from an expression, including
+  a real value that no case names. Handling that value is the job of `default`.
+  The node now warns only when the path did not resolve, with the message
+  above.
+
+  **What you must do:** nothing, unless something matched on the old message
+  text. Match on `detail.configKey === "value"` instead.
+- **devDependency `@particle-academy/fancy-conformance` `^0.23.0` → `^0.24.0`**,
+  which carries `flow/run-diagnostics`. Test-only; consumers install nothing
+  new.
+
 ## [0.70.4] - 2026-09-14
 
 ### Fixed

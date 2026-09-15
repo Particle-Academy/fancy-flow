@@ -1,4 +1,4 @@
-import { evaluateExpression, truthy, text } from "../expressions/expr";
+import { evaluateExpression, truthy, text, tryResolvePath } from "../expressions/expr";
 import type { NodeExecutor } from "../types";
 
 /**
@@ -49,6 +49,63 @@ function contextOf(inputs: Record<string, unknown>): Record<string, unknown> {
 function resolve(value: unknown, inputs: Record<string, unknown>): unknown {
   if (typeof value !== "string") return value;
   return evaluateExpression(value, contextOf(inputs) as never);
+}
+
+/**
+ * Warn when a routing decision was made on a path that DID NOT RESOLVE.
+ *
+ * `branch` asks `truthy()` of its resolved condition. An unresolvable path
+ * yields `null`, `null` is falsy, and the run takes `false` — silently, and for
+ * a reason that has nothing to do with the data. `switch_case` has the same
+ * shape one step over: a `value` that does not resolve matches no case and
+ * falls to `default`. From outside, both look exactly like a legitimate answer,
+ * and half the graph then never runs on a run that reports success.
+ *
+ * Routing is deliberately UNCHANGED. Re-routing would silently change graphs
+ * that have been running for months; the warning supplies the missing part,
+ * which is the reason. A host that would rather fail can register its own
+ * executor resolving with `evaluateExpression(…, { onUnresolved: "throw" })`.
+ *
+ * Only for a WHOLE `{{ path }}`. A condition mixing text with expressions is
+ * being used as a string, and an unresolved fragment there is interpolation,
+ * not routing. Absent is not null: a key holding `null` RESOLVED, and is silent.
+ *
+ * Ported from the PHP twin's `RoutingDiagnostics::warnIfUnresolved`, message and
+ * detail verbatim — pinned by `flow/run-diagnostics` (fancy-flow#17). Found by
+ * `flabs`: a triage graph whose urgency check named a field that did not
+ * resolve routed every request, total payment failure included, as non-urgent.
+ */
+function warnIfUnresolved(
+  ctx: Parameters<NodeExecutor>[0],
+  condition: unknown,
+  tookPort: string,
+  configKey = "condition",
+): void {
+  if (typeof condition !== "string") return;
+
+  const trimmed = condition.trim();
+  if (trimmed.length < 4 || !trimmed.startsWith("{{") || !trimmed.endsWith("}}")) return;
+
+  const path = trimmed.slice(2, -2).trim();
+
+  // `{{ a }}{{ b }}` would otherwise read as one "path" spanning `}}{{` — a
+  // template of two references rather than a missing field, and reporting it
+  // as a missing field sends the reader somewhere useless.
+  if (path === "" || path.includes("}}")) return;
+
+  if (tryResolvePath(path, ctx.inputs as never).resolved) return;
+
+  const nodeId = ctx.node.id;
+  ctx.emit({
+    type: "log",
+    nodeId,
+    level: "warn",
+    message:
+      `Node ${nodeId} took the "${tookPort}" port because \`${configKey}\` resolved to NOTHING — ` +
+      `the path ${path} names no field on this node's inputs. That is not the same as a false ` +
+      `condition: the route was decided by an absent value rather than by the data.`,
+    detail: { node: nodeId, configKey, path, tookPort },
+  });
 }
 
 /**
@@ -122,6 +179,10 @@ export const branchExecutor: NodeExecutor = (ctx) => {
   const raw = config.condition;
   if (typeof raw === "string" && raw.trim() !== "") {
     taken = truthy(resolve(raw, inputs) as never);
+    // A condition that did not RESOLVE is falsy, so the run takes `false`
+    // silently and for the wrong reason. Routing is unchanged; the reason is
+    // now visible.
+    warnIfUnresolved(ctx, raw, taken ? "true" : "false");
   } else {
     const rows = Array.isArray(config.conditions) ? (config.conditions as Config[]) : [];
     // No conditions at all is FALSE, not true. An empty `all` is vacuously
@@ -314,9 +375,13 @@ export const logExecutor: NodeExecutor = (ctx) => {
  * An unmatched value falls to `default`, which is the same silent mis-route
  * `branch` has one step over: an expression that does not resolve becomes `""`,
  * matches no case, and takes `default` — indistinguishable from a value that
- * genuinely matched nothing. The twins warn; this emits the same warning rather
- * than staying quiet, because a routing decision nobody can account for is the
- * expensive kind.
+ * genuinely matched nothing.
+ *
+ * So it warns when the value did not RESOLVE, and only then. This used to warn
+ * on ANY unmatched value that came from an expression, including one that
+ * resolved to a real value no case names — which is what `default` is FOR, and
+ * a warning on a node's intended behaviour is noise that trains people to
+ * ignore the one that matters. The twin warns on the unresolved path alone.
  */
 export const switchCaseExecutor: NodeExecutor = (ctx) => {
   const config = configOf(ctx.node);
@@ -329,16 +394,7 @@ export const switchCaseExecutor: NodeExecutor = (ctx) => {
   const matched = Object.prototype.hasOwnProperty.call(cases, value);
   const port = matched ? String(cases[value]) : "default";
 
-  if (!matched && typeof expression === "string" && expression.includes("{{")) {
-    ctx.emit({
-      type: "log",
-      nodeId: ctx.node.id,
-      level: "warn",
-      message:
-        `switch_case: "${expression}" resolved to "${value}", which matches no case — ` +
-        `taking "default". An unresolved expression looks identical to a genuine miss here.`,
-    });
-  }
+  warnIfUnresolved(ctx, expression, port, "value");
 
   return { __port: port, value: inputs.in ?? inputs };
 };
