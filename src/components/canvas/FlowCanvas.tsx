@@ -32,15 +32,20 @@ import type { FlowNode } from "../../types";
 import { useResolvedColorMode } from "./use-resolved-color-mode";
 
 /**
- * With wheel-zoom off, Shift+wheel still zooms — and must not ALSO scroll the
- * page while it does. React Flow's own `preventScrolling` is all-or-nothing, so
- * the modifier case is handled here: swallow the gesture that zooms, leave the
- * one that doesn't alone.
+ * With wheel-zoom off, a BARE wheel must reach the page and never xyflow.
  *
- * Capture phase, so it lands before React Flow's own wheel handling.
+ * Capture phase, so it lands before xyflow's own wheel handling, and
+ * `stopPropagation` rather than `preventDefault`: React attaches wheel
+ * listeners as PASSIVE, so a `preventDefault()` here does nothing except log
+ * "Unable to preventDefault inside passive event listener invocation"
+ * (fancy-flow#19). Stopping the event needs no such permission, and the page
+ * then scrolls natively because nobody prevented it.
+ *
+ * Shift+wheel is left alone so xyflow zooms it — with `preventScrolling` on,
+ * xyflow prevents that gesture's scroll itself.
  */
-function preventScrollWhileZooming(event: ReactWheelEvent<HTMLDivElement>): void {
-  if (event.shiftKey) event.preventDefault();
+function keepBareWheelFromZooming(event: ReactWheelEvent<HTMLDivElement>): void {
+  if (!event.shiftKey) event.stopPropagation();
 }
 
 /**
@@ -53,22 +58,30 @@ function preventScrollWhileZooming(event: ReactWheelEvent<HTMLDivElement>): void
  *
  * - **on** (default): no modifier needed, and the page never scrolls under a
  *   wheel that is zooming.
- * - **off**: zoom moves to Shift+wheel and the bare wheel goes back to the
- *   page. `preventScrolling` alone cannot express that — left true it swallows
- *   the bare wheel (page frozen, nothing zooms), left false it lets Shift+wheel
- *   zoom *and* scroll at once — so the handler covers the modifier case.
+ * - **off**: zoom moves to Shift+wheel and the bare wheel goes back to the page.
+ *
+ * Off is built out of what xyflow DOES, which its prop names disguise
+ * (fancy-flow#19): its filter reads `zoomActivationKeyPressed || zoomOnScroll`,
+ * so an activation key only adds permission and restricts nothing while
+ * `zoomOnScroll` is true; and its wheel handler returns early when
+ * `!preventScrolling && !event.ctrlKey`, so `preventScrolling: false` turns
+ * wheel zoom off entirely, Shift included. Hence: zoom off at the source, the
+ * key turning it back on, `preventScrolling` left ON so the zoom gesture cannot
+ * also scroll, and the bare wheel stopped before xyflow sees it.
  */
 export function wheelZoomProps(zoomOnWheel: boolean): {
+  zoomOnScroll: boolean;
   zoomActivationKeyCode: string | null;
   preventScrolling: boolean;
   onWheelCapture?: (event: ReactWheelEvent<HTMLDivElement>) => void;
 } {
   return zoomOnWheel
-    ? { zoomActivationKeyCode: null, preventScrolling: true }
+    ? { zoomOnScroll: true, zoomActivationKeyCode: null, preventScrolling: true }
     : {
+        zoomOnScroll: false,
         zoomActivationKeyCode: "Shift",
-        preventScrolling: false,
-        onWheelCapture: preventScrollWhileZooming,
+        preventScrolling: true,
+        onWheelCapture: keepBareWheelFromZooming,
       };
 }
 

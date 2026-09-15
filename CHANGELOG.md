@@ -12,6 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.1] - 2026-09-15
+
+### Fixed
+
+- **Shift+wheel now actually zooms a canvas with `zoomOnWheel={false}`** (#19,
+  found by MOIC in a browser). It never did. xyflow's zoom filter reads
+  `zoomActivationKeyPressed || zoomOnScroll`, so an activation key only ADDS
+  permission and restricted nothing while `zoomOnScroll` stayed true; and its
+  wheel handler returns early when `!preventScrolling && !event.ctrlKey`, so
+  `preventScrolling: false` disabled wheel zoom outright. The old set had both.
+  Its `preventDefault()` also ran inside a React wheel listener, which React
+  attaches as PASSIVE, so the call did nothing but log "Unable to preventDefault
+  inside passive event listener invocation" on every gesture.
+
+  Off mode is now `zoomOnScroll: false` + `zoomActivationKeyCode: "Shift"` +
+  `preventScrolling: true`, with the bare wheel stopped (`stopPropagation`, which
+  a passive listener may do) before xyflow sees it. **Nothing to do**: a bare
+  wheel still scrolls the page and never zooms. Verified in Chromium against a
+  real canvas — a bare wheel scrolled the page 1194→1494 with the graph unmoved,
+  and Shift+wheel zoomed 1.20→2.0 with the page still.
+
 ## [0.74.0] - 2026-09-15
 
 ### Added
