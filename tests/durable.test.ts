@@ -7,9 +7,11 @@ import {
   NotAwaitingHuman,
   RetryPolicy,
   Submissions,
+  UNLIMITED_CONCURRENCY,
   durableApproval,
   durableUserInput,
   replayUpTo,
+  selectDispatch,
 } from "../src/durable";
 import { registerNodeKind } from "../src/registry";
 import { runFlow } from "../src/runtime/run-flow";
@@ -97,7 +99,14 @@ describe("Coordinator — the two operations", () => {
   });
 
   it("dispatches both live branches of a fan-out, and the join only after both", async () => {
-    const runner = new Coordinator({ graph: fanout, executors: echo, run: "run_a" });
+    // Parallel on purpose: "both branches go out together" only happens when the
+    // host opts out of the serial default.
+    const runner = new Coordinator({
+      graph: fanout,
+      executors: echo,
+      run: "run_a",
+      maxConcurrent: UNLIMITED_CONCURRENCY,
+    });
 
     await runner.runNode("t");
     expect((await runner.advance()).sort()).toEqual(["p1", "p2"]);
@@ -295,6 +304,228 @@ describe("Coordinator — a human gate holds no worker", () => {
 
     expect(resumed.outputs.nope).toEqual({ ran: "nope" });
     expect(resumed.outputs.ok).toBeUndefined();
+  });
+});
+
+/**
+ * A queue adapter's loop, in-process: advance, run every id it handed out, and
+ * advance again. Resolves to the batches `advance()` handed out, in order.
+ */
+async function drain(runner: Coordinator): Promise<string[][]> {
+  const batches: string[][] = [];
+  for (let pass = 0; pass < 100; pass++) {
+    const ready = await runner.advance();
+    if (ready.length === 0) break;
+    batches.push(ready);
+    for (const nodeId of ready) await runner.runNode(nodeId);
+  }
+  return batches;
+}
+
+describe("Coordinator — one node at a time unless the host asks (fancy-flow-php#17)", () => {
+  // Nodes declared in a different order from the edges, so "declaration order"
+  // cannot pass by coincidence with edge order.
+  const fan: FlowGraph = {
+    nodes: [node("t"), node("b"), node("a"), node("c")],
+    edges: [edge("t", "a"), edge("t", "b"), edge("t", "c")],
+  };
+
+  it("hands out ONE node when a fan-out's trigger settles, the first declared", async () => {
+    const runner = new Coordinator({ graph: fan, executors: echo, run: "run_serial" });
+
+    expect(await runner.advance()).toEqual(["t"]);
+    await runner.runNode("t");
+
+    expect(await runner.advance()).toEqual(["b"]);
+  });
+
+  it("a queue driven off advance() gets one node per settle, start to finish", async () => {
+    const runner = new Coordinator({ graph: fan, executors: echo, run: "run_serial" });
+
+    expect(await drain(runner)).toEqual([["t"], ["b"], ["a"], ["c"]]);
+  });
+
+  it("runToCompletion runs in declaration order among what is ready at each step", async () => {
+    // `c` becomes ready when `a` settles and is declared before the waiting `b`,
+    // so it goes first (conformance row 0007). Dispatching the whole frontier
+    // ran `t, a, b, c`.
+    const graph: FlowGraph = {
+      nodes: [node("t"), node("c"), node("a"), node("b")],
+      edges: [edge("t", "a"), edge("t", "b"), edge("a", "c")],
+    };
+    const ran: string[] = [];
+    const executors: ExecutorRegistry = {
+      "*": (ctx) => {
+        ran.push(ctx.node.id);
+        return { ran: ctx.node.id };
+      },
+    };
+
+    const durable = await new Coordinator({ graph, executors, run: "run_order" }).runToCompletion();
+    const single = await runFlow(graph, { "*": (ctx) => ({ ran: ctx.node.id }) });
+
+    expect(ran).toEqual(["t", "a", "c", "b"]);
+    // The order changed; what the run produced did not.
+    expect({ ok: durable.ok, outputs: durable.outputs }).toEqual({ ok: single.ok, outputs: single.outputs });
+  });
+
+  it("UNLIMITED_CONCURRENCY hands out the whole ready frontier", async () => {
+    const runner = new Coordinator({
+      graph: fan,
+      executors: echo,
+      run: "run_unlimited",
+      maxConcurrent: UNLIMITED_CONCURRENCY,
+    });
+    await runner.runNode("t");
+
+    expect(await runner.advance()).toEqual(["b", "a", "c"]);
+  });
+
+  it("a cap of 2 hands out two", async () => {
+    const runner = new Coordinator({ graph: fan, executors: echo, run: "run_cap", maxConcurrent: 2 });
+    await runner.runNode("t");
+
+    expect(await runner.advance()).toEqual(["b", "a"]);
+  });
+
+  describe("the budget is held work, not the size of one batch", () => {
+    // A racing worker claims `b` before this advance runs, as a real queue
+    // does when two settles each trigger an advance.
+    async function withOneClaimedOutOfBand(maxConcurrent: number): Promise<string[]> {
+      const runner = new Coordinator({ graph: fan, executors: echo, run: "run_race", maxConcurrent });
+      await runner.runNode("t");
+      expect(await runner.store.claim(runner.runKey, "b", "racing-worker")).toBe(true);
+      return runner.advance();
+    }
+
+    it("a cap of 1 with a node already claimed hands out nothing", async () => {
+      expect(await withOneClaimedOutOfBand(1)).toEqual([]);
+    });
+
+    it("CONTROL: a cap of 2 in the same setup hands out the next node", async () => {
+      // Without this, the assertion above would also pass over a setup that
+      // made nothing ready at all.
+      expect(await withOneClaimedOutOfBand(2)).toEqual(["a"]);
+    });
+  });
+
+  describe("a paused gate keeps its slot", () => {
+    const gatedFan: FlowGraph = {
+      nodes: [node("t"), node("gate", "user_input"), node("b")],
+      edges: [edge("t", "gate"), edge("t", "b")],
+    };
+
+    async function pausedAt(maxConcurrent?: number): Promise<Coordinator> {
+      const runner = new Coordinator({
+        graph: gatedFan,
+        executors: { user_input: durableUserInput(new Submissions()), "*": () => ({}) },
+        run: "run_gate",
+        ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
+      });
+      await runner.runNode("t");
+      expect((await runner.runNode("gate")).status).toBe("paused");
+      return runner;
+    }
+
+    it("under the default, advance hands out nothing while a person decides", async () => {
+      expect(await (await pausedAt()).advance()).toEqual([]);
+    });
+
+    it("CONTROL: under UNLIMITED_CONCURRENCY the gate's sibling goes out", async () => {
+      expect(await (await pausedAt(UNLIMITED_CONCURRENCY)).advance()).toEqual(["b"]);
+    });
+  });
+
+  describe("resuming a gate under the serial default", () => {
+    const graph: FlowGraph = {
+      nodes: [node("t"), node("gate", "user_input"), node("after"), node("b")],
+      edges: [edge("t", "gate"), edge("gate", "after"), edge("t", "b")],
+    };
+
+    function setup() {
+      const submissions = new Submissions();
+      const store = new InMemoryClaimStore();
+      const ran: string[] = [];
+      const executors: ExecutorRegistry = {
+        user_input: durableUserInput(submissions),
+        "*": (ctx) => {
+          ran.push(ctx.node.id);
+          return { ran: ctx.node.id };
+        },
+      };
+      const coordinator = () => new Coordinator({ graph, executors, run: "run_resume", store });
+      return { submissions, store, ran, coordinator };
+    }
+
+    it("record + release frees the slot: the gate runs again, then the rest", async () => {
+      const { submissions, store, ran, coordinator } = setup();
+
+      const first = await coordinator().runToCompletion();
+      expect(first.paused).toBe(true);
+      expect(first.pause?.nodeId).toBe("gate");
+      expect(ran).toEqual(["t"]);
+      // Parked: the gate holds the only slot.
+      expect(await coordinator().advance()).toEqual([]);
+
+      submissions.record("gate", { email: "ada@example.com" });
+      store.release("run_resume", "gate");
+
+      // The freed slot goes to the gate, not to its sibling.
+      const resumed = coordinator();
+      expect(await resumed.advance()).toEqual(["gate"]);
+
+      const result = await resumed.runToCompletion();
+      expect(result.ok).toBe(true);
+      expect(result.paused).toBe(false);
+      expect(result.error).toBeUndefined();
+      expect(result.outputs.gate).toEqual({ email: "ada@example.com" });
+      expect(ran).toEqual(["t", "after", "b"]);
+    });
+
+    it("a gate's own job re-entering its paused claim frees the slot when it completes", async () => {
+      const { submissions, coordinator } = setup();
+      const runner = coordinator();
+
+      await runner.runNode("t");
+      expect((await runner.runNode("gate", "job-gate")).status).toBe("paused");
+      expect(await runner.advance()).toEqual([]);
+
+      submissions.record("gate", { email: "ada@example.com" });
+      expect((await runner.runNode("gate", "job-gate")).status).toBe("completed");
+
+      expect(await runner.advance()).toEqual(["after"]);
+      expect(await drain(runner)).toEqual([["after"], ["b"]]);
+    });
+  });
+
+  it.each([
+    ["a negative", -1],
+    ["a fractional", 1.5],
+    ["a NaN", Number.NaN],
+    ["an infinite", Number.POSITIVE_INFINITY],
+    ["a string", "2"],
+  ])("refuses %s maxConcurrent at construction, by name", (_label, value) => {
+    expect(
+      () => new Coordinator({ graph: linear, executors: echo, run: "run_a", maxConcurrent: value as number }),
+    ).toThrow(/maxConcurrent/);
+  });
+
+  it("selectDispatch slices the ready ids against held rows, in the order given", () => {
+    const row = (status: "claimed" | "paused" | "skipped" | "completed") => ({
+      status,
+      ports: [],
+      attempts: 1,
+      firstAttemptAt: "",
+    });
+    const state = { x: row("claimed"), y: row("paused"), z: row("skipped"), w: row("completed") };
+
+    expect(UNLIMITED_CONCURRENCY).toBe(0);
+    expect(selectDispatch(["c", "a", "b"], state, UNLIMITED_CONCURRENCY)).toEqual(["c", "a", "b"]);
+    // Claimed and paused are held; skipped and completed are not.
+    expect(selectDispatch(["c", "a", "b"], state, 3)).toEqual(["c"]);
+    // More held than the cap is nothing, never a negative slice from the end.
+    expect(selectDispatch(["c", "a", "b"], state, 1)).toEqual([]);
+    expect(() => selectDispatch(["a"], {}, -1)).toThrow(/maxConcurrent/);
   });
 });
 

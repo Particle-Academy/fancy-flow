@@ -12,6 +12,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-09-14
+
+### Changed
+
+- **BREAKING: a queued run now dispatches one node at a time.**
+  `Coordinator.advance()` used to return the whole ready frontier, so every
+  node that became ready together went to the queue together. It now returns at
+  most one id, and the next only once that node has settled, in the graph's
+  declaration order (fancy-flow-php#17, the owner's ruling: a node is added to
+  the worker queue only after the previous node finishes).
+
+  **What you must do:** nothing, if one node of a run at a time is what you
+  want. To restore the old behaviour, pass
+  `maxConcurrent: UNLIMITED_CONCURRENCY` to `new Coordinator({ … })`. A queue
+  adapter that already calls `advance()` again whenever a job settles needs no
+  other change: an empty result while a node is held means the run is
+  throttled, not stuck, and that node's settle advances it.
+
+  In-process `runToCompletion` results are unchanged for a run that finishes:
+  the same outputs and the same `ok`. What changes is order. Nodes run in
+  declaration order among what is ready at each step, so a node that becomes
+  ready when its predecessor settles can run before an earlier-ready sibling
+  that is declared after it (nodes `[t, c, a, b]`, edges `t→a, t→b, a→c`: this
+  used to run `t, a, b, c` and now runs `t, a, c, b`). A run that stops early,
+  on a pause or a failure, can therefore stop having run a different set of
+  nodes: in the example above, a failure in `b` used to return outputs for
+  `t, a` and now returns `t, a, c`. Where more than one node could pause or
+  fail, it can also stop at a different one.
+
+- **A paused human gate keeps its dispatch slot.** Under any finite limit,
+  `advance()` counts CLAIMED and PAUSED rows as held. A pause does not park the
+  run in this runtime, so a queue adapter calling `advance()` while a person was
+  deciding used to receive the gate's ready siblings. It now receives nothing.
+  Resuming is unchanged: record the answer and release the paused row
+  (`InMemoryClaimStore.release`), and the next `advance()` hands out the gate.
+  A gate's own job re-entering its paused claim with the same owner token works
+  as before, and frees the slot when the gate completes.
+- **devDependency `@particle-academy/fancy-conformance` `^0.24.0` → `^0.25.0`**,
+  which carries `flow/durable-dispatch`. Test-only; consumers install nothing
+  new.
+
+### Added
+
+- **`CoordinatorOptions.maxConcurrent`.** How many of one run's nodes may be
+  held (claimed or paused) at once. Defaults to `1`. A positive integer is a
+  cap; `0` is the whole ready frontier. A negative, fractional or non-numeric
+  value throws a `RangeError` naming `maxConcurrent` at construction, rather
+  than silently turning a serial run parallel.
+- **`UNLIMITED_CONCURRENCY`** (`0`), exported from `/durable`, so a host never
+  writes a bare `0`.
+- **`selectDispatch(ready, state, maxConcurrent)`**, exported from `/durable`:
+  the selection `advance()` makes, as a pure function. It returns the first
+  `maxConcurrent - held` ready ids in the order given (never a negative slice),
+  or all of them for `UNLIMITED_CONCURRENCY`. The budget is measured against
+  work already held, not the size of one batch, so two settles that each
+  trigger an `advance()` cannot each dispatch a full quota.
+- `tests/conformance-durable-dispatch.test.ts` runs the shared
+  `flow/durable-dispatch` table (14 rows) through this runtime's own
+  `Frontier.compute` and `selectDispatch`.
+
 ## [0.72.1] - 2026-09-14
 
 ### Added

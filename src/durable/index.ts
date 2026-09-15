@@ -24,7 +24,30 @@
  * for (const nodeId of await runner.advance()) enqueue(nodeId);
  * // In each node job:
  * const outcome = await runner.runNode(nodeId, jobToken);
+ * // ...and when it settles, advance again: that is what hands out the next node.
  * ```
+ *
+ * ## One node at a time, unless the host asks for more
+ *
+ * **Serial is the default.** `advance()` returns at most one id, and returns
+ * the next only once that node has settled, in the graph's declaration order.
+ * Nodes of one run never sit on the queue together.
+ *
+ * `maxConcurrent` changes that per coordinator. It caps how many of the run's
+ * nodes are HELD at once, where held means claimed by a worker or paused on a
+ * person. A positive integer is a cap; `UNLIMITED_CONCURRENCY` dispatches the
+ * whole ready frontier:
+ *
+ * ```ts
+ * import { Coordinator, UNLIMITED_CONCURRENCY } from "@particle-academy/fancy-flow/durable";
+ *
+ * new Coordinator({ graph, executors, run, store });                                        // serial
+ * new Coordinator({ graph, executors, run, store, maxConcurrent: 4 });                      // up to 4
+ * new Coordinator({ graph, executors, run, store, maxConcurrent: UNLIMITED_CONCURRENCY });  // all ready
+ * ```
+ *
+ * `selectDispatch` is the selection on its own, a pure function of the ready ids,
+ * the claim rows and the limit, for an adapter that computes the frontier itself.
  *
  * ## A human gate holds nothing
  *
@@ -33,6 +56,10 @@
  * person answers, the host records the submission, releases the claim, and
  * calls `advance()` — and *that* is what enqueues the continuation. No worker,
  * connection or process waits on somebody who may not even be logged in.
+ *
+ * The paused node keeps its dispatch slot until then, so a serial run hands out
+ * nothing else while the person decides. Releasing the claim frees the slot,
+ * and on a serial run the gate is the first node the next `advance()` returns.
  *
  * ## Parity
  *
@@ -53,6 +80,8 @@ export {
 } from "./state";
 
 export { Frontier, type FrontierResult } from "./frontier";
+
+export { UNLIMITED_CONCURRENCY, selectDispatch } from "./dispatch";
 
 export {
   BOUNDARY,

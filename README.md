@@ -633,6 +633,28 @@ registerNodeKind({
 `awaiting-input:` prefixes, so runs that parked under an older version still
 resume.
 
+### Queued runs: one node at a time
+
+`@particle-academy/fancy-flow/durable` splits a run into one queue job per node.
+`Coordinator.advance()` says what to dispatch, and `runNode()` claims, executes
+and checkpoints one node.
+
+**Serial is the default.** `advance()` hands out one node, and the next only
+once that node has settled, in the graph's declaration order. A node paused for
+a person keeps its slot, so nothing else goes out while they decide. To dispatch
+more at once, pass `maxConcurrent`:
+
+```ts
+import { Coordinator, UNLIMITED_CONCURRENCY } from "@particle-academy/fancy-flow/durable";
+
+new Coordinator({ graph, executors, run, store });                                        // serial
+new Coordinator({ graph, executors, run, store, maxConcurrent: 4 });                      // up to 4 held
+new Coordinator({ graph, executors, run, store, maxConcurrent: UNLIMITED_CONCURRENCY });  // whole frontier
+```
+
+The selection is pinned by the shared `flow/durable-dispatch` conformance suite,
+which specifies the same behaviour for the PHP and Python runtimes.
+
 ## Status
 
 Shipping. Since this list was last written, all of the following landed:

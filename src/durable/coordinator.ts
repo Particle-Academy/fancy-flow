@@ -6,7 +6,10 @@
  *
  * `advance()`
  *   Ask the frontier what is unblocked, settle the skip cascade, and report the
- *   ready node ids. A queue adapter dispatches one job per id.
+ *   node ids that may be dispatched NOW. A queue adapter dispatches one job per
+ *   id. By default that is at most one id: a run holds one node at a time, and
+ *   the next node is handed out only when the one before it settles. See
+ *   {@link CoordinatorOptions.maxConcurrent}.
  *
  * `runNode()`
  *   Claim one node, replay the graph through the real engine fenced to that
@@ -30,6 +33,12 @@
  * A human gate returns `paused`. `runToCompletion` returns immediately when it
  * sees one — it does not spin, sleep or poll. The run is parked in the store,
  * the process is free, and a recorded answer is what starts the next job.
+ *
+ * A paused node keeps its dispatch slot, so under any finite `maxConcurrent`
+ * (serial, by default) a queue adapter's `advance()` hands out nothing
+ * alongside a gate while the person decides. Resuming releases the row — see
+ * `InMemoryClaimStore.release` — which frees the slot for the gate to run
+ * again.
  */
 
 import { decodePause, type PauseSignal } from "../registry/pause";
@@ -37,6 +46,7 @@ import type { RunResult } from "../runtime/run-flow";
 import { RunIdentity, type RunIdentityJson } from "../runtime/run-identity";
 import { undeliveredEdgeWarnings } from "../runtime/undelivered-edges";
 import type { ExecutorRegistry, FlowGraph, RunEvent } from "../types";
+import { DEFAULT_MAX_CONCURRENT, assertMaxConcurrent, selectDispatch } from "./dispatch";
 import { Frontier } from "./frontier";
 import { isBoundary, replayUpTo } from "./replay";
 import { RetryPolicy } from "./retry";
@@ -94,6 +104,19 @@ export type CoordinatorOptions = {
   initialInputs?: Record<string, Record<string, unknown>>;
   retry?: RetryPolicy;
   onEvent?: (event: RunEvent) => void;
+  /**
+   * How many of this run's nodes may be HELD at once. Held means CLAIMED by a
+   * worker or PAUSED on a person: a paused gate keeps its slot.
+   *
+   * **Defaults to `1`: serial.** `advance()` hands out one node, and the next
+   * only once that one has settled, in the graph's declaration order.
+   *
+   * A positive integer raises the cap. `UNLIMITED_CONCURRENCY` (`0`) hands out
+   * the whole ready frontier at once, which is what every queued run did before
+   * this option existed. A negative, fractional or non-numeric value throws
+   * here, at construction.
+   */
+  maxConcurrent?: number;
 };
 
 export class Coordinator {
@@ -103,6 +126,8 @@ export class Coordinator {
   readonly store: NodeClaimStore;
   readonly initialInputs: Record<string, Record<string, unknown>>;
   readonly retry: RetryPolicy;
+  /** The dispatch cap `advance()` applies. `0` is unlimited. */
+  readonly maxConcurrent: number;
   private readonly onEvent?: (event: RunEvent) => void;
 
   constructor(options: CoordinatorOptions) {
@@ -112,6 +137,7 @@ export class Coordinator {
     this.store = options.store ?? new InMemoryClaimStore();
     this.initialInputs = options.initialInputs ?? {};
     this.retry = options.retry ?? new RetryPolicy();
+    this.maxConcurrent = assertMaxConcurrent(options.maxConcurrent ?? DEFAULT_MAX_CONCURRENT);
     this.onEvent = options.onEvent;
   }
 
@@ -123,6 +149,13 @@ export class Coordinator {
 
   /**
    * Which nodes may be dispatched right now.
+   *
+   * The ready frontier, cut to the run's {@link maxConcurrent} budget: the
+   * first `maxConcurrent - held` ready ids in declaration order, where `held`
+   * counts CLAIMED and PAUSED rows. Under the serial default that is at most one
+   * id, and none while a node is still running or a gate is waiting on a person.
+   * An empty result with work held is a throttled run, not a stalled one: the
+   * held node's settle is what calls this again.
    *
    * Also settles the skip cascade, because a skip is a decision the frontier
    * just made and a second caller must not make it again.
@@ -139,7 +172,19 @@ export class Coordinator {
     const frontier = Frontier.compute(this.graph, state);
     const settled = await Frontier.settleSkips(this.store, this.runKey, frontier.skipped);
     this.warnForSkipped(settled, state);
-    return frontier.ready;
+
+    // Held work is counted against the run AFTER the skips just settled. A skip
+    // is never held, so this moves no count today, but the budget must be read
+    // off the state the decision produced, not the one it started from.
+    const after: Record<string, NodeState> = { ...state };
+    for (const nodeId of frontier.skipped) {
+      const row: NodeState | undefined = state[nodeId];
+      after[nodeId] = row
+        ? { ...row, status: NodeRunStatus.SKIPPED, ports: [] }
+        : { status: NodeRunStatus.SKIPPED, ports: [], attempts: 0, firstAttemptAt: "" };
+    }
+
+    return selectDispatch(frontier.ready, after, this.maxConcurrent);
   }
 
   /**
@@ -227,6 +272,12 @@ export class Coordinator {
   /**
    * Drive the graph here, in this process, one node at a time.
    *
+   * It asks `advance()` exactly as a queue adapter does, so it runs nodes in the
+   * order a queued run under the same `maxConcurrent` would dispatch them. A run
+   * that finishes produces the same outputs under every limit. A run that stops
+   * on a pause or a failure can have run a different set of nodes before it
+   * stopped, because the order among nodes that are ready together differs.
+   *
    * Every checkpoint is written exactly as a queued run writes it, so a crash
    * mid-loop resumes from the same place a crashed worker would.
    *
@@ -235,7 +286,12 @@ export class Coordinator {
    * claim with the same owner token — so the step key it derives is unchanged,
    * which is what makes the retry idempotent rather than duplicative.
    */
-  async runToCompletion(maxPasses = 10_000): Promise<DurableRunResult> {
+  async runToCompletion(
+    // One pass per batch `advance()` hands out, and a serial batch is one node,
+    // so the default allows at least one pass per node. A flat 10,000 would stop
+    // a serial run of a larger graph short and report it as unable to progress.
+    maxPasses = Math.max(10_000, this.graph.nodes.length + 1),
+  ): Promise<DurableRunResult> {
     for (let pass = 0; pass < maxPasses; pass++) {
       const ready = await this.advance();
       if (ready.length === 0) break;

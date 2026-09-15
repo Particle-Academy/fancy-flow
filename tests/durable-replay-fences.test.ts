@@ -29,7 +29,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 
-import { Coordinator, replayUpTo } from "../src/durable";
+import { Coordinator, UNLIMITED_CONCURRENCY, replayUpTo } from "../src/durable";
 import { registerWorkflowResolver } from "../src/registry/capabilities";
 import { subflowExecutor } from "../src/registry/subflow";
 import { runFlow } from "../src/runtime/run-flow";
@@ -71,7 +71,14 @@ describe("sibling jobs out of order", () => {
 
   it("runs b when b's job runs before a's, instead of skipping it", async () => {
     const { ran, executors } = recording();
-    const runner = new Coordinator({ graph: siblings, executors, run: "run_siblings" });
+    // Parallel on purpose: siblings dispatched together is the condition this
+    // bug needed, and the serial default never hands out two at once.
+    const runner = new Coordinator({
+      graph: siblings,
+      executors,
+      run: "run_siblings",
+      maxConcurrent: UNLIMITED_CONCURRENCY,
+    });
 
     await runner.runNode("t");
     // Dispatched together. Nothing orders the two jobs.
@@ -108,7 +115,14 @@ describe("sibling jobs out of order", () => {
         return { ran: ctx.node.id, inputs: ctx.inputs };
       },
     };
-    const runner = new Coordinator({ graph: siblings, executors, run: "run_in_flight" });
+    // Parallel on purpose: two siblings in flight at once only happens when the
+    // host opts out of the serial default.
+    const runner = new Coordinator({
+      graph: siblings,
+      executors,
+      run: "run_in_flight",
+      maxConcurrent: UNLIMITED_CONCURRENCY,
+    });
 
     await runner.runNode("t");
     const aJob = runner.runNode("a", "worker-a");

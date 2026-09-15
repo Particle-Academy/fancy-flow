@@ -180,6 +180,10 @@ export class InMemoryClaimStore implements NodeClaimStore {
   /**
    * Drop a paused node's claim so a recorded answer can re-run it.
    *
+   * A PAUSED row holds one of the run's dispatch slots (see `selectDispatch`),
+   * so this is also what frees the slot: until the row is released, a serial
+   * run's `advance()` hands out nothing, the gate included.
+   *
    * Not part of the interface: resuming a human gate is the host's decision and
    * its storage's business. Provided here because the in-memory store is also
    * what the tests resume through.
