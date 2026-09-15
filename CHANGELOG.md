@@ -12,6 +12,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-09-14
+
+### Fixed
+
+- **A durable run now delivers the undelivered-edge warning when its target is
+  SKIPPED.** This closes the known gap recorded under 0.71.0. Each durable job
+  replays the graph and forwards only the events of the node it runs. A node the
+  frontier skips never gets a job, so its warning was raised inside other jobs'
+  replays and filtered out. On a durable run, rows 0008, 0010 and 0012 of
+  `flow/run-diagnostics` said nothing where `runFlow` warned.
+
+  `Coordinator.advance()` now asks at the skip decision. For each node that
+  call settles as skipped, it sends the warnings to `onEvent`, built from the
+  checkpointed run: a port key for every port a COMPLETED node's claim row
+  stored, in stored order, and the set of COMPLETED nodes. A target that RUNS
+  because it has another live inbound edge (row 0013) still gets its warning
+  from its own job's replay, and is not asked twice.
+
+  Each skipped node warns **exactly once**, even when two callers race to skip
+  it. `NodeClaimStore.skip` may now return whether it moved the row to skipped.
+  `InMemoryClaimStore.skip` returns `false` for a row that is already skipped,
+  and `Frontier.settleSkips` now resolves to the ids that call settled (it
+  resolved to nothing before). Only those nodes warn.
+
+  **The check is one function, `undeliveredEdgeWarnings(target, incoming,
+  portValues, completed, nodesById)`**, in `src/runtime/undelivered-edges.ts`.
+  It returns the `log` events and emits nothing. `runFlow` calls it at the same
+  point as before, so the in-process path is unchanged. The durable coordinator
+  calls the same function, so the two paths cannot disagree about a handle. It
+  is not exported from any package entry.
+
+  **Parity is a test, not a claim.** `tests/durable-run-diagnostics.test.ts`
+  runs every row of `flow/run-diagnostics` through `Coordinator.runToCompletion`
+  with no host executors. It sorts the warn logs by message and compares them
+  with the same `expected` that `tests/conformance-run-diagnostics.test.ts`
+  holds `runFlow` to. Before this fix, rows 0008, 0010 and 0012 failed with no
+  warnings. A second test makes two coordinators read one snapshot and skip the
+  same node, and asserts one warning. It fails if the store's guard is removed.
+
+  **No registry fix was needed.** The replay runs through the executor registry
+  the coordinator was given. In this runtime the kind registry, which supplies
+  ports such as `for_each`'s `item` / `done` and output fields, is the single
+  process-wide one. `runFlow`, the frontier and the check all read it, so a
+  source's possible ports cannot differ under durable. Row 0012 (`for_each`)
+  passes on both paths.
+
+  **What you must do:** nothing. A host that surfaces warn logs from a durable
+  run will now see warnings for skipped targets, as `runFlow` already showed
+  them. A custom `NodeClaimStore` whose `skip` returns nothing still works and
+  counts every skip as its own. Return `false` for a row that is already
+  skipped if two workers can call `advance()` at once, so the warning is not
+  sent twice.
+
 ## [0.71.0] - 2026-09-14
 
 ### Added
@@ -55,6 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the node its job is running. So an undelivered-edge warning whose target is
   skipped (the bad edge was its only inbound one) is emitted while other nodes
   replay, and does not reach the host. `runFlow` delivers every warning.
+  *Closed by the durable-coordinator fix in the release after 0.71.0; see the
+  `Fixed` entry above.*
 
 ### Changed
 

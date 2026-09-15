@@ -82,7 +82,19 @@ export interface NodeClaimStore {
     output: unknown,
     ports: readonly string[],
   ): void | Promise<void>;
-  skip(runKey: string, nodeId: string): void | Promise<void>;
+  /**
+   * Settle one node as skipped.
+   *
+   * Return whether THIS call moved the row to skipped: `false` when the row was
+   * already skipped — another caller's frontier made the same decision first.
+   * The coordinator emits a skipped node's diagnostics only for a call that
+   * settled it, so a warning arrives once however many callers race.
+   *
+   * Returning nothing is still allowed, for stores written before the boolean,
+   * and counts as "settled now". Such a store can report a skip twice under a
+   * race, and nothing worse.
+   */
+  skip(runKey: string, nodeId: string): boolean | void | Promise<boolean | void>;
   fail(runKey: string, nodeId: string, error: string): void | Promise<void>;
   pause(runKey: string, nodeId: string, reason: string): void | Promise<void>;
 }
@@ -142,10 +154,13 @@ export class InMemoryClaimStore implements NodeClaimStore {
     entry.error = null;
   }
 
-  skip(runKey: string, nodeId: string): void {
+  skip(runKey: string, nodeId: string): boolean {
     const entry = this.entry(runKey, nodeId);
+    if (entry.status === NodeRunStatus.SKIPPED) return false;
+
     entry.status = NodeRunStatus.SKIPPED;
     entry.ports = [];
+    return true;
   }
 
   fail(runKey: string, nodeId: string, error: string): void {

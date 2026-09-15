@@ -35,6 +35,7 @@
 import { decodePause, type PauseSignal } from "../registry/pause";
 import type { RunResult } from "../runtime/run-flow";
 import { RunIdentity, type RunIdentityJson } from "../runtime/run-identity";
+import { undeliveredEdgeWarnings } from "../runtime/undelivered-edges";
 import type { ExecutorRegistry, FlowGraph, RunEvent } from "../types";
 import { Frontier } from "./frontier";
 import { isBoundary, replayUpTo } from "./replay";
@@ -125,10 +126,19 @@ export class Coordinator {
    *
    * Also settles the skip cascade, because a skip is a decision the frontier
    * just made and a second caller must not make it again.
+   *
+   * And it is where a skipped node's undelivered-edge warnings are emitted. A
+   * skipped node never gets a job, so it never replays to warn for itself: its
+   * warning used to be raised inside OTHER jobs' replays, carrying its node id,
+   * and {@link forward} filtered it out. Asking at the skip decision — the one
+   * place that knows the node will never run — delivers it, and asking only for
+   * the nodes this call actually settled delivers it once.
    */
   async advance(): Promise<string[]> {
-    const frontier = Frontier.compute(this.graph, await this.store.state(this.runKey));
-    await Frontier.settleSkips(this.store, this.runKey, frontier.skipped);
+    const state = await this.store.state(this.runKey);
+    const frontier = Frontier.compute(this.graph, state);
+    const settled = await Frontier.settleSkips(this.store, this.runKey, frontier.skipped);
+    this.warnForSkipped(settled, state);
     return frontier.ready;
   }
 
@@ -327,6 +337,45 @@ export class Coordinator {
   private identityFor(row: NodeState | undefined): RunIdentity {
     if (!row) return this.run;
     return this.run.withAttempt(row.attempts, row.firstAttemptAt);
+  }
+
+  /**
+   * Send `runFlow`'s undelivered-edge warnings for nodes the frontier skipped.
+   *
+   * The check is `undeliveredEdgeWarnings` — the SAME function `runFlow` calls —
+   * fed the durable equivalent of the engine's own bookkeeping: a port key for
+   * every port a COMPLETED node's claim row stored, in stored order, and the set
+   * of COMPLETED ids. `state` is the snapshot the frontier decided from, and
+   * every predecessor of a skipped node had settled in it, so it holds all a
+   * target's sources.
+   *
+   * Only skipped nodes. A target that RUNS (it had another live inbound edge)
+   * already gets its warning from its own job's replay, whose events carry its
+   * node id and are forwarded — asking here too would send it twice.
+   */
+  private warnForSkipped(skipped: readonly string[], state: Record<string, NodeState>): void {
+    const sink = this.onEvent;
+    if (!sink || skipped.length === 0) return;
+
+    // Only the KEYS are read. The stored output stands in for the published
+    // value, which the check never looks at.
+    const portValues = new Map<string, unknown>();
+    const completed = new Set<string>();
+    for (const [nodeId, entry] of Object.entries(state)) {
+      if (entry.status !== NodeRunStatus.COMPLETED) continue;
+      completed.add(nodeId);
+      for (const portId of entry.ports) portValues.set(`${nodeId}:${portId}`, entry.output);
+    }
+
+    const nodesById = new Map(this.graph.nodes.map((n) => [n.id, n]));
+    for (const nodeId of skipped) {
+      const target = nodesById.get(nodeId);
+      if (!target) continue;
+      const incoming = this.graph.edges.filter((e) => e.target === nodeId);
+      for (const warning of undeliveredEdgeWarnings(target, incoming, portValues, completed, nodesById)) {
+        sink(warning);
+      }
+    }
   }
 
   private async completedOutputs(): Promise<Record<string, unknown>> {

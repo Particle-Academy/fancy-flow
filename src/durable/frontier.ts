@@ -137,12 +137,23 @@ export const Frontier = {
     );
   },
 
-  /** Persist the skip cascade so the next pass does not recompute it. */
+  /**
+   * Persist the skip cascade so the next pass does not recompute it.
+   *
+   * Resolves to the ids THIS call settled, in cascade order. A node another
+   * caller had already settled is left out — its store reported `false` — so a
+   * caller acting on "I skipped this" acts once per node, not once per racer. A
+   * store whose `skip` returns nothing counts every id as settled here.
+   */
   async settleSkips(
     store: NodeClaimStore,
     runKey: string,
     skipped: readonly string[],
-  ): Promise<void> {
-    for (const nodeId of skipped) await store.skip(runKey, nodeId);
+  ): Promise<string[]> {
+    const settled: string[] = [];
+    for (const nodeId of skipped) {
+      if ((await store.skip(runKey, nodeId)) !== false) settled.push(nodeId);
+    }
+    return settled;
   },
 };
