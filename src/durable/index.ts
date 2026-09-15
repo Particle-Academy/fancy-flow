@@ -54,7 +54,14 @@ export {
 
 export { Frontier, type FrontierResult } from "./frontier";
 
-export { BOUNDARY, isBoundary, replayUpTo, type ReplayOptions, type ReplayResult } from "./replay";
+export {
+  BOUNDARY,
+  FENCE_PORT,
+  isBoundary,
+  replayUpTo,
+  type ReplayOptions,
+  type ReplayResult,
+} from "./replay";
 
 export { RetryPolicy, UNSAFE_TO_REPLAY, type RetryPolicyOptions } from "./retry";
 

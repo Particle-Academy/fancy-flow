@@ -428,10 +428,17 @@ describe("replayUpTo", () => {
     expect(replay.outputOf("c")).toBeDefined();
   });
 
-  it("reports a boundary rather than a failure when it cannot reach the target", async () => {
-    const replay = await replayUpTo(linear, "c", { "*": () => ({}) });
-    expect(replay.result.ok).toBe(false);
-    expect(replay.result.error).toBe("fancy-flow:node-boundary");
+  it("walks past what it fences, and finishes without an unreachable target's output", async () => {
+    // Nothing upstream of `c` is settled, so the fenced `a` publishes nothing and
+    // `b` and `c` are dead. The replay finishes rather than aborting at `a`, and
+    // no output for the target is how it says "unreachable".
+    const ran: string[] = [];
+    const replay = await replayUpTo(linear, "c", { "*": (ctx) => ran.push(ctx.node.id) });
+
+    expect(ran).toEqual([]);
+    expect(replay.result.ok).toBe(true);
+    expect(replay.result.error).toBeUndefined();
+    expect(replay.outputOf("c")).toBeUndefined();
   });
 });
 

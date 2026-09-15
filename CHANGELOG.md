@@ -12,6 +12,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.1] - 2026-09-14
+
+### Added
+
+- **`RunOptions.nodeExecutors`: executors bound to one node id, matched against
+  `node.id` and nothing else.** They outrank every registry entry. The executor
+  registry cannot express this: it is one flat object, and a key in it is tried
+  as a node's id AND as its kind, so a key that is both binds both. That
+  registry contract (`flow/executor-resolution`) is unchanged. This is the
+  separate channel, the PHP twin's `bindNode`. It is not handed to a nested run,
+  because node ids belong to one graph. The durable replay now fences through
+  it (see Fixed).
+- `FENCE_PORT` (`"fancy-flow:fenced"`) is exported from `/durable`: the port a
+  fenced node publishes on in a replay. No edge reads it.
+
+### Changed
+
+- **`replayUpTo` no longer aborts at a fenced node.** A fence runs nothing,
+  publishes only on `FENCE_PORT`, and the replay walks on. An unreachable target
+  now yields `{ ok: true }` with no output for it, where it used to yield
+  `{ ok: false, error: BOUNDARY }`. `result.outputs` and `ports` never contain a
+  fenced node. `BOUNDARY` and `isBoundary` are still exported, but nothing
+  produces that error any more. A skipped `NodeOutcome` now carries the error
+  "the engine found no live inbound edge for this node".
+
+  **What you must do:** nothing, unless you call `replayUpTo` yourself and
+  check `isBoundary(result.error)`. In that case, treat "no output for the
+  target and no error" as unreachable.
+
+### Fixed
+
+- **A durable run no longer silently skips a node whose earlier sibling is still
+  running.** Nodes that become ready together are dispatched together, and real
+  workers do not order their jobs. If `b`'s job ran while `a` was still running,
+  `b`'s replay reached the unfinished `a` first in topological order. The fence
+  aborted the replay there, and `Coordinator.runNode` read "the replay ended
+  without running me" as "unreachable". `b` was recorded SKIPPED and never ran.
+  Everything downstream of `b` skipped with it, and the run completed as a
+  success. The PHP twin had the same design and the same bug (fixed in
+  fancy-flow-php 0.53.1). This fix mirrors it.
+
+  **One worker was enough.** The frontier lists ready nodes in the graph's NODE
+  order, and the engine walks a topological order built from EDGE order. When
+  the two disagree about siblings (nodes `[t, b, a]`, edges `[t→a, t→b]`),
+  in-process `runToCompletion` ran `b` first, `b`'s replay met the unrun `a`,
+  and `b` was skipped on a single worker with no concurrency at all.
+
+  The fence now walks on to the target. That is safe because the frontier
+  dispatches a node only once every source has settled (COMPLETED, SKIPPED or
+  FAILED; a source that is CLAIMED, PAUSED or has no row blocks it), so the
+  target's inputs never
+  come from a fenced node. A replay that finishes without the target's output
+  now genuinely means every inbound edge was dead, and is recorded as skipped.
+  `tests/durable-replay-fences.test.ts` runs `b` before `a`, runs `b` while `a`
+  is still inside its executor, and runs the reordered graph through
+  `runToCompletion`. All three failed with `b` skipped before this fix.
+
+  **What you must do:** durable runs from before this release may have skipped
+  nodes whose sibling was still running, or had not run yet, and still reported
+  success. Runs on more than one worker are exposed, and so is any run, on any
+  number of workers, of a graph whose `nodes` order differs from its edge order
+  for siblings. In such a run's claim rows, look for a SKIPPED node that is not
+  a note or lane and either has no inbound edge, or has an inbound edge whose
+  source COMPLETED with that edge's source handle (`out` when unset) among its
+  stored ports. The frontier never skips such a node, so this bug did. Re-run
+  the affected workflows.
+
+- **A durable run no longer skips every node of a kind when one node's id is
+  that kind's id.** The replay fenced nodes by writing their ids into the
+  executor registry, where a key is also a kind. In a graph of `host_kind` nodes
+  where one node is CALLED `host_kind`, fencing that node fenced every
+  `host_kind` node. The durable run returned `{ ok: true, outputs: {} }`,
+  success with nothing run, while `runFlow` ran all three nodes. The replay now
+  fences through `RunOptions.nodeExecutors`, which matches node ids only, and
+  passes the registry to the engine untouched.
+
+  **What you must do:** nothing to upgrade. If you have a durable run whose node
+  ids reuse a kind id, and it reported success with missing outputs, re-run it.
+
+- **A `subflow` in a durable run now runs its child with the real executors.**
+  `ctx.executors` handed the child the replay's fenced registry, so a child node
+  sharing an id with any parent node ran the parent's fence. With the old
+  aborting fence the run failed with `subflow "child" failed:
+  fancy-flow:node-boundary`, while `runFlow` succeeded. With the sibling fix
+  above and no scope fix, the child node would have run the fence SILENTLY and
+  the run would have succeeded with the wrong output. Fences no longer live in
+  the registry, so `ctx.executors` is the registry the coordinator was given.
+
+  **What you must do:** nothing. Durable runs that failed this way can be
+  re-run.
+
 ## [0.72.0] - 2026-09-14
 
 ### Fixed

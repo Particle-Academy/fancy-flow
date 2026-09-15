@@ -17,12 +17,38 @@
  * - every node already completed is fed back as `resumeOutputs`, so the engine
  *   republishes it on the same ports and routes exactly as it did the first
  *   time;
- * - every node EXCEPT the target is bound, by node id, to a boundary executor
- *   that aborts — and a node-id binding outranks every kind binding and the
- *   `*` fallback, so the fence holds whatever a host registered;
+ * - every node EXCEPT the target is bound, through `RunOptions.nodeExecutors`,
+ *   to a FENCE that runs nothing and publishes only a port no edge reads;
  * - so the engine walks its own topological order, skips its own dead branches,
- *   collects the target's inputs its own way, runs the target — and stops at
- *   the next thing it would have run.
+ *   collects the target's inputs its own way, and runs the target.
+ *
+ * ## Why the fence does not stop the walk
+ *
+ * It used to abort the run. The target's own inputs never depend on a fenced
+ * node -- the frontier dispatches a node only once every source is settled, and
+ * settled sources are resumed, not fenced -- but an UNRELATED node can precede
+ * the target in topological order. Two siblings dispatched together are exactly
+ * that: when `b`'s job started while `a` was still running, the replay aborted
+ * at `a`, never reached `b`, and the coordinator read "the replay ended without
+ * running me" as "the engine decided I am unreachable". `b` was recorded
+ * skipped, never ran, and the run completed as a success. It did not even take
+ * two workers: the frontier lists ready nodes in NODE order and the engine walks
+ * EDGE order, so a graph where those disagree about siblings sent in-process
+ * `runToCompletion` down the same path.
+ *
+ * Walking past fences makes that inference honest again: when the replay
+ * finishes without an output for the target, it is because the engine found
+ * every inbound edge dead.
+ *
+ * ## Why the fences are not registry entries
+ *
+ * The registry is one flat object, and a key in it is tried as a node's id AND
+ * as its kind. Fencing the node called `host_kind` by writing
+ * `executors["host_kind"]` fenced every node of kind `host_kind` too, so a
+ * durable run of that graph ran nothing and reported success. And the registry
+ * is what `ctx.executors` hands a `subflow` child, so a child node sharing an id
+ * with any parent node ran the parent's fence. `nodeExecutors` matches node ids
+ * only and is never handed down; the registry reaches the engine untouched.
  *
  * The target's output is `result.outputs[nodeId]`, and the ports it activated
  * arrive as the engine's own `node-output` events. Nothing about routing is
@@ -39,15 +65,23 @@
 
 import { runFlow, type RunResult } from "../runtime/run-flow";
 import type { RunIdentity } from "../runtime/run-identity";
-import type { ExecutorRegistry, FlowGraph, RunEvent } from "../types";
+import type { ExecutorRegistry, FlowGraph, NodeExecutor, RunEvent } from "../types";
 
 /**
- * The abort reason the boundary executor uses.
+ * The abort reason a boundary used to report.
  *
- * Not a failure: it is the engine telling us it reached a node this job is not
- * responsible for.
+ * Nothing aborts with it any more (see "Why the fence does not stop the walk");
+ * {@link isBoundary} still recognises it so a caller that checks for it keeps
+ * working.
  */
 export const BOUNDARY = "fancy-flow:node-boundary";
+
+/**
+ * The port a fenced node publishes on. No edge reads it, so everything
+ * downstream of a fenced node is dark in the replay -- which never matters to
+ * the target, whose sources are all settled.
+ */
+export const FENCE_PORT = "fancy-flow:fenced";
 
 export type ReplayResult = {
   result: RunResult;
@@ -68,8 +102,8 @@ export type ReplayOptions = {
 /**
  * Replay `graph` up to and through `nodeId`.
  *
- * Pass `nodeId = null` to PROBE: every node is a boundary, so nothing executes
- * and the engine reports only what it can determine structurally — a cycle, and
+ * Pass `nodeId = null` to PROBE: every node is fenced, so nothing executes and
+ * the engine reports only what it can determine structurally — a cycle, and
  * the ports each resumed output republishes on.
  */
 export async function replayUpTo(
@@ -78,11 +112,17 @@ export async function replayUpTo(
   executors: ExecutorRegistry,
   options: ReplayOptions = {},
 ): Promise<ReplayResult> {
-  const fenced: ExecutorRegistry = { ...executors };
+  // The ids a fence actually ran for. A fence executes nothing, so what the
+  // engine recorded for these nodes is not an output and is removed below.
+  const fencedOff = new Set<string>();
+  const fence: NodeExecutor = (ctx) => {
+    fencedOff.add(ctx.node.id);
+    return { __port: FENCE_PORT, value: null };
+  };
+
+  const fences: Record<string, NodeExecutor> = {};
   for (const node of graph.nodes) {
-    if (node.id !== nodeId) {
-      fenced[node.id] = (ctx) => ctx.abort(BOUNDARY);
-    }
+    if (node.id !== nodeId) fences[node.id] = fence;
   }
 
   const ports: Record<string, string[]> = {};
@@ -93,12 +133,18 @@ export async function replayUpTo(
     options.onEvent?.(event);
   };
 
-  const result = await runFlow(graph, fenced, collect, {
+  const result = await runFlow(graph, executors, collect, {
     initialInputs: options.initialInputs ?? {},
     resumeOutputs: options.resumeOutputs ?? {},
     depth: options.depth ?? 0,
     run: options.run,
+    nodeExecutors: fences,
   });
+
+  for (const id of fencedOff) {
+    delete result.outputs[id];
+    delete ports[id];
+  }
 
   return {
     result,

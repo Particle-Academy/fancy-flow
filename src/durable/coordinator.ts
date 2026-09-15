@@ -186,17 +186,22 @@ export class Coordinator {
       return { nodeId, status: "paused", pause, claimed: true, attempt };
     }
 
-    if (isBoundary(result.error)) {
-      // The engine stopped at a node this job does not own BEFORE reaching the
-      // target — so the target was never actually unblocked. That is a frontier
-      // bug, not a node failure, and it must not be recorded as one: a FAILED
-      // node settles, and settling it would silently skip everything
-      // downstream.
+    if (isBoundary(result.error) || result.ok) {
+      // The replay walks past every fence (see `replay.ts`), so a run that
+      // finished without this node's output is the engine deciding the node is
+      // unreachable: every inbound edge dead. The frontier normally catches that
+      // first; honouring the engine's verdict here too means the two can never
+      // disagree about a branch. It must not be recorded as a failure: a FAILED
+      // node fails the run.
+      //
+      // This used to be where a node whose EARLIER SIBLING was still running
+      // ended up. The fence aborted the replay at the sibling, and the node was
+      // skipped without ever running.
       await this.store.skip(this.runKey, nodeId);
       return {
         nodeId,
         status: "skipped",
-        error: "replay stopped before reaching this node",
+        error: "the engine found no live inbound edge for this node",
         claimed: true,
         attempt,
       };

@@ -85,6 +85,27 @@ export type RunOptions = {
    * and Python runtimes have always resumed.
    */
   resumeOutputs?: Record<string, unknown>;
+  /**
+   * Executors bound to ONE node id each, matched against `node.id` and nothing
+   * else. They outrank every entry of the executor registry.
+   *
+   * The registry cannot say this. It is one flat object, and `executorLookupIds`
+   * tries a key as the node's id AND as its kind, so a key that is both is both:
+   * binding `host_kind` to pin the node CALLED `host_kind` also rebinds every
+   * node whose kind is `host_kind`. That is the registry's contract (pinned by
+   * `flow/executor-resolution`) and it stays. This is the separate channel for a
+   * binding that must not leak into the kind namespace -- the PHP twin's
+   * `bindNode`, which has always been kept apart from `bind`.
+   *
+   * The durable replay fences every node but its target through this. Through
+   * the registry, a node whose id matched a kind fenced every node of that kind,
+   * and the durable run reported success having run nothing.
+   *
+   * NOT handed down to a nested run. Node ids belong to one graph: a `subflow`
+   * child's `t` is not its parent's `t`, so `ctx.executors` stays the registry
+   * alone.
+   */
+  nodeExecutors?: Record<string, NodeExecutor>;
 };
 
 export type RunResult = {
@@ -114,7 +135,7 @@ export async function runFlow(
   onEvent: (event: RunEvent) => void = () => {},
   options: RunOptions = {},
 ): Promise<RunResult> {
-  const { signal, initialInputs = {}, timeoutMs, depth = 0, resumeOutputs = {}, entryNodes } = options;
+  const { signal, initialInputs = {}, timeoutMs, depth = 0, resumeOutputs = {}, entryNodes, nodeExecutors } = options;
   const run = options.run === undefined ? undefined : RunIdentity.from(options.run);
   const outputs: Record<string, unknown> = {};
   const portValues = new Map<string, unknown>(); // key: `${nodeId}:${portId}`
@@ -277,7 +298,7 @@ export async function runFlow(
       announce(onEvent, node, "start");
 
       const inputs = collectInputs(node, incoming, portValues, initialInputs, props, declaresProps);
-      const exec = pickExecutor(executors, node);
+      const exec = pickExecutor(executors, node, nodeExecutors);
       if (!exec) {
         // Name what was LOOKED FOR, not just what the node calls itself.
         //
@@ -545,7 +566,17 @@ function executorLookupIds(node: FlowNode): string[] {
 function pickExecutor(
   executors: ExecutorRegistry,
   node: FlowNode,
+  nodeExecutors?: Record<string, NodeExecutor>,
 ): NodeExecutor | undefined {
+  // A node-only binding is looked up by the node's id and NO other key, which
+  // is the whole reason it is not an entry in `executors` (see
+  // `RunOptions.nodeExecutors`). Own properties only: a node called
+  // `constructor` must not find `Object`.
+  const pinned = nodeExecutors && Object.prototype.hasOwnProperty.call(nodeExecutors, node.id)
+    ? nodeExecutors[node.id]
+    : undefined;
+  if (pinned) return pinned;
+
   // The whole rule lives in `executorLookupIds` -- see its docblock. Walking
   // that one list is what keeps the resolution and the failure message from
   // ever disagreeing about which keys were tried.
