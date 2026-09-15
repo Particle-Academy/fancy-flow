@@ -33,6 +33,17 @@ export interface FlowViewerProps {
   /** Canvas pan/zoom/fit controls. Default true. */
   showControls?: boolean;
   /**
+   * What the mouse wheel does over the canvas, with FlowCanvas's semantics.
+   * Ignored by `list`.
+   *
+   * - `false` (the default): the wheel scrolls the page and **Shift+wheel**
+   *   zooms, so a viewer embedded mid-page never traps a reader who is
+   *   scrolling past it.
+   * - `true`: a bare wheel zooms and the page does not scroll while it does.
+   *   For a graph shown at a real size, such as a side panel.
+   */
+  zoomOnWheel?: boolean;
+  /**
    * Per-node run outcome, keyed by node id. Lets the same component serve
    * "here is the workflow" and "here is what happened on Tuesday".
    */
@@ -76,6 +87,7 @@ export function FlowViewer({
   height = 480,
   showMinimap = false,
   showControls = true,
+  zoomOnWheel = false,
   statuses,
   selectedNodeId = null,
   onSelectNode,
@@ -201,8 +213,10 @@ export function FlowViewer({
         selectionKeyCode={null}
         multiSelectionKeyCode={null}
         connectOnClick={false}
-        // A canvas embedded mid-page must not trap a reader's scroll.
-        zoomOnScroll={false}
+        // Off by default: a canvas embedded mid-page must not trap a reader's
+        // scroll. This was `zoomOnScroll={false}`, which disables wheel zoom
+        // outright (Shift+wheel too) and left no way to turn it on.
+        zoomOnWheel={zoomOnWheel}
         onNodeClick={onSelectNode ? (_, node) => onSelectNode(node as FlowNode) : undefined}
         fitView
       />

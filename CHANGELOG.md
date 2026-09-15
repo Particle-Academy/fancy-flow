@@ -12,6 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-09-15
+
+### Added
+
+- **`FlowViewer` takes `zoomOnWheel`** (#18), forwarded to `FlowCanvas` with the
+  same semantics. `true`: a bare wheel zooms and the page does not scroll while
+  it does, for a read-only graph shown at a real size (a side panel, an ops
+  preview). Before this the wheel could not zoom a viewer at all, and the only
+  way to get it was to rebuild the viewer out of `FlowCanvas` and the read-only
+  flags, which is the assembly `FlowViewer` exists to prevent.
+
+### Changed
+
+- **`FlowViewer` with no `zoomOnWheel` now zooms on Shift+wheel.** It passed
+  React Flow's `zoomOnScroll={false}`, which disabled wheel zoom outright. The
+  default is now FlowCanvas's `off`: the bare wheel still scrolls the page, and
+  Shift+wheel zooms without scrolling it. **Nothing to do**: a viewer still never
+  traps a reader scrolling past it. If you relied on Shift+wheel doing nothing
+  over a viewer, say so on #18.
+
 ## [0.73.0] - 2026-09-14
 
 ### Changed
