@@ -110,10 +110,22 @@ function possiblePortIds(node: FlowNode | undefined): string[] {
 
   const config = nodeConfig(node);
   const representative = typeof kind.outputs === "function" && !configDeclaresPorts(kind.name, config);
-  const ids = (resolvePortSpec(kind.outputs, representative ? defaultConfigFor(kind) : config) ?? [])
-    .map((p) => p.id);
+  const resolved = resolvePortSpec(kind.outputs, representative ? defaultConfigFor(kind) : config);
 
-  return ids.length > 0 ? ids : ["out"];
+  // THREE states, not two. `undefined` is "this kind declares nothing", which
+  // falls back to `out` exactly as `activatedPorts` does. An empty ARRAY is a
+  // kind declaring it has no output ports, and it is returned as such.
+  //
+  // This line read `ids.length > 0 ? ids : ["out"]` until 0.76.0, collapsing
+  // both into `out` — the same empty-to-`out` collapse `activatedPorts` made,
+  // in the other of the two gates that shape a port set. Fixing only the
+  // activation side would have been half a fix, and the dangerous half: the
+  // node would publish nothing while this lookup still reported `out` as
+  // deliverable, so the undelivered-edge warning would stay SILENT for exactly
+  // the edge that had just stopped delivering.
+  if (resolved === undefined) return ["out"];
+
+  return resolved.map((p) => p.id);
 }
 
 /**

@@ -12,6 +12,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-09-16
+
+**A node that declares NO output ports now publishes nothing — and a chain it
+cuts says so. BREAKING for a graph that relied on a terminal node continuing to
+publish `out`.**
+
+### Changed
+
+- **`outputs: []` means "this node publishes nothing".** Three states, and the
+  middle one used to be lost:
+
+  | `outputs` | means | before | now |
+  |---|---|---|---|
+  | absent | not declared | `out` | `out` |
+  | `[]` | **explicitly none** | **`out`** | **nothing** |
+  | a list | those ports | those ports | those ports |
+
+  `activatedPorts` tested `declared?.length`, and `[]` is falsy, so a node that
+  had explicitly said it publishes nothing published `out` instead. That made
+  this engine disagree with the PHP, Python and Rust twins on the **identical
+  document** — and `exportWorkflow` writes `outputs: []` for a terminal node, so
+  the disagreement was reachable by round-tripping a graph through this editor
+  rather than by authoring anything unusual.
+
+  The same collapse applied to a port set inherited from a **kind**. A terminal
+  kind (`log`, `output`) declares an empty list, and it was refused in favour of
+  `out`. It is now honoured, so a `log` node genuinely terminates.
+
+  Settled by the owner as **strict, but a terminal node must be loud** —
+  fancy-flow#20, with the coupled importer bug fancy-flow-php#20.
+
+- **A truncated chain is never silent, and that is the half that made this
+  change safe.** An edge leaving a node that published nothing raises the
+  undelivered-edge warning naming that edge. The port lookup behind that
+  warning (`possiblePortIds`) had the SAME empty-to-`out` collapse, so fixing
+  only the activation side would have been the dangerous half a fix: the node
+  would stop publishing while the diagnostic still reported the edge as fine.
+  Both gates moved together.
+
+  A terminal node with **nothing downstream** stays silent — the warning is
+  keyed on the edge, not on publishing nothing, because a diagnostic that fires
+  on correct graphs is how a real one stops being read.
+
+  **What you must DO:** if a graph deliberately chains *through* a node whose
+  kind is terminal (`log`, `output`) or which declares `outputs: []`, that chain
+  now stops, and the run will tell you which edge died. Give the node real
+  output ports, or route around it. If you have no such graph — and a node
+  declaring empty outputs is unusual to author by hand — nothing changes.
+
+- **The pinned fixture set moves to `@particle-academy/fancy-conformance`
+  0.28.0.** `flow/port-activation` row 0303 is no longer skipped here (it
+  recorded this exact divergence, and now passes), and `flow/graph-runs` row
+  0003's golden changed with the ruling.
+
+### Added
+
+- **`tests/empty-outputs-terminates.test.ts`** pins all three states and, on
+  every routing assertion, the WARNING as well. A test that checked only the
+  routing would pass against an engine that truncates in silence, which is the
+  one outcome that would have made this change unacceptable. Verified to fail
+  against the previous engine.
+
+### Known issue
+
+- **This runtime still does not run the shared `flow/graph-runs` table**, though
+  the manifest lists it as an implementation — which is why the divergence above
+  went unreported for so long. Filed as fancy-flow#21, together with a second,
+  unfixed divergence it surfaced: `transform` requires `mode: "expression"` here
+  while `fancy-flow-php` reads `expression` unconditionally, so the shared
+  fixtures' `transform` nodes pass through unchanged on this side.
+
 ## [0.75.0] - 2026-09-16
 
 ### Added

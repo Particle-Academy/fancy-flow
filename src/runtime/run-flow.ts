@@ -653,7 +653,28 @@ function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; val
   // declares nothing.
   const kind = getNodeKind((node.data as any)?.kind ?? node.type ?? "") ?? undefined;
   const declared = resolveNodePorts(node, kind).outputs?.map((p) => p.id);
-  return { ports: declared?.length ? declared : ["out"], value: result };
+
+  // THREE states, and the middle one is the point. `undefined` means nothing —
+  // neither the node nor its kind — declared any ports, which falls back to a
+  // lone `out` so a hand-written document can omit them entirely and still
+  // chain. An empty ARRAY means a node (or a terminal kind) declaring that it
+  // publishes NOTHING, and it is honoured literally.
+  //
+  // This line read `declared?.length ? declared : ["out"]` until 0.76.0, and
+  // `[]` is falsy, so the two collapsed into one: a node that had explicitly
+  // said it publishes nothing published `out` instead. That made this engine
+  // disagree with the PHP, Python and Rust twins on the identical document —
+  // and this editor WRITES `outputs: []` on export for a terminal node, so the
+  // disagreement was reachable by round-tripping a graph rather than by
+  // hand-authoring anything unusual.
+  //
+  // It was a silent truncation the other way round that justified the old
+  // behaviour: publishing nothing cuts every chain through such a node. That
+  // cut is no longer silent — an edge leaving a node that published nothing
+  // raises the undelivered-edge warning, whose port lookup honours the same
+  // three states. Strict AND loud; either alone would have been worse than
+  // neither.
+  return { ports: declared ?? ["out"], value: result };
 }
 
 /**
