@@ -12,6 +12,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.77.1] - 2026-09-16
+
+### Fixed
+
+- **The `for_each` kind stopped describing something it does not do.** Its
+  description read *"Iterate over a list, emitting each item on `item`."* It does
+  not iterate, and never has: it publishes the resolved list and its size on
+  BOTH `item` and `done` — fan-out as DATA, not as jobs, exactly as this
+  runtime's own executor docblock has always said.
+
+  **Not cosmetic — the false text has a victim.** A consumer author wired
+  `{{ item.tier }}` off a `for_each` precisely because the palette said it emits
+  each item. Their graph validator caught it; without one the run goes GREEN and
+  writes an empty result, because an unresolvable path yields nothing without
+  failing. A description is what an author — increasingly an LLM — reads to learn
+  what a node does.
+
+  `fancy-flow` (Rust) already described it correctly; `fancy-flow-php` and
+  `fancy-flow` (PyPI) are corrected in the same release.
+
+  **What you must do:** nothing. Behaviour is unchanged. Real iteration is
+  fancy-flow-php#19.
+
 ## [0.77.0] - 2026-09-16
 
 ### Fixed

@@ -426,7 +426,7 @@ const KINDS: NodeKindDefinition[] = [
     executor: forEachExecutor,
     category: "logic",
     label: "For Each",
-    description: "Iterate over a list, emitting each item on `item`.",
+    description: "Publishes the resolved list and its size on BOTH `item` and `done`. Fan-out as DATA, not as jobs -- nothing runs per item.",
     icon: "↻",
     inputs: [{ id: "in" }],
     outputs: [{ id: "item", label: "item" }, { id: "done", label: "done" }],
