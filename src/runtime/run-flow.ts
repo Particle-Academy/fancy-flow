@@ -221,8 +221,9 @@ export async function runFlow(
         outputs[node.id] = stored;
         const activated = activatedPorts(node, stored);
         for (const portId of activated.ports) {
-          portValues.set(`${node.id}:${portId}`, activated.value);
-          onEvent({ type: "node-output", nodeId: node.id, portId, value: activated.value });
+          const value = portValueOf(activated, portId);
+          portValues.set(`${node.id}:${portId}`, value);
+          onEvent({ type: "node-output", nodeId: node.id, portId, value });
         }
         completed.add(node.id);
         onEvent({ type: "node-status", nodeId: node.id, status: "done", text: "resumed" });
@@ -339,11 +340,14 @@ export async function runFlow(
         // Decide which output ports were activated. Three conventions:
         //  1) If result is `{ __port: "out", value: x }`, only that port emits.
         //  2) If result has `branch: <portId>`, only that port emits (decision sugar).
-        //  3) Otherwise, the value is published on every declared output port.
+        //  3) If result has `__ports`, exactly those emit — a list shares one
+        //     payload, a map gives each its own.
+        //  4) Otherwise, the value is published on every declared output port.
         const activated = activatedPorts(node, result);
         for (const portId of activated.ports) {
-          portValues.set(`${node.id}:${portId}`, activated.value);
-          onEvent({ type: "node-output", nodeId: node.id, portId, value: activated.value });
+          const value = portValueOf(activated, portId);
+          portValues.set(`${node.id}:${portId}`, value);
+          onEvent({ type: "node-output", nodeId: node.id, portId, value });
         }
         completed.add(node.id);
         onEvent({ type: "node-status", nodeId: node.id, status: "done" });
@@ -605,11 +609,27 @@ function pickExecutor(
   return getNodeKind(node.type ?? "")?.executor;
 }
 
-function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; value: unknown } {
+function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; value: unknown; values?: Record<string, unknown> } {
   if (result && typeof result === "object") {
     const r = result as Record<string, unknown>;
     if (typeof r.__port === "string") {
       return { ports: [r.__port], value: r.value };
+    }
+    // A CHOSEN SUBSET (fancy-flow-php#18): a list lights those ports with one
+    // payload, a map gives each lit port its own. Before this a node could light
+    // one port or all of them, so a router that matched two of five had to drop
+    // work or wake lanes nobody asked for.
+    //
+    // An empty list lights NOTHING, deliberately — the same rule an explicitly
+    // empty `outputs` array follows below. `values` is read per port, so a
+    // payload that is present and null stays null rather than falling back to
+    // the whole result, which is the trap `branch` already had to learn.
+    if (Array.isArray(r.__ports)) {
+      return { ports: r.__ports.filter((p): p is string => typeof p === "string"), value: r.value };
+    }
+    if (r.__ports && typeof r.__ports === "object") {
+      const values = r.__ports as Record<string, unknown>;
+      return { ports: Object.keys(values), value: r.value, values };
     }
     if (typeof r.branch === "string") {
       // `Object.hasOwn`, NOT `??`. The two are different questions:
@@ -634,6 +654,20 @@ function activatedPorts(node: FlowNode, result: unknown): { ports: string[]; val
   const kind = getNodeKind((node.data as any)?.kind ?? node.type ?? "") ?? undefined;
   const declared = resolveNodePorts(node, kind).outputs?.map((p) => p.id);
   return { ports: declared?.length ? declared : ["out"], value: result };
+}
+
+/**
+ * What one lit port carries: its own entry when the result named ports
+ * individually, otherwise the single payload every lit port shares.
+ *
+ * `hasOwnProperty`, not `??`: a per-port payload that is present and null is a
+ * payload. `values[portId] ?? value` would quietly hand that port the shared
+ * value instead — the same confusion `branch` had between "no key" and "null".
+ */
+function portValueOf(activated: { value: unknown; values?: Record<string, unknown> }, portId: string): unknown {
+  return activated.values && Object.prototype.hasOwnProperty.call(activated.values, portId)
+    ? activated.values[portId]
+    : activated.value;
 }
 
 /**

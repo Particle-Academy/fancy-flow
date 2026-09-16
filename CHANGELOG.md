@@ -12,6 +12,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-09-16
+
+### Added
+
+- **A node can activate a CHOSEN SUBSET of its output ports** (fancy-flow-php#18,
+  reported by MOIC). The engine knew two answers — `__port` / `branch` lit
+  exactly one port, anything else lit EVERY declared port — so a router matching
+  two of five lanes had to drop the rest of the work or wake lanes nobody asked
+  for.
+
+  `Port.many(["a", "c"], value)` lights those two, each carrying `value`.
+  `Port.many({ a: x, c: y })` gives each lit port its OWN payload, in the
+  object's declaration order. The wire shape is `{ __ports: [...], value }` or
+  `{ __ports: { port: value } }`, read directly by the engine, so a host in
+  another language can emit it without the sugar.
+
+  **An explicitly empty list lights nothing, deliberately** — the honest answer
+  for a router that matched no rule. A malformed `__ports` (a string, a number)
+  falls through to the every-declared-port rule instead, so a typo cannot
+  silently truncate a run.
+
+  Per-port payloads are read by KEY PRESENCE, not `??`: a payload that is
+  present and `null` is a payload, the distinction `branch` already had to
+  learn. A decision-shaped result is recognised by `__ports` as well as
+  `__port` / `branch`, so `ux.ts` describes a subset router correctly.
+
+  **What you must do:** nothing. This is additive — a node that never emits
+  `__ports` behaves exactly as before.
+
+- **`flow/port-activation` (12 rows) is asserted here**
+  (`tests/conformance-port-activation.test.ts`). It pins the subset rule, the
+  two single-port rules and the declared-port fallbacks across all four
+  runtimes.
+
+### Changed
+
+- **The pinned fixture set moves to `@particle-academy/fancy-conformance`
+  0.27.0.** No existing row changed.
+
+### Known issue
+
+- **Row 0303 of `flow/port-activation` is SKIPPED on this runtime, and the skip
+  records a real divergence.** A node whose `outputs` are an explicitly empty
+  list means "this node has no output ports". `fancy-flow-php`, `fancy-flow`
+  (PyPI) and `fancy-flow` (Rust) all honour that and publish nothing; this
+  engine publishes `out`, because the fallback tests `declared?.length` and `[]`
+  is falsy — so the three states the other three keep (undeclared / explicitly
+  none / declared) are two here.
+
+  Measured on 0.74.1, not inferred. The row is kept and skipped rather than
+  deleted so every runner prints it, and it starts passing here the day the
+  fallback is fixed. Nothing in this release changes that behaviour, so a
+  terminal node declaring `outputs: []` still publishes `out` as it always has.
+
 ## [0.74.1] - 2026-09-15
 
 ### Fixed

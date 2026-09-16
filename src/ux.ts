@@ -107,7 +107,7 @@ export function createFlowRunnerUx(options: FlowRunnerUxOptions): FlowRunnerUx {
       // (`{ branch }` or `{ __port }`) — e.g. an interactive "choose" effect that
       // awaits a human pick and returns the chosen port — pass it straight
       // through so runFlow routes on it. Otherwise wrap the result for the feed.
-      if (result && typeof result === "object" && ("branch" in result || "__port" in result)) {
+      if (result && typeof result === "object" && ("branch" in result || "__port" in result || "__ports" in result)) {
         return result;
       }
       if (m.passThrough) return inputs.in ?? inputs;
