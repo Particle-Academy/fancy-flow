@@ -1,5 +1,6 @@
 import { getWorkflowResolver, isResolutionFailure } from "./capabilities";
 import { runFlow } from "../runtime/run-flow";
+import { decodePause } from "./pause";
 import type { FlowGraph, NodeExecutor, RunEvent } from "../types";
 
 /**
@@ -157,7 +158,27 @@ export const subflowExecutor: NodeExecutor = async (ctx) => {
   );
 
   if (!result.ok) {
-    ctx.abort(`subflow "${ref}" failed: ${result.error ?? "unknown error"}`);
+    const reason = result.error ?? "unknown error";
+
+    // A PAUSE IS NOT A FAILURE, and it travels this same channel.
+    //
+    // Until 0.77.0 every unsuccessful child run was wrapped as
+    // `subflow "x" failed: <reason>`. `decodePause` is prefix-anchored
+    // (`reason.startsWith(PAUSE_PREFIX)`), so a `human_approval` or
+    // `user_input` one level down produced a string that no longer decoded:
+    // the durable coordinator read a FAILED run instead of a run parked on a
+    // person, the gate became unresumable, and retry policy counted someone's
+    // pending decision as a fault.
+    //
+    // The Rust twin never had this and says why at the same line; this
+    // runtime, PHP and Python all did.
+    if (decodePause(reason)) {
+      ctx.abort(reason);
+    }
+
+    // A genuine failure still names the subflow. That context is worth
+    // keeping; it is only the pause that must travel untouched.
+    ctx.abort(`subflow "${ref}" failed: ${reason}`);
   }
 
   // `stream` alone still emits a final value on `stream` so downstream nodes
