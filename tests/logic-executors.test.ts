@@ -221,6 +221,92 @@ describe("for_each", () => {
     expect(result.ok).toBe(true);
     expect(result.outputs.n).toEqual({ items: [], count: 0 });
   });
+
+  /*
+   * The `item` port.
+   *
+   * Until this existed on this runtime, the schema accepted an `item` edge, the
+   * editor drew it, and the engine ignored it: every downstream node ran ONCE
+   * against the whole collection, silently. A reference graph scoring five
+   * records produced five per-item scores on the PHP twin and one aggregate
+   * here, and the assertion downstream failed with "the path names nothing".
+   *
+   * The three tests above are the other half of the contract and must keep
+   * passing — a `for_each` with no `item` edge still publishes data and starts
+   * no nested runs, which is what makes a 10,000-row fan-out one checkpoint.
+   */
+  /** A `for_each` whose `item` port feeds a body node, plus a `done` tail. */
+  async function runLane(config: Record<string, unknown>, payload: unknown, body = "transform") {
+    const graph = {
+      nodes: [
+        node("t", "manual_trigger"),
+        node("fe", "for_each", config),
+        node("b", body, { expression: "{{ in }}" }),
+        node("after", "transform", { expression: "{{ in.count }}" }),
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "fe" },
+        { id: "e2", source: "fe", target: "b", sourceHandle: "item" },
+        { id: "e3", source: "fe", target: "after", sourceHandle: "done" },
+      ],
+    } as unknown as FlowGraph;
+
+    return runFlow(graph, { manual_trigger: () => payload });
+  }
+
+  test("an item edge runs the lane once per item and aggregates on done", async () => {
+    const result = await runLane({ source: "{{ $json.rows }}" }, { rows: ["a", "b", "c"] });
+
+    expect(result.ok).toBe(true);
+    expect(result.outputs.fe).toEqual({
+      __port: "done",
+      value: {
+        items: ["a", "b", "c"],
+        results: [{ b: "a" }, { b: "b" }, { b: "c" }],
+        failures: [],
+        count: 3,
+      },
+    });
+  });
+
+  test("the body runs PER ITEM, not once on the collection", async () => {
+    // The specific defect: one run over the whole list looks like success.
+    const result = await runLane({ source: "{{ $json.rows }}" }, { rows: [1, 2] });
+    const value = (result.outputs.fe as { value: { results: unknown[] } }).value;
+
+    expect(value.results).toHaveLength(2);
+    expect(value.results).not.toEqual([{ b: [1, 2] }]);
+  });
+
+  test("`mode: collect` keeps the data-only behaviour even WITH an item edge", async () => {
+    // The documented escape hatch: one node, one claim, one checkpoint.
+    const result = await runLane({ source: "{{ $json.rows }}", mode: "collect" }, { rows: ["a", "b"] });
+
+    expect(result.outputs.fe).toEqual({ items: ["a", "b"], count: 2 });
+  });
+
+  test("a maxItems cap fails the run rather than iterating past it", async () => {
+    const result = await runLane({ source: "{{ $json.rows }}", maxItems: 2 }, { rows: [1, 2, 3] });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("exceeds its maxItems cap");
+  });
+
+  test("the done tail receives the aggregate, not the raw collection", async () => {
+    // What a node AFTER the loop reads. The reference graph's assertion node
+    // reads `{{ in.results }}` here, so `results` reaching the tail is the
+    // contract -- this asserts the shape rather than a transform expression,
+    // because an expression that fails to resolve returns the input unchanged
+    // and would pass this test while proving nothing.
+    const result = await runLane({ source: "{{ $json.rows }}" }, { rows: ["a", "b"] });
+
+    expect(result.outputs.after).toEqual({
+      items: ["a", "b"],
+      results: [{ b: "a" }, { b: "b" }],
+      failures: [],
+      count: 2,
+    });
+  });
 });
 
 describe("the host still wins", () => {

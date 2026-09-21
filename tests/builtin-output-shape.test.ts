@@ -34,7 +34,10 @@ describe("builtin output shapes", () => {
     ["@particle-academy/llm_router", ["route", "reason", "input"]],
     ["@particle-academy/notify", ["sent", "channel", "to", "message"]],
     ["@particle-academy/webhook_out", ["sent", "status", "response"]],
-    ["@particle-academy/for_each", ["items", "count"]],
+    // `results` + `failures` are the WIRED shape. fancy-conformance 0.30.0
+    // and 0.31.0 added them as BREAKING rows so that a runtime which has
+    // not implemented iteration fails rather than reporting surface parity.
+    ["@particle-academy/for_each", ["items", "results", "failures", "count"]],
     ["@particle-academy/wait", ["waited", "duration", "input"]],
     ["@particle-academy/log", ["logged", "level"]],
   ])("%s declares its fields", (kindId, expected) => {

@@ -219,7 +219,10 @@ describe("the builtin kinds' declared output shapes", () => {
   it.each([
     ["@particle-academy/api_request", ["status", "headers", "body"]],
     ["@particle-academy/embed_search", ["query", "matches"]],
-    ["@particle-academy/for_each", ["items", "count"]],
+    // `results` + `failures` are the WIRED shape. fancy-conformance 0.30.0
+    // and 0.31.0 added them as BREAKING rows so that a runtime which has
+    // not implemented iteration fails rather than reporting surface parity.
+    ["@particle-academy/for_each", ["items", "results", "failures", "count"]],
   ])("%s emits %j", async (kind, expected) => {
     const { BUILTIN_KINDS } = await import("../src/registry");
     const def = BUILTIN_KINDS.find((k) => k.name === kind) as { outputShape?: unknown } | undefined;

@@ -12,6 +12,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`for_each`'s `item` port now runs a lane once per item.** Wire `item` to a
+  node and the lane reachable from it -- stopping at anything reachable from
+  `done` -- executes once per resolved item, aggregating `{items, results,
+  failures, count}` on `done`.
+
+  Until now this runtime accepted the edge, drew it in the editor and IGNORED
+  it: every downstream node ran ONCE against the whole collection, silently,
+  with no error. A reference graph scoring five records produced five per-item
+  scores on the PHP twin and one aggregate here, and the assertion node
+  downstream failed with "the path names nothing" because `results` was never
+  produced.
+
+  **This is not a new decision.** `fancy-conformance` 0.30.0 added `results` and
+  0.31.0 added `failures` to `flow/kind-declaration-surface`, both BREAKING, and
+  0.30.0 says why in as many words: *runtimes that have not implemented
+  iteration must now fail or carry an explicit, reasoned skip instead of
+  reporting surface parity.* This runtime was pinned to 0.28.0 and so never saw
+  the row. The pin moves to `^0.31.0` here.
+
+  **What a consumer must DO: nothing, unless you wired `item`.** A `for_each`
+  with `item` unwired, or with `mode: "collect"`, publishes the list and its
+  size exactly as before -- one node, one claim, one checkpoint, which is still
+  the point for a 10,000-row fan-out. If you DID wire `item` and relied on
+  downstream nodes receiving the whole collection, they now receive one item at
+  a time; `mode: "collect"` restores the old behaviour explicitly.
+
+### Changed
+
+- **`ctx.graph` is available to executors.** Optional and additive. A structural
+  executor cannot derive a nested lane from `node` and `inputs` alone, which is
+  why the `item` port had no implementation here. Hosts constructing a context
+  by hand are unaffected; an executor that needs it degrades rather than throws.
+
+- **`for_each` declares `results` and `failures`.** Its `outputShape` and
+  description described the data-only half only, and 0.77.1 had tightened the
+  description to say "nothing runs per item" -- true then, and now not.
+
+
 ## [0.77.1] - 2026-09-16
 
 ### Fixed

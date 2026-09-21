@@ -418,6 +418,15 @@ const KINDS: NodeKindDefinition[] = [
     name: "@particle-academy/for_each",
     outputShape: [
       { path: "items", type: "array" },
+      // `results` and `failures` are the WIRED shape -- what a lane produces
+      // when the `item` port is connected. Declared unconditionally because a
+      // declaration describes the kind, not one graph's use of it, and because
+      // the shared table requires them: fancy-conformance 0.30.0 added
+      // `results` and 0.31.0 added `failures`, both BREAKING, both so that a
+      // runtime which has not implemented iteration fails here rather than
+      // reporting surface parity it does not have.
+      { path: "results", type: "array" },
+      { path: "failures", type: "array" },
       { path: "count", type: "number" },
     ],
     aliases: ["for_each", "@fancy/for_each"],
@@ -426,7 +435,7 @@ const KINDS: NodeKindDefinition[] = [
     executor: forEachExecutor,
     category: "logic",
     label: "For Each",
-    description: "Publishes the resolved list and its size on BOTH `item` and `done`. Fan-out as DATA, not as jobs -- nothing runs per item.",
+    description: "Wire `item` to a lane and it runs once per item, aggregating `results` and `failures` on `done`. Leave `item` unwired (or set `mode: collect`) and it just publishes the list and its size -- one node, one checkpoint.",
     icon: "↻",
     inputs: [{ id: "in" }],
     outputs: [{ id: "item", label: "item" }, { id: "done", label: "done" }],

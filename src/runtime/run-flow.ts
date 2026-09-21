@@ -332,6 +332,9 @@ export async function runFlow(
             executors,
             depth,
             run,
+            // Structural executors derive a nested lane from the graph they are
+            // in; `for_each`'s `item` port cannot be implemented without it.
+            graph,
             terminal: terminalAccessorFor(node),
           }),
         );

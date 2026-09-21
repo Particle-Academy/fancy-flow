@@ -1,5 +1,7 @@
 import { evaluateExpression, truthy, text, tryResolvePath } from "../expressions/expr";
-import type { NodeExecutor } from "../types";
+import { runFlow } from "../runtime/run-flow";
+import { decodePause } from "./pause";
+import type { FlowEdge, FlowGraph, FlowNode, NodeExecutor } from "../types";
 
 /**
  * Default executors for the four PURE-LOGIC builtins.
@@ -265,20 +267,97 @@ export const mergeExecutor: NodeExecutor = (ctx) => {
   return merged;
 };
 
+const FOR_EACH_DEFAULT_MAX_ITEMS = 1000;
+const FOR_EACH_HARD_MAX_ITEMS = 10000;
+
+/** Every node id reachable from `starts`, following edges forwards. */
+function reachable(adjacency: Map<string, string[]>, starts: string[]): Set<string> {
+  const seen = new Set<string>();
+  const queue = [...starts];
+
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const id = queue[cursor]!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const target of adjacency.get(id) ?? []) queue.push(target);
+  }
+
+  return seen;
+}
+
 /**
- * `for_each` — fan-out as DATA, not as jobs.
+ * The loop BODY: nodes reachable from this node's `item` port, stopping at
+ * anything also reachable from `done`.
  *
- * Publishes the resolved collection and its size. It does NOT spawn one job per
- * item, and that is deliberate rather than unfinished: on a durable run a
- * `for_each` over 10,000 rows is one node, one claim, one checkpoint — not
- * 10,000. A host that wants true per-item iteration overrides this, which is
- * exactly what the executor seam is for.
+ * Derived from the graph rather than declared, so a graph says what the body is
+ * by being drawn — there is no second list to keep in step with the edges. The
+ * `done` subtraction is what lets a node sit after the loop and still be
+ * reachable from inside it: it belongs to whichever port leads to it first.
  *
- * Matches the Python twin, including `concurrency` being carried for a host
- * that does iterate rather than acted on here.
+ * `null` means "no `item` edge", which is the data-only case and not an error.
  */
-export const forEachExecutor: NodeExecutor = (ctx) => {
-  const source = resolve(configOf(ctx.node).source, ctx.inputs as Record<string, unknown>);
+function forEachLane(
+  graph: FlowGraph,
+  nodeId: string,
+): { graph: FlowGraph; entries: FlowEdge[] } | null {
+  const handleOf = (edge: FlowEdge) => edge.sourceHandle ?? "out";
+  const itemEdges = graph.edges.filter((e) => e.source === nodeId && handleOf(e) === "item");
+  if (itemEdges.length === 0) return null;
+
+  const adjacency = new Map<string, string[]>();
+  for (const edge of graph.edges) {
+    const list = adjacency.get(edge.source) ?? [];
+    list.push(edge.target);
+    adjacency.set(edge.source, list);
+  }
+
+  const done = reachable(
+    adjacency,
+    graph.edges.filter((e) => e.source === nodeId && handleOf(e) === "done").map((e) => e.target),
+  );
+  const body = new Set(
+    [...reachable(adjacency, itemEdges.map((e) => e.target))].filter(
+      (id) => !done.has(id) && id !== nodeId,
+    ),
+  );
+
+  return {
+    graph: {
+      nodes: graph.nodes.filter((n: FlowNode) => body.has(n.id)),
+      edges: graph.edges.filter((e) => body.has(e.source) && body.has(e.target)),
+      ...(graph.inputs === undefined ? {} : { inputs: graph.inputs }),
+    },
+    entries: itemEdges.filter((e) => body.has(e.target)),
+  };
+}
+
+/**
+ * `for_each` — the collection as DATA, or the lane run once per item.
+ *
+ * WITHOUT an `item` edge (or with `mode: "collect"`) this publishes the
+ * resolved collection and its size and stops. That half is deliberate rather
+ * than unfinished: on a durable run a `for_each` over 10,000 rows is one node,
+ * one claim, one checkpoint — not 10,000.
+ *
+ * WITH an `item` edge it runs the derived lane once per item and aggregates on
+ * `done`. That half was missing here until the `item` port had an
+ * implementation on this runtime at all: the schema accepted the edge, the
+ * editor drew it, and the engine ignored it — so every downstream node ran ONCE
+ * against the whole collection, silently, with no error and no warning.
+ *
+ * It was measured rather than reasoned about. A reference graph scoring five
+ * records produced five per-item scores on the PHP twin and one aggregate score
+ * here, and the assertion node downstream failed with "the path names nothing"
+ * because `results` was never produced. Same WorkflowSchema, same inputs,
+ * different answer — which is the one thing this package promises cannot happen.
+ *
+ * `concurrency` is still carried rather than acted on: items run in order, and
+ * a host that wants them overlapped overrides this executor. Ordered is the
+ * behaviour the twin has, and parity outranks throughput here.
+ */
+export const forEachExecutor: NodeExecutor = async (ctx) => {
+  const config = configOf(ctx.node);
+  const source = resolve(config.source, ctx.inputs as Record<string, unknown>);
 
   let items: unknown[];
   if (Array.isArray(source)) items = source;
@@ -286,7 +365,64 @@ export const forEachExecutor: NodeExecutor = (ctx) => {
   else if (typeof source === "object") items = Object.values(source as object);
   else items = [source];
 
-  return { items, count: items.length };
+  const lane = ctx.graph ? forEachLane(ctx.graph, ctx.node.id) : null;
+  if (lane === null || config.mode === "collect") {
+    return { items, count: items.length };
+  }
+
+  if (lane.graph.nodes.length === 0) {
+    ctx.abort(`for_each "${ctx.node.id}" has an item edge but its derived lane is empty`);
+  }
+
+  const maxItems = Number(config.maxItems ?? FOR_EACH_DEFAULT_MAX_ITEMS);
+  if (!Number.isFinite(maxItems) || maxItems < 1 || maxItems > FOR_EACH_HARD_MAX_ITEMS) {
+    ctx.abort(`for_each "${ctx.node.id}" maxItems must be between 1 and ${FOR_EACH_HARD_MAX_ITEMS}`);
+  }
+  if (items.length > maxItems) {
+    ctx.abort(
+      `for_each "${ctx.node.id}" resolved ${items.length} items exceeds its maxItems cap of ${maxItems}`,
+    );
+  }
+
+  const results: unknown[] = [];
+  const failures: Array<{ index: number; item: unknown; error: string }> = [];
+
+  for (const [index, item] of items.entries()) {
+    const initialInputs: Record<string, Record<string, unknown>> = {};
+    for (const edge of lane.entries) {
+      initialInputs[edge.target] = {
+        ...(initialInputs[edge.target] ?? {}),
+        [edge.targetHandle ?? "in"]: item,
+      };
+    }
+
+    const nested = await runFlow(lane.graph, { ...(ctx.executors ?? {}) } as never, () => {}, {
+      initialInputs,
+      depth: (ctx.depth ?? 0) + 1,
+      // The index rides on the identity, so a node in iteration 3 cannot share
+      // an idempotency key with the same node in iteration 4.
+      run: ctx.run?.descend(ctx.node.id, index),
+    });
+
+    if (!nested.ok) {
+      const reason = nested.error ?? "unknown error";
+
+      // A PAUSE IS NOT A FAILURE. It travels the error channel, and recording
+      // it as a failed item would strand whoever the run is waiting on.
+      if (decodePause(reason)) ctx.abort(reason);
+
+      results.push(null);
+      failures.push({ index, item, error: reason });
+      continue;
+    }
+
+    results.push(nested.outputs);
+  }
+
+  return {
+    __port: "done",
+    value: { items, results, failures, count: items.length },
+  };
 };
 
 /*

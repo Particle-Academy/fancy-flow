@@ -176,6 +176,26 @@ export type NodeExecutor<TIn = Record<string, unknown>, TOut = unknown> = (
      */
     run?: RunIdentity;
     /**
+     * The graph this node belongs to.
+     *
+     * A STRUCTURAL executor needs it: `for_each`'s `item` port fans out over a
+     * lane derived from the graph — the nodes reachable from `item`, stopping
+     * at anything also reachable from `done` — and that lane cannot be computed
+     * from `node` and `inputs` alone.
+     *
+     * Without it the `item` port was accepted by the schema, drawn by the
+     * editor, and silently ignored at run time on this runtime: downstream
+     * nodes ran ONCE against the whole collection instead of once per item,
+     * with no error. The PHP twin derives the same lane from `$ctx->graph` and
+     * has since 0.6; parity was measured against a reference graph where the
+     * two disagreed.
+     *
+     * Optional, because a host may construct a context by hand. An executor
+     * that needs it must degrade rather than throw — `for_each` falls back to
+     * publishing the collection, which is what it did everywhere before.
+     */
+    graph?: FlowGraph;
+    /**
      * The terminal this node's lane owns, if it is inside a terminal lane.
      *
      * `session()` is a FUNCTION, not an open session, and that is the whole
