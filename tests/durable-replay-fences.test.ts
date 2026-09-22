@@ -306,3 +306,39 @@ describe("a subflow inside a durable run", () => {
     expect(durable.outputs).toEqual(single.outputs);
   });
 });
+
+describe("for_each lanes", () => {
+  // The fourth place a fence could leak. `for_each` runs its `item` lane through
+  // `ctx.executors`, and a lane node IS a parent-graph node -- same id -- so a
+  // fence addressed by id would match it where a subflow child only might. The
+  // Python twin shipped exactly that in 0.27.0: a durable run reported `ok` with
+  // every lane result a fence marker. Here the fences live in `nodeExecutors`,
+  // which is never handed down, so this holds by construction; the test is what
+  // keeps it holding.
+  const graph = {
+    nodes: [
+      node("t", "manual_trigger"),
+      node("fe", "for_each", { config: { source: "{{ $json.rows }}" } }),
+      node("b", "transform", { config: { expression: "{{ in }}" } }),
+      node("after", "transform", { config: { expression: "{{ in.count }}" } }),
+    ],
+    edges: [
+      { id: "e1", source: "t", target: "fe" },
+      { id: "e2", source: "fe", target: "b", sourceHandle: "item" },
+      { id: "e3", source: "fe", target: "after", sourceHandle: "done" },
+    ],
+  } as unknown as FlowGraph;
+  const executors = (): ExecutorRegistry => ({ manual_trigger: () => ({ rows: ["a", "b"] }) });
+
+  it("runs the lane with the real executors, not the replay's fences", async () => {
+    const single = await runFlow(graph, executors());
+    expect(single.ok).toBe(true);
+
+    const durable = await new Coordinator({ graph, executors: executors(), run: "run_lane" }).runToCompletion();
+
+    expect(durable.error).toBeUndefined();
+    expect(durable.ok).toBe(true);
+    expect((durable.outputs.fe as { value: { results: unknown[] } }).value.results).toEqual([{ b: "a" }, { b: "b" }]);
+    expect(durable.outputs).toEqual(single.outputs);
+  });
+});
