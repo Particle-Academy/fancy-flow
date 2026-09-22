@@ -200,7 +200,7 @@
   "devDependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@particle-academy/fancy-cms-ui": "^0.2.0",
-    "@particle-academy/fancy-conformance": "^0.31.0",
+    "@particle-academy/fancy-conformance": "^0.32.0",
     "@particle-academy/fancy-query": "^0.8.0",
     "@particle-academy/fancy-screens": "^0.4.3",
     "@particle-academy/react-fancy": "^5.17.1",

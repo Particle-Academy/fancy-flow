@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** Bare or unclosed routing strings in `branch.condition` and
+  `switch_case.value` now abort with an actionable error. Wrap bare values in
+  `{{ }}` (for example, `{{ in.data.fits }}`) and close every opening `{{`.
+  Bare branch strings previously
+  selected a constant route (normally `true`), regardless of the input data;
+  bare switch strings selected a literal case key. Blank strings, non-string
+  values, and properly closed mixed interpolation retain their existing behavior.
+- The two routing fields now describe the required expression wrapping.
+
+### Fixed
+
+- Pin fancy-conformance 0.32.0 and assert shared `flow/graph-runs` refusal
+  rows 0024–0031, including exact errors, trimmed suggestions and unclosed
+  templates (#24).
+
 ## [0.78.0] - 2026-09-22
 
 ### Added

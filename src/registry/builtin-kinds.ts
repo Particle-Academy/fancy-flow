@@ -379,7 +379,7 @@ const KINDS: NodeKindDefinition[] = [
         key: "condition",
         label: "Raw expression (advanced)",
         example: "{{ $json.active && $json.score > 10 }}",
-        description: "Escape hatch for logic the builder can't express. Overrides the conditions above when set.",
+        description: "Escape hatch for logic the builder can't express. Overrides the conditions above when set. String values must be {{ }}-wrapped expressions; bare strings and unclosed templates abort the run.",
       },
     ],
   },
@@ -399,7 +399,7 @@ const KINDS: NodeKindDefinition[] = [
     // moves the ports on the canvas and the ports the runtime activates.
     outputs: (config: any) => casePorts(config?.cases),
     configSchema: [
-      { type: "expression", key: "value", label: "Switch on", example: "{{ $json.kind }}", required: true },
+      { type: "expression", key: "value", label: "Switch on", description: "String values must be {{ }}-wrapped expressions; bare strings and unclosed templates abort the run.", example: "{{ $json.kind }}", required: true },
       {
         type: "keyvalue",
         key: "cases",

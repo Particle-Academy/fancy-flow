@@ -179,6 +179,7 @@ export const branchExecutor: NodeExecutor = (ctx) => {
   let taken: boolean;
 
   const raw = config.condition;
+  validateRoutingExpression(ctx, raw, "branch", "condition");
   if (typeof raw === "string" && raw.trim() !== "") {
     taken = truthy(resolve(raw, inputs) as never);
     // A condition that did not RESOLVE is falsy, so the run takes `false`
@@ -524,6 +525,7 @@ export const switchCaseExecutor: NodeExecutor = (ctx) => {
   const inputs = ctx.inputs as Record<string, unknown>;
 
   const expression = config.value;
+  validateRoutingExpression(ctx, expression, "switch_case", "value");
   const value = text(resolve(expression, inputs) as never);
   const cases = (config.cases ?? {}) as Record<string, unknown>;
 
@@ -534,3 +536,22 @@ export const switchCaseExecutor: NodeExecutor = (ctx) => {
 
   return { __port: port, value: inputs.in ?? inputs };
 };
+
+/** Only routing fields require templates; ordinary string config stays literal. */
+function validateRoutingExpression(
+  ctx: Parameters<NodeExecutor>[0], value: unknown, kind: string, field: string,
+): void {
+  if (typeof value !== "string" || value.trim() === "") return;
+  const bare = value.trim();
+  const subject = `${kind} "${ctx.node.id}" ${field} "${bare}"`;
+  if (!value.includes("{{")) {
+    ctx.abort(`${subject} is not an expression -- wrap it: {{ ${bare} }}`);
+  }
+  let open = 0;
+  for (const [delimiter] of value.matchAll(/\{\{|\}\}/g)) {
+    open = delimiter === "{{" ? open + 1 : Math.max(0, open - 1);
+  }
+  if (open > 0) {
+    ctx.abort(`${subject} has an unclosed expression -- close every {{ with }}`);
+  }
+}
