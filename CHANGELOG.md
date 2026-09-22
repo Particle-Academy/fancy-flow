@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.78.0] - 2026-09-22
+
 ### Added
 
 - **`for_each`'s `item` port now runs a lane once per item.** Wire `item` to a
@@ -24,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with no error. A reference graph scoring five records produced five per-item
   scores on the PHP twin and one aggregate here, and the assertion node
   downstream failed with "the path names nothing" because `results` was never
-  produced.
+  produced. That graph is fancy-labs' `batch-scoring`; against a local build of
+  this release it runs identically on PHP and Node.
 
   **This is not a new decision.** `fancy-conformance` 0.30.0 added `results` and
   0.31.0 added `failures` to `flow/kind-declaration-surface`, both BREAKING, and
