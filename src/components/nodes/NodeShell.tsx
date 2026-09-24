@@ -1,6 +1,7 @@
 import { type ReactNode, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode, NodeRunStatus, PortDescriptor } from "../../types";
+import { useUndeclaredInboundHandles } from "./inbound-handles";
 
 export type NodeShellProps = {
   /** Required: the xyflow node this is rendering. */
@@ -36,6 +37,8 @@ function NodeShellInner({
   const status: NodeRunStatus = data.status ?? "idle";
   const inputs = data.inputs ?? defaultInputs(showInputs);
   const outputs = data.outputs ?? defaultOutputs(showOutputs);
+  const fallbackInputs = useUndeclaredInboundHandles(node.id, inputs);
+  const allInputs = [...inputs, ...fallbackInputs.map<PortDescriptor>((id) => ({ id }))];
 
   return (
     <div
@@ -53,15 +56,24 @@ function NodeShellInner({
       {children && <div className="ff-node__body">{children}</div>}
       {data.statusText && <p className="ff-node__status-text">{data.statusText}</p>}
 
-      {inputs.map((p, i) => (
+      {allInputs.map((p, i) => (
         <Handle
           key={p.id}
           type="target"
           position={Position.Left}
           id={p.id}
-          style={portStyle(i, inputs.length)}
+          style={portStyle(i, allInputs.length)}
           title={p.label ?? p.id}
-        />
+          {...(i >= inputs.length
+            ? {
+                "aria-label": `Input handle ${p.id}`,
+                "data-flow-target-handle": p.id,
+                className: "ff-node__fallback-handle",
+              }
+            : {})}
+        >
+          {i >= inputs.length && <span aria-hidden>{p.id}</span>}
+        </Handle>
       ))}
       {outputs.map((p, i) => (
         <Handle

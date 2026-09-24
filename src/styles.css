@@ -186,6 +186,8 @@
 .ff-node__body { padding: 8px 10px 10px; }
 .ff-node__status-text { margin: 0; padding: 4px 10px 8px; font-size: 11px; color: var(--ff-fg-subtle); }
 .ff-node--status-error .ff-node__status-text { color: var(--ff-danger); }
+.ff-node__fallback-handle { width: auto; min-width: 8px; padding: 0 3px; white-space: nowrap; font-size: 9px; line-height: 14px; }
+.ff-node__fallback-handle span { margin-left: 5px; color: var(--ff-fg-subtle); font-family: var(--ff-mono); }
 
 .ff-node--status-running { animation: ff-pulse 1.4s ease-in-out infinite; }
 @keyframes ff-pulse {

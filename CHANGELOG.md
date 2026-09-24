@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Edges targeting an undeclared inbound handle now land on a visible, accessible
+  anchor in `FlowViewer` and `FlowEditor`. Existing graphs need no changes: the
+  fallback is derived only from handles referenced by real inbound edges.
+
 ## [0.79.0] - 2026-09-22
 
 ### Changed

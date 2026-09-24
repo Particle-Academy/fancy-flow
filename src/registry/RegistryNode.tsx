@@ -3,6 +3,7 @@ import { Handle, NodeResizer, NodeToolbar, Position, type NodeProps } from "@xyf
 import type { FlowNode, NodeRunStatus, PortDescriptor } from "../types";
 import { categoryAccent, getNodeKind } from "./registry";
 import { nodeConfig, resolveNodePorts } from "./ports";
+import { useUndeclaredInboundHandles } from "../components/nodes/inbound-handles";
 
 /**
  * RegistryNode — generic node renderer that looks up the node's kind in
@@ -12,6 +13,10 @@ import { nodeConfig, resolveNodePorts } from "./ports";
 function RegistryNodeInner(props: NodeProps<FlowNode>) {
   const kindName = (props.data as any).kind ?? props.type;
   const kind = useMemo(() => getNodeKind(kindName), [kindName]);
+  const data = props.data;
+  const resolved = kind ? resolveNodePorts(props, kind) : {};
+  const inputs: PortDescriptor[] = resolved.inputs ?? (kind ? defaultInputs(kind.category) : []);
+  const fallbackInputs = useUndeclaredInboundHandles(props.id, inputs);
 
   if (!kind) {
     return (
@@ -25,12 +30,10 @@ function RegistryNodeInner(props: NodeProps<FlowNode>) {
     );
   }
 
-  const data = props.data;
   const status: NodeRunStatus = data.status ?? "idle";
   const accent = kind.accent ?? categoryAccent(kind.category);
-  const resolved = resolveNodePorts(props, kind);
-  const inputs: PortDescriptor[] = resolved.inputs ?? defaultInputs(kind.category);
   const outputs: PortDescriptor[] = resolved.outputs ?? defaultOutputs(kind.category);
+  const allInputs = [...inputs, ...fallbackInputs.map<PortDescriptor>((id) => ({ id }))];
   const config = nodeConfig(props);
   const label = data.label ?? kind.label;
 
@@ -78,15 +81,24 @@ function RegistryNodeInner(props: NodeProps<FlowNode>) {
         <p className="ff-node__output" title="Latest output">→ {previewValue((data as any).output)}</p>
       )}
 
-      {inputs.map((p, i) => (
+      {allInputs.map((p, i) => (
         <Handle
           key={p.id}
           type="target"
           position={Position.Left}
           id={p.id}
-          style={portStyle(i, inputs.length)}
+          style={portStyle(i, allInputs.length)}
           title={p.label ?? p.id}
-        />
+          {...(i >= inputs.length
+            ? {
+                "aria-label": `Input handle ${p.id}`,
+                "data-flow-target-handle": p.id,
+                className: "ff-node__fallback-handle",
+              }
+            : {})}
+        >
+          {i >= inputs.length && <span aria-hidden>{p.id}</span>}
+        </Handle>
       ))}
       {outputs.map((p, i) => (
         <Handle
