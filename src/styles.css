@@ -186,8 +186,26 @@
 .ff-node__body { padding: 8px 10px 10px; }
 .ff-node__status-text { margin: 0; padding: 4px 10px 8px; font-size: 11px; color: var(--ff-fg-subtle); }
 .ff-node--status-error .ff-node__status-text { color: var(--ff-danger); }
-.ff-node__fallback-handle { width: auto; min-width: 8px; padding: 0 3px; white-space: nowrap; font-size: 9px; line-height: 14px; }
-.ff-node__fallback-handle span { margin-left: 5px; color: var(--ff-fg-subtle); font-family: var(--ff-mono); }
+/* The handle keeps its normal dot size; only the NAME is extra, and it sits
+   OUTSIDE the node — to the left of the anchor. Inline, it rendered on top of
+   the node's own body text, which is the legibility problem this label exists
+   to solve, one layer over. */
+.ff-node__fallback-handle span {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--ff-bg);
+  color: var(--ff-fg-subtle);
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  line-height: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
 
 .ff-node--status-running { animation: ff-pulse 1.4s ease-in-out infinite; }
 @keyframes ff-pulse {

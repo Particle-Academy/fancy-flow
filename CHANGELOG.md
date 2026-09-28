@@ -12,11 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.79.1] - 2026-09-28
+
 ### Fixed
 
-- Edges targeting an undeclared inbound handle now land on a visible, accessible
-  anchor in `FlowViewer` and `FlowEditor`. Existing graphs need no changes: the
-  fallback is derived only from handles referenced by real inbound edges.
+- **An edge whose `targetHandle` is not a declared input port now renders**
+  (fancy-flow#23, reported by a consumer whose operator hit it on five edges
+  across two graphs). The engine has always DELIVERED such an edge --
+  `runFlow` reads `targetHandle ?? "in"` as a free-chosen input key, which is
+  the documented way to read across a gap -- but the canvas renders one anchor
+  per DECLARED port, so React Flow had nowhere to land the line. Measured in a
+  browser: before, the edge did not render at all; now it lands on an anchor
+  carrying the handle's name.
+
+  The anchor is derived only from handles that real inbound edges reference, so
+  no node grows a port nothing uses, and declared ports are untouched.
+
+  **The handle's NAME is rendered beside it, outside the node.** A silent
+  fallback would have been the same defect one layer down: an edge delivering
+  under `context` drawn identically to one delivering under `in`. Existing
+  graphs need no changes.
 
 ## [0.79.0] - 2026-09-22
 
