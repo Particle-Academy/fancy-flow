@@ -10,7 +10,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -85,3 +85,50 @@ jobs:
       # npmjs.com; the bootstrap NPM_TOKEN has been revoked.
       - name: Publish
         run: npx -y npm@11.18.0 publish --provenance --access public
+
+      # ---------------------------------------------------------------------
+      # Publish the GitHub release, from the changelog entry gated above.
+      # ---------------------------------------------------------------------
+      #
+      # A package can be fully published and completely invisible on GitHub.
+      # `fancy-flow-php` had v0.11.0 showing as "Latest" while the registry
+      # served v0.42.0 -- 31 minors of shipped work, and anyone evaluating the
+      # package by browsing it saw a project that looked abandoned. Reported by
+      # a consumer, who noticed `gh release list` disagreed with what they had
+      # installed.
+      #
+      # That was fixed in the PHP workflow and only there. Measured 2026-09-30:
+      # of the TypeScript repos publishing to npm, **every one had zero GitHub
+      # releases** -- react-fancy on 5.30.0 with 100 tags and an empty Releases
+      # page. The PHP workflow's own comment names this failure mode: a fix
+      # applied only where the problem was noticed is a fix the rest of the
+      # estate never receives, and nothing reports that. It was happening in
+      # the other direction.
+      #
+      # This runs AFTER the npm publish, deliberately. The npm tarball is
+      # immutable, so a release announcing a version that failed to publish
+      # could not be walked back; sequenced this way the release only ever
+      # describes something a consumer can actually install.
+      #
+      # Automated rather than added to the ship checklist on purpose -- a
+      # manual step is what produced the gap. The notes come from CHANGELOG.md,
+      # so there is no second description to drift from the first.
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; leaving it alone."
+            exit 0
+          fi
+
+          # The section for this version, up to the next `## ` heading.
+          awk -v v="$VERSION" '
+            /^## / { if (found) exit; if (index($0, v)) { found = 1 }; next }
+            found { print }
+          ' CHANGELOG.md > notes.md
+
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
+          echo "Published release $GITHUB_REF_NAME."
