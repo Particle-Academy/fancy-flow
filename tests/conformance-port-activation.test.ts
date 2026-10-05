@@ -14,13 +14,25 @@
  * actually observes. Asserting the private function would also let this file
  * pass while the events it feeds were wrong.
  *
- * ROW 0303 IS SKIPPED HERE, AND IT IS THE INTERESTING ONE. A node whose
+ * ROW 0303 WAS SKIPPED HERE, AND IT IS THE INTERESTING ONE. A node whose
  * `outputs` are an explicitly empty list publishes nothing in PHP, Python and
- * Rust; this engine publishes `out`, because the fallback tests
- * `declared?.length` and `[]` is falsy. The three states the other three
- * runtimes keep — undeclared / explicitly none / declared — are two here. The
- * skip carries that reason, the runner prints it, and the row starts passing
- * the day the fallback is fixed.
+ * Rust; this engine published `out`, because the fallback tested
+ * `declared?.length` and `[]` is falsy — so the three states the other runtimes
+ * keep (undeclared / explicitly none / declared) were two here.
+ *
+ * **Fixed in 0.76.0** (`declared ?? ["out"]`), the fixture's skip was dropped,
+ * and the row now RUNS AND PASSES. Measured 2026-10-05, not inferred from the
+ * diff.
+ *
+ * This paragraph is kept rather than deleted because the skip did its job
+ * exactly as designed: it carried the reason, printed on every run, and started
+ * passing the day the fallback was fixed. That is what a skip is for, and it is
+ * worth one paragraph to say so — a reader who meets a skipped conformance row
+ * should know the pattern ends this way.
+ *
+ * It is rewritten rather than left alone because it had gone STALE: it still
+ * said "is skipped" and "this engine publishes `out`" four minor versions after
+ * neither was true, which told anyone reading it that a fixed bug was live.
  */
 import { describe, expect, it } from "vitest";
 import CASES from "@particle-academy/fancy-conformance/suites/flow/port-activation/cases.json" with { type: "json" };
