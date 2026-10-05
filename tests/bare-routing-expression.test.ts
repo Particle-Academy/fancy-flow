@@ -42,10 +42,32 @@ describe("routing values outside the bare-string refusal", () => {
         } as unknown as FlowGraph;
         const result = await runFlow(graph, {}, undefined, { initialInputs: { r: { in: { data: { fits: false }, kind: "b" } } } });
         expect(result.ok).toBe(true);
-        // Preserve the TS builder fallback: raw JSON scalars do not override
-        // conditions[]. With no builder rows they take false, even true / 1.
-        if (kind === "branch" && (typeof value !== "string" || value === "" || value === "  " || value === "\n\t" || value === "{{ in.data.fits }}")) {
-          expect(result.outputs.r).toMatchObject({ __port: "false" });
+        // The port for EVERY value, not a subset.
+        //
+        // This used to assert `false` for every non-string, under "raw JSON
+        // scalars do not override conditions[] ... even true / 1". That was the
+        // TypeScript side of a parity hole: PHP, Python and Rust pass a
+        // non-string straight to truthy(), so `condition: true` routed `true`
+        // there and `false` here. TS moved, because its empty-rows rule is about
+        // an UNCONFIGURED branch and a raw `true` is configured.
+        //
+        // Listed exhaustively, so the next change to this rule has to state what
+        // it means for each value rather than fall outside an `if`.
+        if (kind === "branch") {
+          const ports: Record<string, string> = {
+            [JSON.stringify("")]: "false",
+            [JSON.stringify("  ")]: "false",
+            [JSON.stringify("\u000A\u0009")]: "false",
+            [JSON.stringify(null)]: "false",
+            [JSON.stringify(true)]: "true",
+            [JSON.stringify(false)]: "false",
+            [JSON.stringify(1)]: "true",
+            [JSON.stringify(0)]: "false",
+            [JSON.stringify("{{ in.data.fits }}")]: "false",
+            [JSON.stringify("prefix {{ in.kind }}")]: "true",
+            [JSON.stringify("{{ in.kind }}-{{ in.kind }}")]: "true",
+          };
+          expect(result.outputs.r).toMatchObject({ __port: ports[JSON.stringify(value)] });
         }
       });
     }

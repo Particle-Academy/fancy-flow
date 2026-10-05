@@ -12,6 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-10-05
+
+### Changed
+
+- **A raw boolean or number `branch.condition` is now honoured, matching the PHP,
+  Python and Rust runtimes.** `{ kind: "branch", config: { condition: true } }`
+  routed **`false`** here and **`true`** in the three twins — the same
+  `WorkflowSchema` JSON taking different routes, which is the one thing this
+  package promises cannot happen.
+
+  **What a consumer must do: almost certainly nothing.** This only affects a
+  `condition` that is a raw JSON `true`/`false`/number rather than an expression
+  string, which is a strange thing to author by hand — an agent writing config
+  produces the bare-string case instead. If you have a graph relying on
+  `condition: true` taking the `false` port, it was relying on a bug the other
+  three runtimes never had.
+
+  Unchanged, and asserted: an **unconfigured** branch is still falsy. `condition`
+  absent, `null`, or an empty string with no `conditions` rows all still take
+  `false`. That rule existed so a half-built graph could not take the success
+  path, and it is right — it simply never meant a configured `true`.
+
+  Only booleans and numbers are honoured. An object `condition` stays falsy: it
+  is neither an expression nor a scalar truth value, and treating a non-empty map
+  as truthy would make a typo'd config route `true`, which is the direction that
+  silently does the wrong thing.
+
+  Verified by measurement rather than reading, because the issue reporting it
+  said plainly it had not been checked end to end — TS run through `runFlow`
+  before the change (`true`, `false`, `1`, `0` all took `false`), PHP read from
+  `BranchExecutor` + `Expr::truthy`. `switch_case` is unaffected: it stringifies
+  its resolved value, so a raw boolean has always become `"true"` everywhere.
+
+
 ## [0.79.2] - 2026-10-02
 
 ### Fixed

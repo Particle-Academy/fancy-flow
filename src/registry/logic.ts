@@ -186,6 +186,23 @@ export const branchExecutor: NodeExecutor = (ctx) => {
     // silently and for the wrong reason. Routing is unchanged; the reason is
     // now visible.
     warnIfUnresolved(ctx, raw, taken ? "true" : "false");
+  } else if (typeof raw === "boolean" || typeof raw === "number") {
+    // A raw boolean or number is a CONFIGURED condition, so honour it.
+    //
+    // It used to fall through to the structured-builder path below, find no
+    // `conditions` rows, and take that path's deliberate `false`. The PHP,
+    // Python and Rust twins pass a non-string straight to `truthy()`, so the
+    // same WorkflowSchema JSON routed `false` here and `true` there -- the one
+    // thing this package promises cannot happen.
+    //
+    // The empty-rows rule below is about an UNCONFIGURED branch and is still
+    // right; it simply never meant this. `condition: null`, absent, or an empty
+    // string all still reach it and are still falsy.
+    //
+    // Only booleans and numbers. An object is neither an expression nor a scalar
+    // truth value, and treating a non-empty map as truthy would make a typo'd
+    // config route `true` -- the direction that silently does the wrong thing.
+    taken = truthy(raw as never);
   } else {
     const rows = Array.isArray(config.conditions) ? (config.conditions as Config[]) : [];
     // No conditions at all is FALSE, not true. An empty `all` is vacuously
