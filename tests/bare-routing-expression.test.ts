@@ -13,7 +13,7 @@ const rows = CASES.cases.filter((row) => row.id.includes("-bare-") || row.id.inc
 describe("shared bare routing expressions", () => {
   it("loads all eight refusal rows from the pinned fixture version", () => {
     console.log(`flow/graph-runs routing refusals [node] -- fancy-conformance ${suiteVersion()}`);
-    expect(suiteVersion()).toBe("0.32.0");
+    expect(suiteVersion()).toBe("0.33.0");
     expect(rows).toHaveLength(8);
   });
   for (const row of rows) {
