@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `source-map-js` is pinned forward to `^1.2.2` via `overrides`. Versions up to
+  1.2.1 allow an event-loop denial of service through indexed source-map section
+  offsets, and it arrives here transitively through the build toolchain.
+  **Nothing for a consumer to do, and no runtime change**: an npm package does
+  not ship a lockfile, so this governs builds OF this repo, not anything
+  installed FROM it. Recorded rather than left silent because the override it
+  sits beside — `shell-quote` `^1.9.0`, added for an earlier advisory — was
+  carried with no note of why, and had drifted back inside the vulnerable range
+  before anyone looked.
+
 ## [0.80.0] - 2026-10-05
 
 ### Changed
