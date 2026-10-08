@@ -236,13 +236,18 @@ describe("for_each", () => {
    * no nested runs, which is what makes a 10,000-row fan-out one checkpoint.
    */
   /** A `for_each` whose `item` port feeds a body node, plus a `done` tail. */
-  async function runLane(config: Record<string, unknown>, payload: unknown, body = "transform") {
+  async function runLane(
+    config: Record<string, unknown>,
+    payload: unknown,
+    body = "transform",
+    tail = "{{ in.count }}",
+  ) {
     const graph = {
       nodes: [
         node("t", "manual_trigger"),
         node("fe", "for_each", config),
         node("b", body, { expression: "{{ in }}" }),
-        node("after", "transform", { expression: "{{ in.count }}" }),
+        node("after", "transform", { expression: tail }),
       ],
       edges: [
         { id: "e1", source: "t", target: "fe" },
@@ -295,17 +300,23 @@ describe("for_each", () => {
   test("the done tail receives the aggregate, not the raw collection", async () => {
     // What a node AFTER the loop reads. The reference graph's assertion node
     // reads `{{ in.results }}` here, so `results` reaching the tail is the
-    // contract -- this asserts the shape rather than a transform expression,
-    // because an expression that fails to resolve returns the input unchanged
-    // and would pass this test while proving nothing.
-    const result = await runLane({ source: "{{ $json.rows }}" }, { rows: ["a", "b"] });
+    // contract.
+    //
+    // This used to assert the whole aggregate, because the tail is a `transform`
+    // with a bare `expression` and -- before fancy-flow#21 -- a bare expression
+    // was IGNORED, so the node passed its input through. The old comment here
+    // said as much: "an expression that fails to resolve returns the input
+    // unchanged and would pass this test while proving nothing." That is exactly
+    // what was happening, and it is why the defect reached four runtimes.
+    //
+    // Now the expression resolves, so the assertion can be the stronger one it
+    // originally wanted: a non-resolving expression yields the whole aggregate
+    // object, which is NOT this array. So this now fails if `results` does not
+    // reach the tail OR if resolution breaks, where before it could only see
+    // the first.
+    const result = await runLane({ source: "{{ $json.rows }}" }, { rows: ["a", "b"] }, "transform", "{{ in.results }}");
 
-    expect(result.outputs.after).toEqual({
-      items: ["a", "b"],
-      results: [{ b: "a" }, { b: "b" }],
-      failures: [],
-      count: 2,
-    });
+    expect(result.outputs.after).toEqual([{ b: "a" }, { b: "b" }]);
   });
 });
 

@@ -222,18 +222,36 @@ export const branchExecutor: NodeExecutor = (ctx) => {
 /**
  * `transform` — reshape in place. One `out` port, always active.
  *
- * `mode` decides which authoring path is read, defaulting to `fields` exactly
- * as the schema does.
+ * `mode` decides which authoring path is read WHEN IT IS SET. With no `mode` at
+ * all, a configured `expression` wins — which is what the other three runtimes
+ * do, what the shared `flow/graph-runs` fixtures author, and what this kind's
+ * own `emits` has always said (a non-empty `expression` reshapes the output; it
+ * never consulted `mode`).
+ *
+ * Until fancy-flow#21 this gated on `mode === "expression"` and the schema
+ * defaults `mode` to `fields`, so a graph authoring a bare `expression` returned
+ * the whole input object here and the resolved value in PHP, Python and Rust.
+ * Same JSON in, different outputs. It survived because a passthrough is the
+ * quietest possible wrong answer: nothing raises, the run reports success, and
+ * the value is only visibly wrong wherever something reads a field off it.
+ *
+ * The editor always writes `mode`, so this changes nothing for a graph built in
+ * it, and an explicit `mode: "fields"` still takes the fields path even with an
+ * expression configured.
  */
 export const transformExecutor: NodeExecutor = (ctx) => {
   const config = configOf(ctx.node);
   const inputs = ctx.inputs as Record<string, unknown>;
   const passthrough = ctx.inputs.in ?? ctx.inputs;
 
-  if (config.mode === "expression") {
+  if (config.mode === "expression" || config.mode === undefined || config.mode === null) {
     const expression = config.expression;
-    if (typeof expression !== "string" || expression.trim() === "") return passthrough;
-    return resolve(expression, inputs);
+    const configured = typeof expression === "string" && expression.trim() !== "";
+    // An absent `mode` with no expression is not "use the expression path and
+    // find nothing" -- it falls through to `fields`, which is the documented
+    // default and the only way a mode-less fields config keeps working.
+    if (configured) return resolve(expression as string, inputs);
+    if (config.mode === "expression") return passthrough;
   }
 
   const rows = Array.isArray(config.fields) ? (config.fields as Config[]) : [];

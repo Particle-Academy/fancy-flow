@@ -24,6 +24,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carried with no note of why, and had drifted back inside the vulnerable range
   before anyone looked.
 
+## [0.81.0] - 2026-10-07
+
+### Fixed
+
+- **`transform` now applies a configured `expression` when no `mode` is set**
+  (fancy-flow#21). This engine gated the expression path on
+  `config.mode === "expression"`, and the schema defaults `mode` to `fields`, so
+  a graph authoring a bare `expression` **returned the whole input object here
+  and the resolved value in PHP, Python and Rust.** Same `WorkflowSchema` in,
+  different outputs out -- the one guarantee the four runtimes exist to keep.
+
+  It is also the shape that hides best: a passthrough raises nothing and the run
+  reports success, so the wrong value only surfaces wherever something later
+  reads a field off it. The shared `flow/graph-runs` fixtures have authored
+  `{ expression: "..." }` with no `mode` since 0.6.0, and this kind's own `emits`
+  has always said a non-empty `expression` reshapes the output without consulting
+  `mode` -- so the executor disagreed with its own declaration, in this repo,
+  as well as with the other three runtimes.
+
+  **What a consumer must DO: almost certainly nothing.** The editor always writes
+  `mode`, so any graph built in it is unaffected, and an explicit
+  `mode: "fields"` still takes the fields path even with an expression
+  configured. The behaviour changes only for a graph that was authored
+  programmatically with an `expression` and no `mode` -- which until now was
+  silently ignoring that expression. If you were relying on the passthrough, set
+  `mode: "fields"` explicitly.
+
+  One test moved with it: `logic-executors`' done-tail case asserted the
+  aggregate reaching a tail `transform` whose bare expression was being ignored.
+  Its own comment had flagged the risk ("an expression that fails to resolve
+  returns the input unchanged and would pass this test while proving nothing") --
+  which is precisely what was happening. It now asserts `{{ in.results }}`
+  resolving, so it fails if the aggregate does not arrive OR if resolution
+  breaks, where before it could only see the first.
+
 ## [0.80.0] - 2026-10-05
 
 ### Changed
