@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Dev-only lockfile update: `vitest` 4.1.11 to 4.1.12 (brings `@vitest/mocker` 4.1.12, GHSA-qxg6-89mg-rqv8 / GHSA-xp26-3454-mjgp) and `undici` 7.30.0 to 7.30.1 via jsdom (GHSA-2m5v-pch6-74hx, GHSA-4w7w-5xrc-9h26, GHSA-qrxm-fqhp-jwvm, GHSA-xjj6-f33q-929c, GHSA-9fm3-97px-rjf6). Neither ships in the package. Consumer action: none.
+
 ## [0.82.1] - 2026-11-01
 
 ### Fixed
