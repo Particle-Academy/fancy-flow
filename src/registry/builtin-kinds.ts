@@ -11,6 +11,7 @@ import {
   outputExecutor,
   switchCaseExecutor,
   transformExecutor,
+  transformPath,
   variableExecutor,
 } from "./logic";
 import { terminalAwaitExecutor, terminalRunExecutor, terminalSendExecutor } from "./terminal-nodes";
@@ -488,10 +489,14 @@ const KINDS: NodeKindDefinition[] = [
   },
   {
     name: "@particle-academy/transform",
-    // Two behaviours: the input unchanged when no expression is configured,
-    // else the shape that expression names. So the RELATION is config-dependent.
-    emits: (config: { expression?: string }) =>
-      (config?.expression ?? "") === "" ? ("input" as const) : ("expression:expression" as const),
+    // Three outputs, chosen by the same `transformPath` the executor runs: the
+    // expression's shape, a freshly built object (no relation -- under-claiming
+    // is free), or the input untouched. So the RELATION is config-dependent.
+    emits: (config: Record<string, unknown>) => {
+      const path = transformPath(config ?? {});
+      if (path === "expression") return "expression:expression" as const;
+      return path === "input" ? ("input" as const) : null;
+    },
     aliases: ["transform", "@fancy/transform"],
     // Pure logic: no I/O to choose, so a default is safe. A host
     // executor still wins -- pickExecutor consults the registry first.
@@ -515,6 +520,9 @@ const KINDS: NodeKindDefinition[] = [
         description: "Each row becomes a key on the result.",
         titleKey: "key",
         addLabel: "Add field",
+        // The default row is blank and the executor skips a row with no key,
+        // so an untouched row is a placeholder, not an error.
+        skipBlankRows: true,
         fields: [
           { type: "text", key: "key", label: "Key", required: true, placeholder: "name" },
           { type: "expression", key: "value", label: "Value", example: "{{ $json.first }}", required: true },

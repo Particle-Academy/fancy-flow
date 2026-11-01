@@ -242,34 +242,70 @@ export const branchExecutor: NodeExecutor = (ctx) => {
 export const transformExecutor: NodeExecutor = (ctx) => {
   const config = configOf(ctx.node);
   const inputs = ctx.inputs as Record<string, unknown>;
-  const passthrough = ctx.inputs.in ?? ctx.inputs;
 
-  if (config.mode === "expression" || config.mode === undefined || config.mode === null) {
-    const expression = config.expression;
-    const configured = typeof expression === "string" && expression.trim() !== "";
-    // An absent `mode` with no expression is not "use the expression path and
-    // find nothing" -- it falls through to `fields`, which is the documented
-    // default and the only way a mode-less fields config keeps working.
-    if (configured) return resolve(expression as string, inputs);
-    if (config.mode === "expression") return passthrough;
+  switch (transformPath(config)) {
+    case "expression":
+      return resolve(config.expression as string, inputs);
+    case "fields": {
+      const out: Record<string, unknown> = {};
+      for (const row of transformRows(config)) out[row.key] = resolve(row.value, inputs);
+      return out;
+    }
+    default:
+      // Nothing configured passes the input through untouched rather than
+      // returning `{}`. A half-built transform that silently empties the
+      // payload breaks every node downstream of it with no clue where the
+      // data went.
+      return ctx.inputs.in ?? ctx.inputs;
   }
-
-  const rows = Array.isArray(config.fields) ? (config.fields as Config[]) : [];
-  // Nothing configured passes the input through untouched rather than
-  // returning `{}`. A half-built transform that silently empties the payload
-  // breaks every node downstream of it with no clue where the data went.
-  if (rows.length === 0) return passthrough;
-
-  const out: Record<string, unknown> = {};
-  let wrote = false;
-  for (const row of rows) {
-    const key = typeof row.key === "string" ? row.key.trim() : "";
-    if (key === "") continue;
-    out[key] = resolve(row.value, inputs);
-    wrote = true;
-  }
-  return wrote ? out : passthrough;
 };
+
+/**
+ * Which of its three outputs a `transform` config produces. The executor AND
+ * the kind's `emits` read this, so the two cannot disagree again: until 0.82.0
+ * `emits` looked only at `expression`, and claimed `input` for a fields-mode
+ * node that returns a freshly built object.
+ *
+ * - `expression` -- `mode` is `expression` or unset, and `expression` is a
+ *   non-blank string.
+ * - `fields` -- otherwise, when at least one row has a non-blank `key`.
+ * - `input` -- the input, untouched: an explicit `mode: "expression"` with no
+ *   expression, or no row with a key (the editor's untouched default).
+ *
+ * An absent `mode` with no expression is not "use the expression path and find
+ * nothing" -- it falls through to `fields`, which is the documented default and
+ * the only way a mode-less fields config keeps working. Any other `mode` value,
+ * including one the schema does not list, takes the fields path; the validator
+ * is what reports an unknown mode.
+ */
+export function transformPath(config: Config): "expression" | "fields" | "input" {
+  const mode = config.mode;
+  if (mode === "expression" || mode === undefined || mode === null) {
+    const expression = config.expression;
+    if (typeof expression === "string" && expression.trim() !== "") return "expression";
+    if (mode === "expression") return "input";
+  }
+  return transformRows(config).length > 0 ? "fields" : "input";
+}
+
+/**
+ * The rows a fields-mode `transform` writes, in order: each object row whose
+ * `key` is a non-blank string, with the key trimmed. A row that is not an
+ * object has no key and is skipped like a blank one -- reading `.key` off a
+ * null row used to throw and fail the node. A later row with the same key
+ * overwrites the earlier value.
+ */
+function transformRows(config: Config): Array<{ key: string; value: unknown }> {
+  const rows = Array.isArray(config.fields) ? (config.fields as unknown[]) : [];
+  const out: Array<{ key: string; value: unknown }> = [];
+  for (const row of rows) {
+    if (row === null || typeof row !== "object" || Array.isArray(row)) continue;
+    const { key, value } = row as Config;
+    const trimmed = typeof key === "string" ? key.trim() : "";
+    if (trimmed !== "") out.push({ key: trimmed, value });
+  }
+  return out;
+}
 
 /**
  * `merge` — several inputs, one value.

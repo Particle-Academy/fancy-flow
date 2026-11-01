@@ -477,6 +477,14 @@ export function validateConfig(
   return issues;
 }
 
+/** Every declared field of the row is absent, `null` or `""`. */
+function isBlankRow(fields: ReadonlyArray<{ key: string }>, row: Record<string, unknown>): boolean {
+  return fields.every((sub) => {
+    const cell = row[sub.key];
+    return cell === undefined || cell === null || cell === "";
+  });
+}
+
 function validateField(field: ConfigField, value: unknown): string | null {
   switch (field.type) {
     case "text":
@@ -512,6 +520,7 @@ function validateField(field: ConfigField, value: unknown): string | null {
         if (!row || typeof row !== "object" || Array.isArray(row)) {
           return `${field.label} item ${i + 1} must be an object`;
         }
+        if (field.skipBlankRows && isBlankRow(field.fields, row as Record<string, unknown>)) continue;
         for (const sub of field.fields) {
           const cell = (row as Record<string, unknown>)[sub.key];
           if (sub.required && (cell === undefined || cell === null || cell === "")) {

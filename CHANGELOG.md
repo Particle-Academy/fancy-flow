@@ -12,6 +12,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-11-01
+
+### Fixed
+
+- **A new `transform` node now passes this engine's own validator.** The editor
+  writes `defaultConfigFor(transform)` -- `{ mode: "fields", fields: [{ key: "",
+  value: "" }] }` -- and `validateConfig` refused it (`Output fields item 1: Key
+  is required`), so NodeConfigPanel showed a warning on a node nobody had
+  touched, and every port that mirrors this validator refused the editor's
+  output outright. Reported by Maipa against the Python port, whose admission
+  rejected the editor's defaults; the inconsistency started here.
+
+  The executor has always skipped a row with no key, so an untouched row is a
+  placeholder rather than an error. `transform`'s `fields` now declares
+  `skipBlankRows`, and a row whose EVERY field is blank is skipped by
+  validation. A row with a value and no key is **still refused**, because the
+  executor would drop that value without a word.
+
+- **`transform`'s `emits` now follows the path the executor takes.** It looked
+  only at `expression`, so it claimed `input` for a fields-mode node that
+  returns a freshly built object, and `expression:expression` for an explicit
+  `mode: "fields"` node with a stale expression it ignores. Both now read one
+  function, `transformPath`: the expression path emits `expression:expression`,
+  a built object emits no relation (`null` -- under-claiming is free), and a
+  passthrough emits `input`.
+
+- **A `fields` row that is not an object no longer fails the node.** Reading
+  `.key` off a `null` row threw a `TypeError`; such a row is now skipped like a
+  blank one. The validator already refused it.
+
+**What a consumer must DO: nothing.** No graph runs differently except one that
+held a `null` row and used to fail. A host that hand-reads `emits` for a
+fields-mode transform now gets `null` instead of a wrong `input`, which is the
+answer "unknown shape" already had.
+
+### Added
+
+- **`skipBlankRows` on a `repeater` config field.** A row whose every declared
+  field is absent, `null` or `""` is skipped by `validateConfig`. Opt-in, and
+  only correct where the kind's executor ignores such a row too -- `branch`
+  evaluates every condition row, so it does not set it. Pinned across runtimes
+  by fancy-conformance's new `flow/config-admission` suite and `flow/graph-runs`
+  rows 0037-0041.
+
 ### Security
 
 - `source-map-js` is pinned forward to `^1.2.2` via `overrides`. Versions up to

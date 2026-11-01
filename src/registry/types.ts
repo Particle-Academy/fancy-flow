@@ -146,6 +146,13 @@ export type RepeaterConfigField = ConfigFieldBase & {
   /** Bounds enforced by validation + the add/remove controls. */
   minItems?: number;
   maxItems?: number;
+  /**
+   * A row whose every field is blank (absent, `null` or `""`) is an unfilled
+   * placeholder: validation skips it instead of reporting its required fields.
+   * Set this ONLY where the kind's executor ignores such a row too -- otherwise
+   * validation admits a row that the run then acts on. `transform` sets it.
+   */
+  skipBlankRows?: boolean;
   default?: Array<Record<string, unknown>>;
 };
 
