@@ -1,6 +1,7 @@
 import { evaluateExpression, truthy, text, tryResolvePath } from "../expressions/expr";
 import { runFlow } from "../runtime/run-flow";
 import { decodePause } from "./pause";
+import { trimmedKey } from "./blank";
 import type { FlowEdge, FlowGraph, FlowNode, NodeExecutor } from "../types";
 
 /**
@@ -294,6 +295,10 @@ export function transformPath(config: Config): "expression" | "fields" | "input"
  * object has no key and is skipped like a blank one -- reading `.key` off a
  * null row used to throw and fail the node. A later row with the same key
  * overwrites the earlier value.
+ *
+ * "Blank" is `trimmedKey`, the same helper `validateConfig` judges a
+ * `skipBlankRows` row's text cells with -- so a key the run skips is a key
+ * admission refuses whenever the row carries a value.
  */
 function transformRows(config: Config): Array<{ key: string; value: unknown }> {
   const rows = Array.isArray(config.fields) ? (config.fields as unknown[]) : [];
@@ -301,7 +306,7 @@ function transformRows(config: Config): Array<{ key: string; value: unknown }> {
   for (const row of rows) {
     if (row === null || typeof row !== "object" || Array.isArray(row)) continue;
     const { key, value } = row as Config;
-    const trimmed = typeof key === "string" ? key.trim() : "";
+    const trimmed = trimmedKey(key);
     if (trimmed !== "") out.push({ key: trimmed, value });
   }
   return out;

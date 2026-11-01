@@ -2,6 +2,7 @@ import type { ConfigField, NodeCategory, NodeKindDefinition } from "./types";
 // The DATA module, deliberately -- importing `./builtin` here is what put
 // React into `/engine` (#11). See that file for the whole story.
 import { registerBuiltinKindData } from "./builtin-kinds";
+import { trimmedKey } from "./blank";
 
 const kinds = new Map<string, NodeKindDefinition<any, any, any>>();
 /** alias → canonical name. See `resolveKindId`. */
@@ -477,12 +478,25 @@ export function validateConfig(
   return issues;
 }
 
-/** Every declared field of the row is absent, `null` or `""`. */
-function isBlankRow(fields: ReadonlyArray<{ key: string }>, row: Record<string, unknown>): boolean {
-  return fields.every((sub) => {
-    const cell = row[sub.key];
-    return cell === undefined || cell === null || cell === "";
-  });
+/**
+ * A repeater cell is blank when it is absent, `null` or `""`. In a
+ * `skipBlankRows` repeater a `text` cell is ALSO blank when it is a string that
+ * trims to `""`, judged by `trimmedKey` -- the executor's own helper -- because
+ * that is how the executor that declared `skipBlankRows` reads it. Without the
+ * trim, `{ key: "   ", value: "x" }` passed here and the run dropped the value.
+ *
+ * Only `text` cells are trimmed: `transform` trims its key, never its value, so
+ * a value of spaces is still a value. And only where the kind opted in: no other
+ * repeater's executor has promised to trim.
+ */
+function isBlankCell(sub: ConfigField, cell: unknown, trimText: boolean): boolean {
+  if (cell === undefined || cell === null || cell === "") return true;
+  return trimText && sub.type === "text" && typeof cell === "string" && trimmedKey(cell) === "";
+}
+
+/** Every declared field of the row is blank (see `isBlankCell`). */
+function isBlankRow(fields: ReadonlyArray<ConfigField>, row: Record<string, unknown>): boolean {
+  return fields.every((sub) => isBlankCell(sub, row[sub.key], true));
 }
 
 function validateField(field: ConfigField, value: unknown): string | null {
@@ -523,7 +537,7 @@ function validateField(field: ConfigField, value: unknown): string | null {
         if (field.skipBlankRows && isBlankRow(field.fields, row as Record<string, unknown>)) continue;
         for (const sub of field.fields) {
           const cell = (row as Record<string, unknown>)[sub.key];
-          if (sub.required && (cell === undefined || cell === null || cell === "")) {
+          if (sub.required && isBlankCell(sub, cell, field.skipBlankRows === true)) {
             return `${field.label} item ${i + 1}: ${sub.label} is required`;
           }
           if (cell === undefined || cell === null) continue;

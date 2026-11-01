@@ -12,6 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.82.1] - 2026-11-01
+
+### Fixed
+
+- **A whitespace-only key with a value was admitted and its value silently
+  dropped at run time; it is now refused like an empty key.** Reported by Maipa
+  against 0.82.0: `transform` with `{ mode: "fields", fields: [{ key: "   ",
+  value: "Configured synthetic value" }] }` passed `validateConfig` with no
+  issue and imported cleanly, then ran as a passthrough, because the validator
+  compared the key with `""` while the executor trims it and skips a blank one.
+  Admission now judges blankness exactly as the executor does, through ONE
+  helper both call (`trimmedKey`, `String.prototype.trim()`: ECMAScript
+  WhiteSpace and LineTerminator, so tab, VT, FF, space, U+00A0, U+FEFF, every
+  `Zs` space, LF, CR, U+2028 and U+2029):
+  - a whitespace-only key WITH a value is refused with the empty-key message,
+    `Output fields item N: Key is required`;
+  - a whitespace-only key with a blank value is a skipped blank row, as the
+    editor's untouched default still is;
+  - a padded non-blank key (`"  name "`) is admitted and runs under the trimmed
+    key, unchanged;
+  - the value is never trimmed, so a value of spaces under a real key is still
+    admitted and written; expression mode and typed `{{ }}` values are
+    unchanged.
+
+  Mechanically: in a `skipBlankRows` repeater a `text` cell that trims to `""`
+  is blank, both for skipping the row and for a `required` check. Only
+  `transform` declares `skipBlankRows`, so no other kind's admission changes.
+  NodeConfigPanel and agent-integrations' `flow_add_node` / `flow_update_node`
+  call this same `validateConfig`, so both pick it up with no change of their
+  own.
+
+  **What a consumer must DO:** a config that relied on this was already losing
+  data, and it now errors at validation, so fix the key. Nothing else changes.
+
 ## [0.82.0] - 2026-11-01
 
 ### Fixed

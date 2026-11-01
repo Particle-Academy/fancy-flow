@@ -95,6 +95,74 @@ describe("transform: the editor's defaults are a valid config", () => {
   });
 });
 
+/**
+ * Admission judges a key's blankness exactly as the executor does: TRIMMED.
+ *
+ * `{ key: "   ", value: "Configured synthetic value" }` passed `validateConfig`
+ * (the check compared the key with `""`), imported cleanly, and then ran as a
+ * passthrough, because `transformRows` trims the key, finds it blank and skips
+ * the row. The configured value vanished without a word. Reported by Maipa
+ * against the published 0.82.0.
+ */
+describe("transform: a whitespace-only key is blank, in the validator as in the executor", () => {
+  it("refuses a whitespace-only key with a value, with the empty-key message", () => {
+    expect(
+      validateConfig(kind(), { mode: "fields", fields: [{ key: "   ", value: "Configured synthetic value" }] }),
+    ).toEqual([{ key: "fields", message: "Output fields item 1: Key is required" }]);
+  });
+
+  it("refuses every whitespace the executor trims away, not only spaces", () => {
+    for (const key of ["\t", "\n", " \r\n ", String.fromCharCode(0x00a0), String.fromCharCode(0x2003), String.fromCharCode(0xfeff), String.fromCharCode(0x3000)]) {
+      expect(key.trim()).toBe("");
+      expect(validateConfig(kind(), { mode: "fields", fields: [{ key, value: "x" }] }), JSON.stringify(key)).toEqual([
+        { key: "fields", message: "Output fields item 1: Key is required" },
+      ]);
+    }
+  });
+
+  it("skips a whitespace-only key with an empty value as a blank row", () => {
+    expect(validateConfig(kind(), { mode: "fields", fields: [{ key: "   ", value: "" }] })).toEqual([]);
+    expect(validateConfig(kind(), { mode: "fields", fields: [{ key: "\t" }] })).toEqual([]);
+  });
+
+  it("admits a padded non-blank key", () => {
+    expect(validateConfig(kind(), { mode: "fields", fields: [{ key: "  name ", value: "{{ $json.first }}" }] })).toEqual(
+      [],
+    );
+  });
+
+  it("keeps judging the value untrimmed: a whitespace value is a value", () => {
+    // Only the key is trimmed by the executor. A value of spaces is written as
+    // spaces under a real key, so it is admitted there -- and with no key it is
+    // a value that would be lost, so it is refused.
+    expect(validateConfig(kind(), { mode: "fields", fields: [{ key: "pad", value: "  " }] })).toEqual([]);
+    expect(validateConfig(kind(), { mode: "fields", fields: [{ key: "", value: "  " }] })).toEqual([
+      { key: "fields", message: "Output fields item 1: Key is required" },
+    ]);
+  });
+
+  it("does not trim on a repeater that did not opt in to skipping blank rows", () => {
+    // Trimming is part of `skipBlankRows`' contract with the executor that
+    // declares it. `user_input`'s rows have a required text `key` too, but it
+    // declares no such thing, so its admission is untouched by this fix.
+    const userInput = getNodeKind("user_input")!;
+    const issues = validateConfig(userInput, { fields: [{ key: "  ", label: "Your answer", type: "text" }] });
+    expect(issues).toEqual([]);
+  });
+
+  it("runs a padded key under the trimmed key, keeping its value", async () => {
+    expect(await run({ mode: "fields", fields: [{ key: "  name ", value: "{{ $json.first }}" }] }, { first: "Ada" })).toEqual(
+      { name: "Ada" },
+    );
+  });
+
+  it("leaves expression mode alone: a stale whitespace-key row there is not validated away or applied", async () => {
+    const config = { mode: "expression", fields: [{ key: "", value: "" }], expression: "{{ $json.first }}" };
+    expect(validateConfig(kind(), config)).toEqual([]);
+    expect(await run(config, { first: "Ada" })).toBe("Ada");
+  });
+});
+
 describe("transform: `emits` follows the path the executor takes", () => {
   const emits = (config: Record<string, unknown>) =>
     (kind().emits as (c: Record<string, unknown>) => string | null)(config);

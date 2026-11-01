@@ -151,6 +151,11 @@ export type RepeaterConfigField = ConfigFieldBase & {
    * placeholder: validation skips it instead of reporting its required fields.
    * Set this ONLY where the kind's executor ignores such a row too -- otherwise
    * validation admits a row that the run then acts on. `transform` sets it.
+   *
+   * In such a repeater a `text` cell that TRIMS to `""` is blank as well, both
+   * for skipping the row and for a `required` check -- the executor reads a
+   * key trimmed, so a whitespace-only key with a value would otherwise be
+   * admitted and then dropped at run time (0.82.1).
    */
   skipBlankRows?: boolean;
   default?: Array<Record<string, unknown>>;
