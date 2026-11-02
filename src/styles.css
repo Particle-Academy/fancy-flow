@@ -407,6 +407,9 @@
 .ff-run-controls__btn--run { background: var(--ff-run, var(--ff-default-run)); border-color: var(--ff-run-hover, var(--ff-default-run-hover)); color: #fff; }
 .ff-run-controls__btn--run:hover:not(:disabled) { background: var(--ff-run-hover, var(--ff-default-run-hover)); }
 .ff-run-controls__btn--cancel { background: var(--ff-danger, var(--ff-default-danger)); border-color: var(--ff-danger, var(--ff-default-danger)); color: #fff; }
+/* The generic hover above outranks `--cancel`, and took the white label onto a
+   near-white surface. There is no danger-hover token, so it keeps its colour. */
+.ff-run-controls__btn--cancel:hover:not(:disabled) { background: var(--ff-danger, var(--ff-default-danger)); }
 .ff-run-controls__btn:disabled { opacity: 0.5; cursor: default; }
 
 /* ─── Run feed (header + scrolling body) ───────────────────────────────── */

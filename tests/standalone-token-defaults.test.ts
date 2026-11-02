@@ -190,6 +190,22 @@ describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
   });
 });
 
+describe("Cancel on hover", () => {
+  /**
+   * `.ff-run-controls__btn:hover:not(:disabled)` is (0,3,0) and `--cancel` is
+   * (0,1,0), so hovering Cancel took the neutral hover surface while the label
+   * stayed white: 1.04:1 on the light default, measured, in `FlowEditor` as well as
+   * standalone. Run has its own hover rule, which is why only Cancel lost.
+   */
+  test("keeps the danger background, so its white label stays on it", () => {
+    const hover = onlyRule(
+      (rule) => rule.selector === ".ff-run-controls__btn--cancel:hover:not(:disabled)",
+      "Cancel hover",
+    );
+    expect(hover.get("background")).toBe("var(--ff-danger, var(--ff-default-danger))");
+  });
+});
+
 describe("the private defaults copy the token lists", () => {
   test("there is something to compare", () => {
     expect(lightDefaults.size).toBeGreaterThan(0);

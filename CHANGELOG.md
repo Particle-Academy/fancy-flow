@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in every mode: the root deliberately stays out of the lists, because declaring a
   token on an element beats the value it inherits and would have silently discarded
   any theme set on a wrapper, toolbar or `.ff-editor`. Consumer action: none.
+- **Hovering Cancel in `FlowRunControls` put its white label on a near-white
+  background** (1.04:1 on the light default), inside `FlowEditor` as well as
+  standalone: the generic button hover outranked the Cancel colour. Cancel now keeps
+  `--ff-danger` on hover. There is no danger-hover token, so a hovered Cancel no
+  longer changes colour. Consumer action: none.
 
 ### Security
 
