@@ -320,6 +320,23 @@ describe("the Run label", () => {
   });
 });
 
+/**
+ * React Flow's own default node, what any node with no registered type renders as.
+ * Left alone it has `#fff` and `color: inherit` whenever React Flow's layer is light,
+ * so light text from the page sat on a white card: 1.16:1, measured.
+ */
+describe("React Flow's default node takes the canvas's tokens", () => {
+  const canvas = onlyRule((rule) => rule.selector === ".ff-canvas" && !isTokenList(rule) && !rule.media, ".ff-canvas");
+
+  test.each([
+    ["--xy-node-background-color", "var(--ff-node-bg)"],
+    ["--xy-node-color", "var(--ff-fg)"],
+    ["--xy-node-border", "1px solid var(--ff-border-strong)"],
+  ])("%s is %s", (name, value) => {
+    expect(canvas.get(name)).toBe(value);
+  });
+});
+
 /** Text colours. The browser measures them on their real backgrounds; this pins the shape. */
 describe("light text tokens", () => {
   const LIGHT: [string, string][] = [

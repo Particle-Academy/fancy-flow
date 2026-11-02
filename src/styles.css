@@ -239,6 +239,13 @@
   border-radius: var(--ff-radius);
   overflow: hidden;
   background: var(--ff-canvas-bg);
+  /* A node with no registered type is React Flow's default node, which follows React
+     Flow's own colour mode: #fff and `color: inherit` when that is light. Our tokens
+     follow an ancestor .dark, so whenever the two disagree, light page text sat on a
+     white card at 1.16:1. These are React Flow's documented overrides, as on the minimap. */
+  --xy-node-background-color: var(--ff-node-bg);
+  --xy-node-color: var(--ff-fg);
+  --xy-node-border: 1px solid var(--ff-border-strong);
 }
 .ff-canvas__toolbar {
   border-bottom: 1px solid var(--ff-border);

@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A node with no registered type could render as a white card with almost invisible
+  text.** That node is React Flow's default node, which follows React Flow's colour mode
+  while the canvas follows its nearest `.dark`. When they disagreed, light page text sat
+  on `#fff` at 1.16:1: a `.dark` wrapper rather than `<html class="dark">`, `colorMode="light"`
+  on a dark page, or `<html class="dark" data-theme="light">`. The card now takes
+  `--ff-node-bg`, `--ff-fg` and `--ff-border-strong`, at 16.24:1 in dark and 17.72:1 in
+  light. Consumer action: none. A `--xy-node-*` you set on a wrapper outside `.ff-canvas`
+  now stops at it: set it on `.ff-canvas` or a node's `style`, or use the `--ff-*` tokens.
 - **Secondary text in light mode was under 4.5:1 on the surfaces it sits on.** Dark is
   unchanged, and a token you set still wins. Consumer action: none, unless you theme a
   dark look with tokens and no `.dark`, `[data-theme="dark"]` or OS signal: these light
