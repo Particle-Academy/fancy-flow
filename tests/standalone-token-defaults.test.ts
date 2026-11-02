@@ -303,6 +303,12 @@ describe("labels on a colour", () => {
     expect(base.get("color")).toBe(`var(${token}, var(${AUTO}, #fff))`);
   });
 
+  /* Declared anywhere, on a root above all, a token would beat the value a host set on a
+     wrapper or on :root, and read exactly as if the host had set nothing. */
+  test.each([...PUBLIC_OPTIONAL])("no rule declares %s: it belongs to the host", (token) => {
+    expect(rules.filter((rule) => declarations(rule.body).has(token)).map((rule) => rule.selector)).toEqual([]);
+  });
+
   test("no surface is in the rule without a test here", () => {
     expect(selectorForms(autoRules[0]!.selector).sort()).toEqual(SURFACES.map(([selector]) => selector).sort());
   });
