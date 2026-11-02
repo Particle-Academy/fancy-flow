@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-11-02
+
 ### Added
 
 - **`--ff-run-fg` sets the Run label's colour**, in both normal and hover, and always
