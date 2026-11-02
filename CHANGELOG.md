@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-11-02
+
 ### Added
 
 - **Override tokens for labels on a colour: `--ff-cancel-fg`, `--ff-kind-fg` and
