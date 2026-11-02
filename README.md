@@ -337,6 +337,46 @@ function MyEditor() {
 }
 ```
 
+## Theming
+
+Everything reads `--ff-*` custom properties from `@particle-academy/fancy-flow/styles.css`.
+
+### `FlowRunControls` on its own
+
+`<FlowRunControls>` needs no provider and no token to render correctly: outside
+`FlowEditor`, with nothing set, it uses the defaults below and follows a `.dark` /
+`[data-theme="dark"]` ancestor or the OS `prefers-color-scheme` (a `.ff-canvas--light`
+ancestor opts out of the OS path).
+
+| Token | Used for | Default (light) | Default (dark) |
+|---|---|---|---|
+| `--ff-run` | Run background | `#10b981` | same |
+| `--ff-run-hover` | Run hover background, Run border | `#059669` | same |
+| `--ff-danger` | Cancel background and border | `#ef4444` | same |
+| `--ff-surface` | Reset background | `#ffffff` | `#1c1c22` |
+| `--ff-surface-3` | Reset hover background | `#fafafa` | `#27272a` |
+| `--ff-fg` | Reset text | `#18181b` | `#fafafa` |
+| `--ff-border` | Reset border | `#e4e4e7` | `#3f3f46` |
+| `--ff-radius-sm` | Corner radius, all buttons | `6px` | same |
+
+**A token you set always wins, in every mode.** Set any of them on `:root`, a
+wrapper, a toolbar, or the controls themselves, and the rest keep their defaults:
+
+```css
+.my-toolbar { --ff-run: #2563eb; --ff-run-hover: #1d4ed8; }
+```
+
+The label on Run and Cancel is always white, so pick a background it reads on.
+
+Inside `FlowEditor`, `FlowCanvas` and the other roots that declare the full token
+set (`.ff-editor`, `.ff-canvas`, `.ff-palette`, `.ff-panel`, `.ff-run-feed`,
+`.ff-prompt`), the controls take that root's tokens. A token set on a wrapper
+*outside* one of those roots stops there, so theme the root itself:
+
+```css
+.ff-editor { --ff-run: #2563eb; }
+```
+
 ## Node kinds
 
 31 builtins, grouped by category. Ids are namespaced (`@particle-academy/<name>`)

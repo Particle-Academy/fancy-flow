@@ -1,9 +1,11 @@
 /* @particle-academy/fancy-flow styles.
    Themeable: every surface, text, border, and accent resolves from a `--ff-*`
-   custom-property layer defined on the component roots below. Override any of
-   them on `.ff-editor` (or any ancestor, e.g. `:root`) to retheme the editor
-   without fighting specificity — e.g.
+   custom-property layer defined on the component roots below. Override them ON
+   the root you render to retheme it — e.g.
      .ff-editor { --ff-accent: #ec4899; --ff-radius: 16px; }
+   An ancestor such as `:root` does NOT reach inside a listed root, which declares
+   every token itself. In dark mode the dark lists outrank a plain `.ff-editor`
+   rule for the tokens they change, so scope those to the mode you are theming.
    Dark mode honors both a `.dark` / `[data-theme="dark"]` ancestor (Tailwind
    class strategy, what `colorMode` stamps) and the OS `prefers-color-scheme`,
    with a `.ff-canvas--light` opt-out for the OS path. */
@@ -14,9 +16,13 @@
 @import "@xyflow/react/dist/style.css";
 
 /* ─── Theme tokens — LIGHT (defaults) ──────────────────────────────────────
-   Defined on every component root so both composed (`<FlowEditor>`) and
+   Defined on the roots listed here, so both composed (`<FlowEditor>`) and
    standalone (`<NodePalette>`, `<NodeConfigPanel>`, `<FlowRunFeed>`, `<FlowCanvas>`)
-   usage inherits them. Nodes inherit from `.ff-canvas`. */
+   usage inherits them. Nodes inherit from `.ff-canvas`.
+   This is NOT every exported root. A token declared on an element beats whatever
+   it would inherit, so a listed root cannot be themed from a wrapper around it.
+   Roots that must take a host's tokens stay out of these lists and use the
+   "Standalone defaults" block below instead. */
 .ff-editor, .ff-canvas, .ff-palette, .ff-panel, .ff-run-feed, .ff-prompt {
   --ff-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ff-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -121,6 +127,44 @@
     --ff-feed-ok:   #34d399;
     --ff-shadow-md: 0 1px 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.5);
     --ff-shadow-lg: 0 12px 28px -8px rgba(0,0,0,.6), 0 4px 10px -6px rgba(0,0,0,.5);
+  }
+}
+
+/* ─── Standalone defaults ──────────────────────────────────────────────────
+   For roots that are usually dropped inside something the host already themed:
+   a toolbar, a wrapper, `.ff-editor`. They read `var(--ff-x, var(--ff-default-x))`
+   at the point of use, so an inherited token always wins and these only answer
+   when nothing set one.
+   Do NOT add these roots to the lists above: declaring `--ff-run` on the element
+   would beat the value it inherits, whatever the specificity, and a host's theme
+   would silently stop applying. `--ff-default-*` is private, not a theming API.
+   The values copy the lists above; tests/standalone-token-defaults.test.ts fails
+   if they drift, and only tokens that differ in dark are swapped there. */
+:is(.ff-run-controls) {
+  --ff-default-surface:   #ffffff;
+  --ff-default-surface-3: #fafafa;
+  --ff-default-fg:        #18181b;
+  --ff-default-border:    #e4e4e7;
+  --ff-default-run:       #10b981;
+  --ff-default-run-hover: #059669;
+  --ff-default-danger:    #ef4444;
+  --ff-default-radius-sm: 6px;
+}
+.dark      :is(.ff-run-controls),
+[data-theme="dark"] :is(.ff-run-controls),
+.dark:is(.ff-run-controls),
+[data-theme="dark"]:is(.ff-run-controls) {
+  --ff-default-surface:   #1c1c22;
+  --ff-default-surface-3: #27272a;
+  --ff-default-fg:        #fafafa;
+  --ff-default-border:    #3f3f46;
+}
+@media (prefers-color-scheme: dark) {
+  :is(.ff-run-controls):not(.ff-canvas--light):not(.ff-canvas--light *) {
+    --ff-default-surface:   #1c1c22;
+    --ff-default-surface-3: #27272a;
+    --ff-default-fg:        #fafafa;
+    --ff-default-border:    #3f3f46;
   }
 }
 
@@ -352,17 +396,17 @@
 /* ─── Run controls ─────────────────────────────────────────────────────── */
 .ff-run-controls { display: flex; gap: 6px; }
 .ff-run-controls__btn {
-  border: 1px solid var(--ff-border); border-radius: var(--ff-radius-sm);
+  border: 1px solid var(--ff-border, var(--ff-default-border)); border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm));
   padding: 6px 12px;
   font: inherit; font-size: 12px; font-weight: 500;
   cursor: pointer;
-  background: var(--ff-surface); color: var(--ff-fg);
+  background: var(--ff-surface, var(--ff-default-surface)); color: var(--ff-fg, var(--ff-default-fg));
   transition: background 150ms, border-color 150ms;
 }
-.ff-run-controls__btn:hover:not(:disabled) { background: var(--ff-surface-3); }
-.ff-run-controls__btn--run { background: var(--ff-run); border-color: var(--ff-run-hover); color: #fff; }
-.ff-run-controls__btn--run:hover:not(:disabled) { background: var(--ff-run-hover); }
-.ff-run-controls__btn--cancel { background: var(--ff-danger); border-color: var(--ff-danger); color: #fff; }
+.ff-run-controls__btn:hover:not(:disabled) { background: var(--ff-surface-3, var(--ff-default-surface-3)); }
+.ff-run-controls__btn--run { background: var(--ff-run, var(--ff-default-run)); border-color: var(--ff-run-hover, var(--ff-default-run-hover)); color: #fff; }
+.ff-run-controls__btn--run:hover:not(:disabled) { background: var(--ff-run-hover, var(--ff-default-run-hover)); }
+.ff-run-controls__btn--cancel { background: var(--ff-danger, var(--ff-default-danger)); border-color: var(--ff-danger, var(--ff-default-danger)); color: #fff; }
 .ff-run-controls__btn:disabled { opacity: 0.5; cursor: default; }
 
 /* ─── Run feed (header + scrolling body) ───────────────────────────────── */

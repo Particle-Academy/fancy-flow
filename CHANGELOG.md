@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`FlowRunControls` outside `FlowEditor` rendered a white "Run" label on a
+  transparent background.** Reported by Maipa. Its root was missing from the token
+  lists, so `--ff-run` and every other token it reads resolved to nothing unless an
+  ancestor happened to declare them. It now has correct defaults on its own in
+  light, `.dark` / `[data-theme="dark"]` and OS dark. Tokens set by a host still win
+  in every mode: the root deliberately stays out of the lists, because declaring a
+  token on an element beats the value it inherits and would have silently discarded
+  any theme set on a wrapper, toolbar or `.ff-editor`. Consumer action: none.
+
 ### Security
 
 - Dev-only lockfile update: `vitest` 4.1.11 to 4.1.12 (brings `@vitest/mocker` 4.1.12, GHSA-qxg6-89mg-rqv8 / GHSA-xp26-3454-mjgp) and `undici` 7.30.0 to 7.30.1 via jsdom (GHSA-2m5v-pch6-74hx, GHSA-4w7w-5xrc-9h26, GHSA-qrxm-fqhp-jwvm, GHSA-xjj6-f33q-929c, GHSA-9fm3-97px-rjf6). Neither ships in the package. Consumer action: none.
