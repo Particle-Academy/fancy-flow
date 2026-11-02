@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { categoryAccent, listNodeKinds, onNodeKindsChanged } from "../../registry/registry";
 import type { NodeCategory, NodeKindDefinition } from "../../registry/types";
+import { labelOn } from "../label-on";
 
 export type NodePaletteProps = {
   /** Filter to only these categories. */
@@ -122,7 +123,7 @@ function KindRow({ kind, onPick }: { kind: NodeKindDefinition; onPick?: (k: Node
       onClick={() => onPick?.(kind)}
       title={kind.description ?? kind.name}
     >
-      <span className="ff-palette__row-dot" style={{ background: accent }}>{kind.icon ?? ""}</span>
+      <span className="ff-palette__row-dot" style={{ background: accent, ...labelOn(accent) }}>{kind.icon ?? ""}</span>
       <span className="ff-palette__row-text">
         <span className="ff-palette__row-label">{kind.label}</span>
         {kind.description && <span className="ff-palette__row-desc">{kind.description}</span>}

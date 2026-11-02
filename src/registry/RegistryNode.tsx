@@ -4,6 +4,7 @@ import type { FlowNode, NodeRunStatus, PortDescriptor } from "../types";
 import { categoryAccent, getNodeKind } from "./registry";
 import { nodeConfig, resolveNodePorts } from "./ports";
 import { useUndeclaredInboundHandles } from "../components/nodes/inbound-handles";
+import { labelOn } from "../components/label-on";
 
 /**
  * RegistryNode — generic node renderer that looks up the node's kind in
@@ -21,7 +22,7 @@ function RegistryNodeInner(props: NodeProps<FlowNode>) {
   if (!kind) {
     return (
       <div className="ff-node ff-node--unknown">
-        <div className="ff-node__header" style={{ background: "#71717a" }}>
+        <div className="ff-node__header" style={{ background: "#71717a", ...labelOn("#71717a") }}>
           <span className="ff-node__tag">UNKNOWN</span>
           <span className="ff-node__label">{kindName}</span>
         </div>
@@ -60,7 +61,7 @@ function RegistryNodeInner(props: NodeProps<FlowNode>) {
           {kind.toolbar({ nodeId: props.id, config: config as any, selected: props.selected ?? false })}
         </NodeToolbar>
       )}
-      <header className="ff-node__header" style={{ background: accent }}>
+      <header className="ff-node__header" style={{ background: accent, ...labelOn(accent) }}>
         {kind.icon && <span className="ff-node__icon" aria-hidden>{kind.icon}</span>}
         <span className="ff-node__tag">{kind.label.toUpperCase()}</span>
         <span className="ff-node__label">{label}</span>

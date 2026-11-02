@@ -147,7 +147,7 @@ const ROOTS = [
 /**
  * Reads that deliberately do not fall back to their own private default.
  *
- * `--ff-run-fg` has a computed fallback, and private names need none. The viewer's
+ * The label tokens have a computed fallback, and private names need none. The viewer's
  * `inherit` and `transparent` are not dark-only: they adapt to whatever page the
  * viewer sits on, and giving a read-only row an opaque surface would repaint every
  * host that has one on a card. Its accent and radius literals hold in both modes.
@@ -155,6 +155,9 @@ const ROOTS = [
 const OWN_FALLBACK: Record<string, string[]> = {
   ".ff-viewer": ["--ff-fg", "--ff-surface", "--ff-accent", "--ff-radius"],
 };
+
+/** Public, read, and deliberately in no list: their default is computed, or a chain. */
+const PUBLIC_OPTIONAL = new Set(["--ff-run-fg", "--ff-cancel-fg", "--ff-kind-fg", "--ff-accent-fg"]);
 
 describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
   // The root plus its BEM children, which is where nearly all the reads are.
@@ -183,7 +186,7 @@ describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
     for (const rule of own) {
       for (const match of rule.body.matchAll(/var\((--ff-[\w-]+)(\s*,\s*var\((--ff-[\w-]+)\))?\)?/g)) {
         const [, token, , fallback] = match;
-        if (token!.startsWith("--ff-default-") || token!.startsWith("--ff-private-") || token === "--ff-run-fg") continue;
+        if (token!.startsWith("--ff-default-") || token!.startsWith("--ff-private-") || PUBLIC_OPTIONAL.has(token!)) continue;
         if (OWN_FALLBACK[root]?.includes(token!)) continue;
         // A host's --ff-danger still paints its text; only the default is the darker one.
         // The chain is var(--ff-danger-text, var(--ff-danger, var(--ff-default-danger-text))),
@@ -253,11 +256,14 @@ function luminance(hex: string): number {
 }
 const ratioOf = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
-describe("the Run label", () => {
-  const RUN = ".ff-run-controls__btn--run";
-  const HOVER = `${RUN}:hover:not(:disabled)`;
-  const supports = rules.filter((rule) => rule.media?.startsWith("@supports") && rule.selector.startsWith(RUN));
-  const auto = declarations(supports.find((rule) => rule.selector === RUN)?.body ?? "");
+/**
+ * Every label on a colour reads one rule. Each surface says what it is painted on
+ * (`--ff-private-label-on`), and the rule works out dark or white from that.
+ */
+describe("labels on a colour", () => {
+  const AUTO = "--ff-private-label-auto";
+  const autoRules = rules.filter((rule) => declarations(rule.body).has(AUTO));
+  const auto = declarations(autoRules[0]?.body ?? "");
 
   const number = (source: string | undefined, pattern: RegExp): number => {
     const found = pattern.exec(source ?? "");
@@ -265,35 +271,53 @@ describe("the Run label", () => {
     return Number(found![1]);
   };
 
-  /**
-   * The trap: a declaration holding var() always parses, so a browser that cannot
-   * do relative colour does not fall back to the line above it. It computes to
-   * `unset`, and the label takes the page's text colour. The legacy branch has to
-   * be selected by @supports.
-   */
-  test("the automatic colour sits behind @supports, over a white base that keeps today's label", () => {
-    const base = onlyRule((rule) => rule.selector === RUN && !rule.media, "Run base rule");
-    expect(base.get("color")).toBe("var(--ff-run-fg, #fff)");
-    expect(auto.get("color")).toMatch(/^var\(--ff-run-fg, color\(from var\(--ff-private-run-label-on\) xyz-d65 /);
+  /** Surface, its base rule's selector, its override token. */
+  const SURFACES: [string, string][] = [
+    [".ff-run-controls__btn--run", "--ff-run-fg"],
+    [".ff-run-controls__btn--cancel", "--ff-cancel-fg"],
+    [".ff-node__header", "--ff-kind-fg"],
+    [".ff-lane__header", "--ff-kind-fg"],
+    [".ff-palette__row-dot", "--ff-kind-fg"],
+    [".ff-panel__head-icon", "--ff-kind-fg"],
+    [".ff-viewer__index", "--ff-kind-fg"],
+    [".ff-prompt__btn--primary", "--ff-accent-fg"],
+  ];
+
+  test("the rule is defined once, behind @supports", () => {
+    expect(autoRules).toHaveLength(1);
+    expect(autoRules[0]!.media).toMatch(/^@supports \(color: color\(from #000 xyz-d65 calc\(clamp\(.*\by\b.*\)/);
+    expect(auto.get(AUTO)).toMatch(/^color\(from var\(--ff-private-label-on\) xyz-d65 /);
   });
 
   test("it is opaque whatever the host's colour is, since relative colour keeps the origin's alpha", () => {
-    expect(auto.get("color")).toMatch(/\/ 1\)\)$/);
+    expect(auto.get(AUTO)).toMatch(/\/ 1\)$/);
   });
 
-  test("each state reads the background it is actually painted on", () => {
-    expect(auto.get("--ff-private-run-label-on")).toBe("var(--ff-run, var(--ff-default-run))");
-    const hover = declarations(supports.find((rule) => rule.selector === HOVER)?.body ?? "");
-    expect(hover.get("--ff-private-run-label-on")).toBe("var(--ff-run-hover, var(--ff-default-run-hover))");
+  test.each(SURFACES)("%s is in that rule, and reads it under %s", (selector, token) => {
+    expect(selectorForms(autoRules[0]!.selector)).toContain(selector);
+    const base = onlyRule((rule) => rule.selector === selector && !rule.media, `${selector} base rule`);
+    /* A declaration holding var() always parses, so a browser that cannot do relative
+       colour would not fall back to an earlier line. The fallback has to be inside
+       the var(): white, because it is what those browsers showed, and because a dark
+       fallback would go unreadable on a dark host colour. */
+    expect(base.get("color")).toBe(`var(${token}, var(${AUTO}, #fff))`);
   });
 
-  test("the @supports condition tests the form the rule uses", () => {
-    expect(supports[0]!.media).toMatch(/color\(from #000 xyz-d65 calc\(clamp\(.*\by\b.*\)/);
+  test("no surface is in the rule without a test here", () => {
+    expect(selectorForms(autoRules[0]!.selector).sort()).toEqual(SURFACES.map(([selector]) => selector).sort());
+  });
+
+  test("each button state reads the background it is actually painted on", () => {
+    const origin = (selector: string) => onlyRule((rule) => rule.selector === selector && !rule.media, selector).get("--ff-private-label-on");
+    expect(origin(".ff-run-controls__btn--run")).toBe("var(--ff-run, var(--ff-default-run))");
+    expect(origin(".ff-run-controls__btn--run:hover:not(:disabled)")).toBe("var(--ff-run-hover, var(--ff-default-run-hover))");
+    expect(origin(".ff-run-controls__btn--cancel")).toBe("var(--ff-danger, var(--ff-default-danger))");
+    expect(origin(".ff-prompt__btn--primary")).toBe("var(--ff-accent)");
   });
 
   test("no zone of luminance leaves a label under 4.5:1", () => {
-    const white = number(auto.get("--ff-private-run-label-white"), /clamp\(0, \(([\d.]+) - y\)/);
-    const soft = number(auto.get("--ff-private-run-label-soft"), /clamp\(0, \(y - ([\d.]+)\)/);
+    const white = number(auto.get("--ff-private-label-white"), /clamp\(0, \(([\d.]+) - y\)/);
+    const soft = number(auto.get("--ff-private-label-soft"), /clamp\(0, \(y - ([\d.]+)\)/);
     const dark = luminance(lightList.get("--ff-fg")!);
 
     expect(white).toBeLessThan(soft);
@@ -304,7 +328,7 @@ describe("the Run label", () => {
 
   test("the dark label is the light list's --ff-fg, in XYZ", () => {
     expect(lightList.get("--ff-fg")).toBe("#18181b");
-    const y = number(auto.get("color"), /calc\(var\(--ff-private-run-label-white\) \+ var\(--ff-private-run-label-soft\) \* ([\d.]+)\)/);
+    const y = number(auto.get(AUTO), /calc\(var\(--ff-private-label-white\) \+ var\(--ff-private-label-soft\) \* ([\d.]+)\)/);
     expect(y).toBeCloseTo(luminance("#18181b"), 4);
   });
 
@@ -314,9 +338,49 @@ describe("the Run label", () => {
     expect(ratioOf(luminance(lightList.get("--ff-run-hover")!), dark)).toBeGreaterThanOrEqual(4.5);
   });
 
-  test("Cancel was not part of the ruling and stays white", () => {
-    const cancel = onlyRule((rule) => rule.selector === ".ff-run-controls__btn--cancel", "Cancel");
-    expect(cancel.get("color")).toBe("#fff");
+  test("a node tag is not faded: 0.9 opacity takes an AA label under AA", () => {
+    const tag = onlyRule((rule) => rule.selector === ".ff-node__tag", "node tag");
+    expect(tag.has("opacity")).toBe(false);
+  });
+});
+
+/**
+ * The durable guard. The rule above only protects the surfaces listed in it; a new
+ * surface written the old way would be correct on the day and invisible afterwards.
+ */
+describe("a fixed white label does not come back", () => {
+  /**
+   * `file: selector or snippet` to why it is not text on an accent. Empty on purpose:
+   * the switch knob is white too, but as a `background`, so this never matches it.
+   */
+  const ALLOWED = new Map<string, string>();
+
+  const src = resolve(__dirname, "../src");
+  const sources = (readdirSync(src, { recursive: true }) as string[])
+    .filter((file) => /\.(css|tsx?)$/.test(file))
+    .map((file) => ({ file: file.replaceAll("\\", "/"), text: readFileSync(resolve(src, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "") }));
+
+  test("it scanned the files that matter", () => {
+    const names = sources.map((source) => source.file);
+    for (const file of ["styles.css", "components/nodes/NodeShell.tsx", "components/FlowViewer/FlowViewer.tsx"]) expect(names).toContain(file);
+  });
+
+  test("no `color: #fff` or `color: white`, in CSS or an inline style", () => {
+    const pattern = /(?<![-\w])color\s*:\s*["'`]?(#fff(?:fff)?|white)\b/gi;
+    const found = sources.flatMap(({ file, text }) => [...text.matchAll(pattern)].map((match) => {
+      const line = text.slice(text.lastIndexOf("\n", match.index) + 1, text.indexOf("\n", match.index)).trim();
+      return `${file}: ${line}`;
+    }));
+    expect(found.filter((entry) => ![...ALLOWED.keys()].some((key) => entry.includes(key)))).toEqual([]);
+  });
+
+  test("every inline accent on a label surface also tells the rule what it is painted on", () => {
+    const tsx = sources.filter(({ file }) => file.endsWith(".tsx"));
+    const pattern = /className=\{?[^>]*?ff-(node__header|lane__header|palette__row-dot|panel__head-icon|viewer__index)[\s\S]{0,160}?style=\{\{([\s\S]*?)\}\}/g;
+    const uses = tsx.flatMap(({ file, text }) => [...text.matchAll(pattern)].map((match) => ({ surface: match[1]!, file, style: match[2]! })));
+    // NodeShell, RegistryNode twice, LaneNode, palette, panel, viewer.
+    expect(uses).toHaveLength(7);
+    expect(uses.filter((use) => !use.style.includes("...labelOn(")).map((use) => `${use.file} ${use.surface}`)).toEqual([]);
   });
 });
 
@@ -448,9 +512,6 @@ describe("FlowViewer", () => {
  * so. A var() with no value is not an error anywhere. This makes it one.
  */
 describe("every --ff-* read in src/ resolves to something", () => {
-  /** Public, read, and deliberately in no list: its default is computed. */
-  const PUBLIC_OPTIONAL = new Set(["--ff-run-fg"]);
-
   const src = resolve(__dirname, "../src");
   const files = (readdirSync(src, { recursive: true }) as string[])
     .filter((file) => /\.(css|tsx?)$/.test(file))

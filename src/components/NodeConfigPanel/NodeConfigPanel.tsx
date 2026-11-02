@@ -3,6 +3,7 @@ import type { FlowNode, FlowGraph} from "../../types";
 import type { ConfigField, NodeKindDefinition } from "../../registry/types";
 import { categoryAccent, getNodeKind, validateConfig } from "../../registry/registry";
 import { getRichInputAdapter } from "../../registry/rich-input";
+import { labelOn } from "../label-on";
 import { ConfigFieldRenderer, type ConfigFieldRenderFn } from "./ConfigFieldRenderer";
 
 export type NodeConfigPanelProps = {
@@ -169,11 +170,13 @@ export function NodeConfigPanel({
           adapter.renderEditor!({ value, onChange: set })
       : undefined);
 
+  const accent = kind.accent ?? categoryAccent(kind.category);
+
   return (
     <aside className={["ff-panel", className ?? ""].filter(Boolean).join(" ")} style={style}>
       {header}
       <header className="ff-panel__header">
-        <span className="ff-panel__head-icon" style={{ background: kind.accent ?? categoryAccent(kind.category) }} aria-hidden>
+        <span className="ff-panel__head-icon" style={{ background: accent, ...labelOn(accent) }} aria-hidden>
           {kind.icon}
         </span>
         <span className="ff-panel__head-text">

@@ -354,6 +354,7 @@ ancestor opts out of the OS path).
 | `--ff-run-hover` | Run hover background, Run border | `#059669` | same |
 | `--ff-run-fg` | Run label, normal and hover | worked out from the background | same |
 | `--ff-danger` | Cancel background and border | `#ef4444` | same |
+| `--ff-cancel-fg` | Cancel label, normal and hover | worked out from the background | same |
 | `--ff-surface` | Reset background | `#ffffff` | `#1c1c22` |
 | `--ff-surface-3` | Reset hover background | `#fafafa` | `#27272a` |
 | `--ff-fg` | Reset text | `#18181b` | `#fafafa` |
@@ -388,7 +389,8 @@ Set `--ff-run-fg` yourself in these cases:
   Firefox 128). They show a white label, as every browser did before this existed, which
   reads 2.54:1 on the default green.
 
-The Cancel label is always white, so pick a `--ff-danger` it reads on.
+Cancel works the same way, on `--ff-danger`, with `--ff-cancel-fg`. See
+[Labels on a colour](#labels-on-a-colour) for every other surface.
 
 Inside `FlowEditor`, `FlowCanvas` and the other roots that declare the full token
 set (`.ff-editor`, `.ff-canvas`, `.ff-palette`, `.ff-panel`, `.ff-run-feed`,
@@ -423,6 +425,48 @@ colour mode, and any token you set wins, from `:root`, a wrapper or the element.
 | `--ff-danger-text`, `--ff-warn` | Required marker, parse errors |
 | `--ff-mono` | Expression and JSON inputs, variable names |
 | `--ff-radius-sm` | Inputs, repeater rows, buttons |
+
+### Labels on a colour
+
+Every label that sits on a colour someone can change is worked out from that colour, by
+one rule: white on dark, `#18181b` on light, and black in the narrow mid-tone band where
+neither of those reaches 4.5:1. So any opaque colour gets at least 4.5:1, including a
+kind you registered with your own `accent`, with nothing set:
+
+```ts
+registerNodeKind({ name: "billing", label: "Billing", category: "custom", accent: "#fde68a", /* ... */ });
+```
+
+Each group has one override. It always wins, in every mode and state, from `:root`, a
+wrapper or the element:
+
+| Token | Label on | Background |
+|---|---|---|
+| `--ff-run-fg` | The Run button | `--ff-run`, `--ff-run-hover` |
+| `--ff-cancel-fg` | The Cancel button | `--ff-danger` |
+| `--ff-kind-fg` | Node headers (icon, tag, label), lane headers, palette icons, the panel's icon, `FlowViewer` numbers | The kind's `accent`, or a lane's `color` |
+| `--ff-accent-fg` | The primary prompt button | `--ff-accent` |
+
+```css
+.my-editor { --ff-kind-fg: #ffffff; } /* every kind's label is white, your call */
+```
+
+Icons inside a header follow its label. An emoji icon keeps its own colours.
+
+Set the override yourself in these cases:
+
+- **The background is a gradient or an image.** There is no colour to work from, so the
+  label takes the surrounding text colour.
+- **The background is translucent.** The label is chosen as if it were opaque, and what
+  shows through can lower the contrast.
+- **You restyle a header's background in your own CSS, without changing `accent`.** The
+  label is worked out from `accent`, not from what your rule paints.
+- **You support browsers without CSS relative colour** (before Chrome 119, Safari 16.4,
+  Firefox 128). They show a white label on all of these, as they always have, which reads
+  as low as 2.15:1 on the default kind colours.
+
+A `.ff-node__header` you wrote yourself keeps its white label, since nothing tells the
+rule what it is painted on.
 
 ### Text colours in light mode
 

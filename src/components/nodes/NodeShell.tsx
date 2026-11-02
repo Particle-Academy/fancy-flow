@@ -2,6 +2,7 @@ import { type ReactNode, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode, NodeRunStatus, PortDescriptor } from "../../types";
 import { useUndeclaredInboundHandles } from "./inbound-handles";
+import { labelOn } from "../label-on";
 
 export type NodeShellProps = {
   /** Required: the xyflow node this is rendering. */
@@ -45,7 +46,7 @@ function NodeShellInner({
       className={["ff-node", `ff-node--status-${status}`, node.selected ? "ff-node--selected" : ""].filter(Boolean).join(" ")}
       style={{ borderColor: node.selected ? accent : undefined }}
     >
-      <header className="ff-node__header" style={{ background: accent }}>
+      <header className="ff-node__header" style={{ background: accent, ...labelOn(accent) }}>
         <span className="ff-node__icon" aria-hidden>{icon ?? null}</span>
         <span className="ff-node__tag">{tag}</span>
         <span className="ff-node__label">{data.label}</span>

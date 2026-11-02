@@ -2,6 +2,7 @@ import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { FlowCanvas } from "../canvas";
 import { buildNodeTypes } from "../../registry";
 import { categoryAccent, getNodeKind } from "../../registry/registry";
+import { labelOn } from "../label-on";
 import type { FlowGraph, FlowNode } from "../../types";
 
 /** Outcome of one node in a run, for annotating the graph after the fact. */
@@ -154,7 +155,7 @@ export function FlowViewer({
                 >
                   <span
                     className={cx("ff-viewer__index", classNames.rowIndex)}
-                    style={{ backgroundColor: accent }}
+                    style={{ backgroundColor: accent, ...labelOn(accent) }}
                     aria-hidden
                   >
                     {index + 1}

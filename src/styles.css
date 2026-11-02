@@ -231,6 +231,37 @@
   }
 }
 
+/* ─── Labels on a colour ──────────────────────────────────────────────────
+   The one rule for every label that sits on a colour someone can change: a kind's
+   accent, --ff-run, --ff-danger, --ff-accent. Each surface says what it is painted on
+   in --ff-private-label-on (a declaration here, or labelOn() on an inline accent) and
+   reads the result as  color: var(<override>, var(--ff-private-label-auto, #fff)).
+   So a host's colour stays readable whichever way it leans, without the host doing
+   anything, and the override always wins.
+   @supports selects the rule, and the #fff inside that var() is the fallback: a
+   declaration holding var() always parses, so a browser without relative colour would
+   not fall back to an earlier line. It would compute to `unset` and take the page's
+   text colour. Those browsers keep white, which is what they showed before this
+   existed, and white rather than dark because a dark custom accent would go unreadable.
+   The same #fff covers a host's own .ff-node__header with no --ff-private-label-on.
+   xyz-d65 because its `y` IS the luminance WCAG thresholds on, where OKLCH's L only
+   tracks it and is wrong by enough, across hues, to land under 4.5:1.
+     y < 0.18          white            at least 4.56:1
+     0.18 <= y < 0.217 black            at least 4.60:1, where neither white nor
+                                        --ff-fg reach 4.5:1
+     y >= 0.217        #18181b (--ff-fg)  at least 4.50:1
+   `/ 1` because relative colour keeps the origin's alpha otherwise. A surface whose
+   hover paints another colour swaps the origin rather than repeating the formula. */
+@supports (color: color(from #000 xyz-d65 calc(clamp(0, (0.18 - y) * 1000000000, 1) * 0.95046) y z / 1)) {
+  :is(.ff-run-controls__btn--run, .ff-run-controls__btn--cancel, .ff-node__header, .ff-lane__header, .ff-palette__row-dot, .ff-panel__head-icon, .ff-viewer__index, .ff-prompt__btn--primary) {
+    /* The multiplier makes these steps. Any softer and a colour just under a threshold
+       gets a mid-grey, which is the one thing no background can carry. */
+    --ff-private-label-white: clamp(0, (0.18 - y) * 1000000000, 1);
+    --ff-private-label-soft: clamp(0, (y - 0.217) * 1000000000, 1);
+    --ff-private-label-auto: color(from var(--ff-private-label-on) xyz-d65 calc(var(--ff-private-label-white) * 0.95046 + var(--ff-private-label-soft) * 0.009011) calc(var(--ff-private-label-white) + var(--ff-private-label-soft) * 0.009265) calc(var(--ff-private-label-white) * 1.08906 + var(--ff-private-label-soft) * 0.011683) / 1);
+  }
+}
+
 /* ─── Canvas (standalone <FlowCanvas>) ─────────────────────────────────── */
 .ff-canvas {
   display: flex;
@@ -284,7 +315,7 @@
 .ff-node__header {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 10px;
-  color: #fff;
+  color: var(--ff-kind-fg, var(--ff-private-label-auto, #fff));
   font-weight: 600;
 }
 .ff-node__icon { font-size: 14px; line-height: 1; }
@@ -292,7 +323,6 @@
   font-size: 10px;
   letter-spacing: 0.06em;
   font-weight: 700;
-  opacity: 0.9;
   text-transform: uppercase;
 }
 .ff-node__label { flex: 1; font-size: 13px; }
@@ -431,7 +461,7 @@
 .ff-lane__header {
   display: flex; align-items: center;
   height: 22px; padding: 0 8px;
-  color: #fff; font-size: 11px; font-weight: 600;
+  color: var(--ff-kind-fg, var(--ff-private-label-auto, #fff)); font-size: 11px; font-weight: 600;
   font-family: var(--ff-font);
   border-radius: 7px 7px 0 0;
 }
@@ -474,39 +504,12 @@
   transition: background 150ms, border-color 150ms;
 }
 .ff-run-controls__btn:hover:not(:disabled) { background: var(--ff-surface-3, var(--ff-default-surface-3)); }
-.ff-run-controls__btn--run { background: var(--ff-run, var(--ff-default-run)); border-color: var(--ff-run-hover, var(--ff-default-run-hover)); color: var(--ff-run-fg, #fff); }
-.ff-run-controls__btn--run:hover:not(:disabled) { background: var(--ff-run-hover, var(--ff-default-run-hover)); }
-/* The label is worked out from the colour behind it, so a host's `--ff-run` stays
-   readable whichever way it leans, without the host doing anything. `--ff-run-fg`
-   overrides it.
-   @supports, not source order: a declaration holding var() always parses, so a
-   browser that cannot do relative colour would not fall back to the line above. It
-   would compute to `unset` and take the page's text colour. Those browsers keep the
-   white base, which is what they showed before this existed.
-   xyz-d65 because its `y` IS the luminance WCAG thresholds on, where OKLCH's L only
-   tracks it and is wrong by enough, across hues, to land under 4.5:1.
-     y < 0.18          white            at least 4.56:1
-     0.18 <= y < 0.217 black            at least 4.60:1, where neither white nor
-                                        --ff-fg reach 4.5:1
-     y >= 0.217        #18181b (--ff-fg)  at least 4.50:1; the default green is here
-   `/ 1` because relative colour keeps the origin's alpha otherwise. Hover swaps the
-   origin rather than repeating the formula, because hover paints a different colour. */
-@supports (color: color(from #000 xyz-d65 calc(clamp(0, (0.18 - y) * 1000000000, 1) * 0.95046) y z / 1)) {
-  .ff-run-controls__btn--run {
-    --ff-private-run-label-on: var(--ff-run, var(--ff-default-run));
-    /* The multiplier makes these steps. Any softer and a colour just under a threshold
-       gets a mid-grey, which is the one thing no background can carry. */
-    --ff-private-run-label-white: clamp(0, (0.18 - y) * 1000000000, 1);
-    --ff-private-run-label-soft: clamp(0, (y - 0.217) * 1000000000, 1);
-    color: var(--ff-run-fg, color(from var(--ff-private-run-label-on) xyz-d65 calc(var(--ff-private-run-label-white) * 0.95046 + var(--ff-private-run-label-soft) * 0.009011) calc(var(--ff-private-run-label-white) + var(--ff-private-run-label-soft) * 0.009265) calc(var(--ff-private-run-label-white) * 1.08906 + var(--ff-private-run-label-soft) * 0.011683) / 1));
-  }
-  .ff-run-controls__btn--run:hover:not(:disabled) {
-    --ff-private-run-label-on: var(--ff-run-hover, var(--ff-default-run-hover));
-  }
-}
-.ff-run-controls__btn--cancel { background: var(--ff-danger, var(--ff-default-danger)); border-color: var(--ff-danger, var(--ff-default-danger)); color: #fff; }
+.ff-run-controls__btn--run { --ff-private-label-on: var(--ff-run, var(--ff-default-run)); background: var(--ff-run, var(--ff-default-run)); border-color: var(--ff-run-hover, var(--ff-default-run-hover)); color: var(--ff-run-fg, var(--ff-private-label-auto, #fff)); }
+.ff-run-controls__btn--run:hover:not(:disabled) { --ff-private-label-on: var(--ff-run-hover, var(--ff-default-run-hover)); background: var(--ff-run-hover, var(--ff-default-run-hover)); }
+.ff-run-controls__btn--cancel { --ff-private-label-on: var(--ff-danger, var(--ff-default-danger)); background: var(--ff-danger, var(--ff-default-danger)); border-color: var(--ff-danger, var(--ff-default-danger)); color: var(--ff-cancel-fg, var(--ff-private-label-auto, #fff)); }
 /* The generic hover above outranks `--cancel`, and took the white label onto a
-   near-white surface. There is no danger-hover token, so it keeps its colour. */
+   near-white surface. There is no danger-hover token, so it keeps its colour, and
+   so does its label. */
 .ff-run-controls__btn--cancel:hover:not(:disabled) { background: var(--ff-danger, var(--ff-default-danger)); }
 .ff-run-controls__btn:disabled { opacity: 0.5; cursor: default; }
 
@@ -651,7 +654,7 @@
   flex-shrink: 0; width: 24px; height: 24px;
   border-radius: 7px;
   display: inline-flex; align-items: center; justify-content: center;
-  color: white; font-size: 14px;
+  color: var(--ff-kind-fg, var(--ff-private-label-auto, #fff)); font-size: 14px;
 }
 .ff-palette__row-text { display: flex; flex-direction: column; min-width: 0; }
 .ff-palette__row-label { font-size: 12.5px; font-weight: 600; line-height: 1.2; }
@@ -677,7 +680,7 @@
 .ff-panel__header { display: flex; align-items: center; gap: 10px; }
 .ff-panel__head-icon {
   flex-shrink: 0; width: 28px; height: 28px; border-radius: var(--ff-radius-sm);
-  display: grid; place-items: center; color: #fff; font-size: 15px;
+  display: grid; place-items: center; color: var(--ff-kind-fg, var(--ff-private-label-auto, #fff)); font-size: 15px;
 }
 .ff-panel__head-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .ff-panel__head-kind { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ff-fg-faint); }
@@ -810,7 +813,7 @@
 .ff-prompt__btn { padding: 8px 14px; font-size: 13px; font-weight: 500; border-radius: var(--ff-radius-sm); border: 1px solid transparent; cursor: pointer; }
 .ff-prompt__btn--ghost { background: transparent; border-color: var(--ff-border-strong); color: var(--ff-fg-muted); }
 .ff-prompt__btn--ghost:hover { background: var(--ff-surface-3); }
-.ff-prompt__btn--primary { background: var(--ff-accent); color: #fff; }
+.ff-prompt__btn--primary { --ff-private-label-on: var(--ff-accent); background: var(--ff-accent); color: var(--ff-accent-fg, var(--ff-private-label-auto, #fff)); }
 .ff-prompt__btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .ff-prompt__btn--danger { background: transparent; border-color: var(--ff-danger); color: var(--ff-danger-text); }
 
@@ -891,7 +894,7 @@
   width: 22px; height: 22px;
   border-radius: 999px;
   font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
-  color: #fff;
+  color: var(--ff-kind-fg, var(--ff-private-label-auto, #fff));
 }
 
 /* min-width:0 is what lets the long-title truncation below actually engage —

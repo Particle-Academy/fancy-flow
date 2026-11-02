@@ -2,6 +2,7 @@ import { memo } from "react";
 import { NodeResizer, type NodeProps } from "@xyflow/react";
 import type { FlowNode } from "../../types";
 import { categoryAccent } from "../../registry/registry";
+import { labelOn } from "../label-on";
 
 /**
  * LaneNode — a resizable swimlane band. A portless container: child nodes are
@@ -23,7 +24,7 @@ function LaneNodeInner(props: NodeProps<FlowNode>) {
       style={{ borderColor: props.selected ? accent : undefined }}
     >
       <NodeResizer isVisible={props.selected ?? false} color={accent} minWidth={160} minHeight={72} />
-      <div className="ff-lane__header" style={{ background: accent }}>
+      <div className="ff-lane__header" style={{ background: accent, ...labelOn(accent) }}>
         <span className="ff-lane__title">{title}</span>
       </div>
     </div>

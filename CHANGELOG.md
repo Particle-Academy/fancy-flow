@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Override tokens for labels on a colour: `--ff-cancel-fg`, `--ff-kind-fg` and
+  `--ff-accent-fg`,** matching `--ff-run-fg`. They always win, in every mode and state.
+  Consumer action: none unless you want them.
 - **`--ff-danger-text` sets danger as text,** separately from `--ff-danger`, which stays
   the fill and border colour so Cancel keeps its background. Light `#b91c1c`, dark
   `#ef4444`. Consumer action: if you set `--ff-danger` on `.ff-editor`, `.ff-panel` or
@@ -22,6 +25,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Labels on node headers and buttons can now be dark, in every colour mode.** Every
+  label on a colour someone can change is worked out from that colour by the rule the
+  Run label got in 0.83.0: white on dark, `#18181b` on light, black in the mid-tone band
+  between. That covers node headers (icon, tag and label), lane headers, palette icons,
+  the config panel's icon, `FlowViewer` step numbers, Cancel and the primary prompt button.
+
+  **What you will see:** most built-in kinds change from white to a dark label. Their
+  colours did not change. Trigger headers read 6.98:1 from 2.54:1, logic 8.25:1 from
+  2.15:1, data 6.39:1 from 2.77:1, Cancel 4.71:1 from 3.76:1 on the same `#ef4444`. A kind
+  you registered with your own `accent` is readable whichever way it leans: dark stays
+  white, and light or mid-tone colours get a dark label. Any opaque colour gets at
+  least 4.5:1. Node tags lost their 0.9 opacity, which took a passing label under 4.5:1.
+
+  Consumer action: **none, unless your design relies on a white label.** To keep it, set
+  `--ff-kind-fg: #fff`, `--ff-cancel-fg: #fff` or `--ff-accent-fg: #fff`. You must also set
+  the override if the colour is a gradient or an image (with no colour to work from, the
+  label takes the surrounding text colour), or translucent (the label is chosen as if
+  it were opaque), or if your own CSS repaints a header without changing `accent`. A
+  `.ff-node__header` you wrote yourself keeps its white label.
+
+  In a browser without CSS relative colour (before Chrome 119, Safari 16.4, Firefox 128)
+  nothing changes: these labels stay white, so a dark custom accent stays readable there,
+  and the default kind colours stay as low as 2.15:1.
 - **`--ff-accent` is `#7c3aed` in light, from `#8b5cf6`,** one palette step, so accent
   text reads at least 5.18:1 where it read 3.85:1. It also deepens what else reads the
   token: selected borders, focus borders, the switched-on track, handle hover, resize
