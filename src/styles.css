@@ -461,8 +461,36 @@
   transition: background 150ms, border-color 150ms;
 }
 .ff-run-controls__btn:hover:not(:disabled) { background: var(--ff-surface-3, var(--ff-default-surface-3)); }
-.ff-run-controls__btn--run { background: var(--ff-run, var(--ff-default-run)); border-color: var(--ff-run-hover, var(--ff-default-run-hover)); color: #fff; }
+.ff-run-controls__btn--run { background: var(--ff-run, var(--ff-default-run)); border-color: var(--ff-run-hover, var(--ff-default-run-hover)); color: var(--ff-run-fg, #fff); }
 .ff-run-controls__btn--run:hover:not(:disabled) { background: var(--ff-run-hover, var(--ff-default-run-hover)); }
+/* The label is worked out from the colour behind it, so a host's `--ff-run` stays
+   readable whichever way it leans, without the host doing anything. `--ff-run-fg`
+   overrides it.
+   @supports, not source order: a declaration holding var() always parses, so a
+   browser that cannot do relative colour would not fall back to the line above. It
+   would compute to `unset` and take the page's text colour. Those browsers keep the
+   white base, which is what they showed before this existed.
+   xyz-d65 because its `y` IS the luminance WCAG thresholds on, where OKLCH's L only
+   tracks it and is wrong by enough, across hues, to land under 4.5:1.
+     y < 0.18          white            at least 4.56:1
+     0.18 <= y < 0.217 black            at least 4.60:1, where neither white nor
+                                        --ff-fg reach 4.5:1
+     y >= 0.217        #18181b (--ff-fg)  at least 4.50:1; the default green is here
+   `/ 1` because relative colour keeps the origin's alpha otherwise. Hover swaps the
+   origin rather than repeating the formula, because hover paints a different colour. */
+@supports (color: color(from #000 xyz-d65 calc(clamp(0, (0.18 - y) * 1000000000, 1) * 0.95046) y z / 1)) {
+  .ff-run-controls__btn--run {
+    --ff-private-run-label-on: var(--ff-run, var(--ff-default-run));
+    /* The multiplier makes these steps. Any softer and a colour just under a threshold
+       gets a mid-grey, which is the one thing no background can carry. */
+    --ff-private-run-label-white: clamp(0, (0.18 - y) * 1000000000, 1);
+    --ff-private-run-label-soft: clamp(0, (y - 0.217) * 1000000000, 1);
+    color: var(--ff-run-fg, color(from var(--ff-private-run-label-on) xyz-d65 calc(var(--ff-private-run-label-white) * 0.95046 + var(--ff-private-run-label-soft) * 0.009011) calc(var(--ff-private-run-label-white) + var(--ff-private-run-label-soft) * 0.009265) calc(var(--ff-private-run-label-white) * 1.08906 + var(--ff-private-run-label-soft) * 0.011683) / 1));
+  }
+  .ff-run-controls__btn--run:hover:not(:disabled) {
+    --ff-private-run-label-on: var(--ff-run-hover, var(--ff-default-run-hover));
+  }
+}
 .ff-run-controls__btn--cancel { background: var(--ff-danger, var(--ff-default-danger)); border-color: var(--ff-danger, var(--ff-default-danger)); color: #fff; }
 /* The generic hover above outranks `--cancel`, and took the white label onto a
    near-white surface. There is no danger-hover token, so it keeps its colour. */

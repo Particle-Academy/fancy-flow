@@ -12,6 +12,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--ff-run-fg` sets the Run label's colour**, in both normal and hover, and always
+  wins. Consumer action: none unless you want it.
+
+### Changed
+
+- **The Run label on the default green is now dark (`#18181b`), not white.** White was
+  2.54:1 on `#10b981` and 3.77:1 on hover; it is now 6.98:1 and 4.70:1, past the 4.5:1
+  WCAG AA requires. The green itself did not change.
+
+  **If you set your own `--ff-run`, your label stays readable, and may change colour.**
+  It is now worked out from the background in each state, so a dark brand colour keeps
+  white, and a light or mid-tone one that used to carry an unreadable white label gets a
+  dark one. Any opaque colour gets at least 4.5:1.
+
+  Consumer action: **none, unless your design relies on the white label on a light or
+  mid-tone colour.** To keep it, set `--ff-run-fg: #fff`. Also set `--ff-run-fg` if your
+  `--ff-run` is a gradient or an image: with no colour to work from, the label now takes
+  the surrounding text colour instead of white. If you set `--ff-run` without
+  `--ff-run-hover`, hover still falls to the default green, as it did, and its label is
+  now dark there.
+
+  In a browser without CSS relative colour (before Chrome 119, Safari 16.4, Firefox 128)
+  nothing changes: the label stays white, including on the default green.
+
 ### Fixed
 
 - **The `ExpressionField` `{{ }}` menu was transparent and borderless, even inside

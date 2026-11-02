@@ -352,6 +352,7 @@ ancestor opts out of the OS path).
 |---|---|---|---|
 | `--ff-run` | Run background | `#10b981` | same |
 | `--ff-run-hover` | Run hover background, Run border | `#059669` | same |
+| `--ff-run-fg` | Run label, normal and hover | worked out from the background | same |
 | `--ff-danger` | Cancel background and border | `#ef4444` | same |
 | `--ff-surface` | Reset background | `#ffffff` | `#1c1c22` |
 | `--ff-surface-3` | Reset hover background | `#fafafa` | `#27272a` |
@@ -366,7 +367,28 @@ wrapper, a toolbar, or the controls themselves, and the rest keep their defaults
 .my-toolbar { --ff-run: #2563eb; --ff-run-hover: #1d4ed8; }
 ```
 
-The label on Run and Cancel is always white, so pick a background it reads on.
+**The Run label picks its own colour.** It is worked out from the background it is
+on, in each state, so any opaque `--ff-run` and `--ff-run-hover` get a label of at
+least 4.5:1 with nothing set: `#18181b` on the default green, white on a dark brand
+colour. On a mid-tone it takes whichever passes, which is black in the narrow band
+where neither white nor `#18181b` reach 4.5:1. Set `--ff-run-fg` to choose it yourself;
+it applies to both states and always wins:
+
+```css
+.my-toolbar { --ff-run: #2563eb; --ff-run-hover: #1d4ed8; --ff-run-fg: #ffffff; }
+```
+
+Set `--ff-run-fg` yourself in these cases:
+
+- **`--ff-run` is a gradient or an image.** There is no colour to work from, so the
+  label takes the surrounding text colour.
+- **`--ff-run` is translucent.** The label is chosen as if it were opaque, and what
+  shows through can lower the contrast.
+- **You support browsers without CSS relative colour** (before Chrome 119, Safari 16.4,
+  Firefox 128). They show a white label, as every browser did before this existed, which
+  reads 2.54:1 on the default green.
+
+The Cancel label is always white, so pick a `--ff-danger` it reads on.
 
 Inside `FlowEditor`, `FlowCanvas` and the other roots that declare the full token
 set (`.ff-editor`, `.ff-canvas`, `.ff-palette`, `.ff-panel`, `.ff-run-feed`,

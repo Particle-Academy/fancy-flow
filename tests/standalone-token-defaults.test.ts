@@ -147,7 +147,7 @@ const ROOTS = [
 /**
  * Reads that deliberately do not fall back to their own private default.
  *
- * The viewer's
+ * `--ff-run-fg` has a computed fallback, and private names need none. The viewer's
  * `inherit` and `transparent` are not dark-only: they adapt to whatever page the
  * viewer sits on, and giving a read-only row an opaque surface would repaint every
  * host that has one on a card. Its accent and radius literals hold in both modes.
@@ -183,7 +183,7 @@ describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
     for (const rule of own) {
       for (const match of rule.body.matchAll(/var\((--ff-[\w-]+)(\s*,\s*var\((--ff-[\w-]+)\))?\)?/g)) {
         const [, token, , fallback] = match;
-        if (token!.startsWith("--ff-default-") || token!.startsWith("--ff-private-")) continue;
+        if (token!.startsWith("--ff-default-") || token!.startsWith("--ff-private-") || token === "--ff-run-fg") continue;
         if (OWN_FALLBACK[root]?.includes(token!)) continue;
         // Keeps exactly what a dark host sees today: see the FlowViewer block below.
         if (root === ".ff-viewer" && token === "--ff-fg-muted" && fallback === "--ff-default-fg-subtle") continue;
@@ -247,6 +247,73 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 const ratioOf = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+describe("the Run label", () => {
+  const RUN = ".ff-run-controls__btn--run";
+  const HOVER = `${RUN}:hover:not(:disabled)`;
+  const supports = rules.filter((rule) => rule.media?.startsWith("@supports") && rule.selector.startsWith(RUN));
+  const auto = declarations(supports.find((rule) => rule.selector === RUN)?.body ?? "");
+
+  const number = (source: string | undefined, pattern: RegExp): number => {
+    const found = pattern.exec(source ?? "");
+    expect(found, `${pattern} in ${source}`).not.toBeNull();
+    return Number(found![1]);
+  };
+
+  /**
+   * The trap: a declaration holding var() always parses, so a browser that cannot
+   * do relative colour does not fall back to the line above it. It computes to
+   * `unset`, and the label takes the page's text colour. The legacy branch has to
+   * be selected by @supports.
+   */
+  test("the automatic colour sits behind @supports, over a white base that keeps today's label", () => {
+    const base = onlyRule((rule) => rule.selector === RUN && !rule.media, "Run base rule");
+    expect(base.get("color")).toBe("var(--ff-run-fg, #fff)");
+    expect(auto.get("color")).toMatch(/^var\(--ff-run-fg, color\(from var\(--ff-private-run-label-on\) xyz-d65 /);
+  });
+
+  test("it is opaque whatever the host's colour is, since relative colour keeps the origin's alpha", () => {
+    expect(auto.get("color")).toMatch(/\/ 1\)\)$/);
+  });
+
+  test("each state reads the background it is actually painted on", () => {
+    expect(auto.get("--ff-private-run-label-on")).toBe("var(--ff-run, var(--ff-default-run))");
+    const hover = declarations(supports.find((rule) => rule.selector === HOVER)?.body ?? "");
+    expect(hover.get("--ff-private-run-label-on")).toBe("var(--ff-run-hover, var(--ff-default-run-hover))");
+  });
+
+  test("the @supports condition tests the form the rule uses", () => {
+    expect(supports[0]!.media).toMatch(/color\(from #000 xyz-d65 calc\(clamp\(.*\by\b.*\)/);
+  });
+
+  test("no zone of luminance leaves a label under 4.5:1", () => {
+    const white = number(auto.get("--ff-private-run-label-white"), /clamp\(0, \(([\d.]+) - y\)/);
+    const soft = number(auto.get("--ff-private-run-label-soft"), /clamp\(0, \(y - ([\d.]+)\)/);
+    const dark = luminance(lightList.get("--ff-fg")!);
+
+    expect(white).toBeLessThan(soft);
+    expect(ratioOf(1, white), "white, at the top of its zone").toBeGreaterThanOrEqual(4.5);
+    expect(ratioOf(white, 0), "black, at the bottom of its zone").toBeGreaterThanOrEqual(4.5);
+    expect(ratioOf(soft, dark), "--ff-fg, at the bottom of its zone").toBeGreaterThanOrEqual(4.5);
+  });
+
+  test("the dark label is the light list's --ff-fg, in XYZ", () => {
+    expect(lightList.get("--ff-fg")).toBe("#18181b");
+    const y = number(auto.get("color"), /calc\(var\(--ff-private-run-label-white\) \+ var\(--ff-private-run-label-soft\) \* ([\d.]+)\)/);
+    expect(y).toBeCloseTo(luminance("#18181b"), 4);
+  });
+
+  test("the default green carries that label at AA, normal and hover", () => {
+    const dark = luminance(lightList.get("--ff-fg")!);
+    expect(ratioOf(luminance(lightList.get("--ff-run")!), dark)).toBeGreaterThanOrEqual(4.5);
+    expect(ratioOf(luminance(lightList.get("--ff-run-hover")!), dark)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test("Cancel was not part of the ruling and stays white", () => {
+    const cancel = onlyRule((rule) => rule.selector === ".ff-run-controls__btn--cancel", "Cancel");
+    expect(cancel.get("color")).toBe("#fff");
+  });
+});
 
 describe("ConfigFieldRenderer shares ff-panel__* with .ff-panel", () => {
   test(".ff-panel keeps its own declared tokens and takes no private defaults", () => {
@@ -315,8 +382,8 @@ describe("FlowViewer", () => {
  * so. A var() with no value is not an error anywhere. This makes it one.
  */
 describe("every --ff-* read in src/ resolves to something", () => {
-  /** Public, read, and deliberately in no list. */
-  const PUBLIC_OPTIONAL = new Set<string>();
+  /** Public, read, and deliberately in no list: its default is computed. */
+  const PUBLIC_OPTIONAL = new Set(["--ff-run-fg"]);
 
   const src = resolve(__dirname, "../src");
   const files = (readdirSync(src, { recursive: true }) as string[])
