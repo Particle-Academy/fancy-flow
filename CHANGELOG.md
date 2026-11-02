@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   standalone: the generic button hover outranked the Cancel colour. Cancel now keeps
   `--ff-danger` on hover. There is no danger-hover token, so a hovered Cancel no
   longer changes colour. Consumer action: none.
+- **`RichInputPreview` outside a themed root lost its borders and frame, and kept
+  black text on a dark page.** The same missing tokens as `FlowRunControls`, with
+  the same fix: correct defaults in every colour mode, and host tokens still win.
+  Consumer action: none.
 
 ### Security
 

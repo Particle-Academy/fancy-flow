@@ -377,6 +377,10 @@ set (`.ff-editor`, `.ff-canvas`, `.ff-palette`, `.ff-panel`, `.ff-run-feed`,
 .ff-editor { --ff-run: #2563eb; }
 ```
 
+`RichInputPreview` follows the same rules for the tokens it reads: `--ff-surface`,
+`--ff-surface-3`, `--ff-border`, `--ff-border-strong`, `--ff-fg-muted`,
+`--ff-fg-subtle` and `--ff-radius-sm`.
+
 ## Node kinds
 
 31 builtins, grouped by category. Ids are namespaced (`@particle-academy/<name>`)

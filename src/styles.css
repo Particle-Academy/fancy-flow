@@ -140,31 +140,40 @@
    would silently stop applying. `--ff-default-*` is private, not a theming API.
    The values copy the lists above; tests/standalone-token-defaults.test.ts fails
    if they drift, and only tokens that differ in dark are swapped there. */
-:is(.ff-run-controls) {
+:is(.ff-run-controls, .ff-rich-preview) {
   --ff-default-surface:   #ffffff;
   --ff-default-surface-3: #fafafa;
   --ff-default-fg:        #18181b;
+  --ff-default-fg-muted:  #52525b;
+  --ff-default-fg-subtle: #71717a;
   --ff-default-border:    #e4e4e7;
+  --ff-default-border-strong: #d4d4d8;
   --ff-default-run:       #10b981;
   --ff-default-run-hover: #059669;
   --ff-default-danger:    #ef4444;
   --ff-default-radius-sm: 6px;
 }
-.dark      :is(.ff-run-controls),
-[data-theme="dark"] :is(.ff-run-controls),
-.dark:is(.ff-run-controls),
-[data-theme="dark"]:is(.ff-run-controls) {
+.dark      :is(.ff-run-controls, .ff-rich-preview),
+[data-theme="dark"] :is(.ff-run-controls, .ff-rich-preview),
+.dark:is(.ff-run-controls, .ff-rich-preview),
+[data-theme="dark"]:is(.ff-run-controls, .ff-rich-preview) {
   --ff-default-surface:   #1c1c22;
   --ff-default-surface-3: #27272a;
   --ff-default-fg:        #fafafa;
+  --ff-default-fg-muted:  #d4d4d8;
+  --ff-default-fg-subtle: #a1a1aa;
   --ff-default-border:    #3f3f46;
+  --ff-default-border-strong: #52525b;
 }
 @media (prefers-color-scheme: dark) {
-  :is(.ff-run-controls):not(.ff-canvas--light):not(.ff-canvas--light *) {
+  :is(.ff-run-controls, .ff-rich-preview):not(.ff-canvas--light):not(.ff-canvas--light *) {
     --ff-default-surface:   #1c1c22;
     --ff-default-surface-3: #27272a;
     --ff-default-fg:        #fafafa;
+    --ff-default-fg-muted:  #d4d4d8;
+    --ff-default-fg-subtle: #a1a1aa;
     --ff-default-border:    #3f3f46;
+    --ff-default-border-strong: #52525b;
   }
 }
 
@@ -666,10 +675,10 @@
 
 /* Rich user input preview */
 .ff-rich-preview { display: flex; flex-direction: column; gap: 6px; }
-.ff-rich-preview__frame { border: 1px solid var(--ff-border); border-radius: var(--ff-radius-sm); overflow: hidden; max-height: 180px; background: var(--ff-surface); }
-.ff-rich-preview__unavailable { border: 1px dashed var(--ff-border-strong); border-radius: var(--ff-radius-sm); padding: 10px; font-size: 11px; color: var(--ff-fg-subtle); line-height: 1.5; }
-.ff-rich-preview__unavailable code { font-size: 10px; background: var(--ff-surface-3); padding: 1px 4px; border-radius: 3px; }
-.ff-rich-preview__title { font-size: 11px; font-weight: 600; color: var(--ff-fg-muted); }
+.ff-rich-preview__frame { border: 1px solid var(--ff-border, var(--ff-default-border)); border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm)); overflow: hidden; max-height: 180px; background: var(--ff-surface, var(--ff-default-surface)); }
+.ff-rich-preview__unavailable { border: 1px dashed var(--ff-border-strong, var(--ff-default-border-strong)); border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm)); padding: 10px; font-size: 11px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); line-height: 1.5; }
+.ff-rich-preview__unavailable code { font-size: 10px; background: var(--ff-surface-3, var(--ff-default-surface-3)); padding: 1px 4px; border-radius: 3px; }
+.ff-rich-preview__title { font-size: 11px; font-weight: 600; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); }
 
 /* Resizable nodes (G11) */
 .ff-node--resizable { max-width: none; width: 100%; height: 100%; }

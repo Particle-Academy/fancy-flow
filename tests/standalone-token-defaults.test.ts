@@ -125,7 +125,7 @@ const defaultsRules = rules.filter(isDefaultsRule);
 /** The public token behind a private default. */
 const publicName = (name: string) => name.replace("--ff-default-", "--ff-");
 
-const ROOTS = [".ff-run-controls"];
+const ROOTS = [".ff-run-controls", ".ff-rich-preview"];
 
 describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
   // The root plus its BEM children, which is where nearly all the reads are.
