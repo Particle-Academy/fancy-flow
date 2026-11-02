@@ -12,6 +12,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--ff-danger-text` sets danger as text,** separately from `--ff-danger`, which stays
+  the fill and border colour so Cancel keeps its background. Light `#b91c1c`, dark
+  `#ef4444`. Consumer action: if you set `--ff-danger` on `.ff-editor`, `.ff-panel` or
+  another root, set `--ff-danger-text` there too, or that root's danger text stays the
+  default red. On a wrapper around a standalone field, `--ff-danger` still paints it.
+
+### Changed
+
+- **`--ff-accent` is `#7c3aed` in light, from `#8b5cf6`,** one palette step, so accent
+  text reads at least 5.18:1 where it read 3.85:1. It also deepens what else reads the
+  token: selected borders, focus borders, the switched-on track, handle hover, resize
+  handles, alignment guides and the primary prompt button. Dark is unchanged, and a
+  `--ff-accent` you set is used exactly as set. Consumer action: none, unless you want
+  the old value, in which case set `--ff-accent: #8b5cf6`.
+
+### Fixed
+
+- **Secondary text in light mode was under 4.5:1 on the surfaces it sits on.** Dark is
+  unchanged, and a token you set still wins. Consumer action: none, unless you theme a
+  dark look with tokens and no `.dark`, `[data-theme="dark"]` or OS signal: these light
+  defaults are now dark text, so also set the tokens you had left to default.
+  - `--ff-fg-faint` `#a1a1aa` to `#52525b`: 2.33:1 to 7.03:1 on the recessed surface.
+  - `--ff-fg-subtle` `#71717a` to `#52525b`: 4.40:1 to 7.03:1. `--ff-fg-muted`,
+    `--ff-fg-subtle` and `--ff-fg-faint` are now the same colour in light, since no zinc
+    step between them passes.
+  - `--ff-warn` `#d97706` to `#92400e`: 2.63:1 to 5.84:1 on the "running" badge.
+  - `--ff-feed-ok` `#059669` to `#047857`: 3.77:1 to 5.48:1 on a node's output line.
+  - Danger as text, through `--ff-danger-text`: 2.95:1 to 4.76:1 on "Delete node", 3.76:1
+    to 6.47:1 on "Deny", 3.42:1 to 5.89:1 on a required marker.
+
 ## [0.83.0] - 2026-11-02
 
 ### Added

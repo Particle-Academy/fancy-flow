@@ -185,6 +185,11 @@ describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
         const [, token, , fallback] = match;
         if (token!.startsWith("--ff-default-") || token!.startsWith("--ff-private-") || token === "--ff-run-fg") continue;
         if (OWN_FALLBACK[root]?.includes(token!)) continue;
+        // A host's --ff-danger still paints its text; only the default is the darker one.
+        // The chain is var(--ff-danger-text, var(--ff-danger, var(--ff-default-danger-text))),
+        // so the first read has no direct default, and the second is held to the darker one.
+        if (token === "--ff-danger-text") continue;
+        if (token === "--ff-danger" && fallback === "--ff-default-danger-text") continue;
         // Keeps exactly what a dark host sees today: see the FlowViewer block below.
         if (root === ".ff-viewer" && token === "--ff-fg-muted" && fallback === "--ff-default-fg-subtle") continue;
         if (fallback !== publicName(token!).replace("--ff-", "--ff-default-")) {
@@ -315,6 +320,50 @@ describe("the Run label", () => {
   });
 });
 
+/** Text colours. The browser measures them on their real backgrounds; this pins the shape. */
+describe("light text tokens", () => {
+  const LIGHT: [string, string][] = [
+    ["--ff-fg-subtle", "#52525b"],
+    ["--ff-fg-faint", "#52525b"],
+    ["--ff-accent", "#7c3aed"],
+    ["--ff-warn", "#92400e"],
+    ["--ff-danger-text", "#b91c1c"],
+    ["--ff-feed-ok", "#047857"],
+  ];
+  const RECESSED = "#f4f4f5";
+
+  test.each(LIGHT)("%s is %s in the light list, and passes on the recessed surface", (name, value) => {
+    expect(lightList.get(name)).toBe(value);
+    expect(ratioOf(luminance(value), luminance(RECESSED))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  /** Dark must not move: these are the values 0.83.0 shipped. */
+  test.each([
+    ["--ff-fg-subtle", "#a1a1aa"],
+    ["--ff-fg-faint", "#71717a"],
+    ["--ff-accent", "#a78bfa"],
+    ["--ff-warn", "#fb923c"],
+    ["--ff-danger-text", "#ef4444"],
+    ["--ff-feed-ok", "#34d399"],
+  ])("%s stays %s in both dark lists", (name, value) => {
+    expect(classDarkList.get(name)).toBe(value);
+    expect(osDarkList.get(name)).toBe(value);
+  });
+
+  test("Cancel keeps its background: --ff-danger itself did not move", () => {
+    expect(lightList.get("--ff-danger")).toBe("#ef4444");
+    expect(onlyRule((rule) => rule.selector === ".ff-run-controls__btn--cancel" && !rule.media, "Cancel").get("background")).toBe("var(--ff-danger, var(--ff-default-danger))");
+  });
+
+  test("text in danger reads the text token, and borders stay on --ff-danger", () => {
+    const remove = onlyRule((rule) => rule.selector === ".ff-panel__delete", "delete");
+    expect(remove.get("color")).toBe("var(--ff-danger-text)");
+    expect(remove.get("border")).toBe("1px solid var(--ff-danger)");
+    const reads = rules.filter((rule) => /(?<![-\w])color:\s*var\(--ff-danger[,)]/.test(rule.body));
+    expect(reads.map((rule) => rule.selector)).toEqual([]);
+  });
+});
+
 describe("ConfigFieldRenderer shares ff-panel__* with .ff-panel", () => {
   test(".ff-panel keeps its own declared tokens and takes no private defaults", () => {
     expect(defaultsRules.filter((rule) => namesRoot(rule.selector, ".ff-panel"))).toEqual([]);
@@ -322,7 +371,7 @@ describe("ConfigFieldRenderer shares ff-panel__* with .ff-panel", () => {
 
   test("a required marker, which is only ever rendered inside a label, falls back too", () => {
     const required = onlyRule((rule) => rule.selector === ".ff-panel__required", "required marker");
-    expect(required.get("color")).toBe("var(--ff-danger, var(--ff-default-danger))");
+    expect(required.get("color")).toBe("var(--ff-danger-text, var(--ff-danger, var(--ff-default-danger-text)))");
   });
 
   test("an input's text gets a colour standalone, but inherits inside .ff-panel as it always did", () => {

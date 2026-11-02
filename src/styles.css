@@ -36,25 +36,26 @@
 
   --ff-fg:         #18181b;
   --ff-fg-muted:   #52525b;
-  --ff-fg-subtle:  #71717a;
-  --ff-fg-faint:   #a1a1aa;
+  --ff-fg-subtle:  #52525b;
+  --ff-fg-faint:   #52525b;
 
   --ff-border:        #e4e4e7;
   --ff-border-strong: #d4d4d8;
   --ff-edge:          #9ca3af;
 
-  --ff-accent:      #8b5cf6;                   /* selection, focus, brand */
+  --ff-accent:      #7c3aed;                   /* selection, focus, brand, and text */
   --ff-accent-soft: rgba(139, 92, 246, 0.12);
   --ff-accent-ring: rgba(139, 92, 246, 0.22);
 
   --ff-run:       #10b981;
   --ff-run-hover: #059669;
-  --ff-danger:    #ef4444;
-  --ff-warn:      #d97706;
+  --ff-danger:    #ef4444;   /* Cancel background, danger borders */
+  --ff-danger-text: #b91c1c; /* danger text: #ef4444 is 3.42:1 on --ff-surface-2 */
+  --ff-warn:      #92400e;
   --ff-warn-soft: rgba(245, 158, 11, 0.15);
 
   --ff-feed-node:   #7c3aed;   /* node id + status lines in the run feed */
-  --ff-feed-ok:     #059669;
+  --ff-feed-ok:     #047857;
 
   --ff-radius:    12px;   /* shells, cards */
   --ff-radius-md: 8px;    /* buttons, nodes */
@@ -95,6 +96,7 @@
   --ff-accent-soft: rgba(167, 139, 250, 0.16);
   --ff-accent-ring: rgba(167, 139, 250, 0.30);
 
+  --ff-danger-text: #ef4444;
   --ff-warn:      #fb923c;
   --ff-warn-soft: rgba(251, 146, 60, 0.16);
   --ff-feed-node: #c4b5fd;
@@ -121,6 +123,7 @@
     --ff-accent:      #a78bfa;
     --ff-accent-soft: rgba(167, 139, 250, 0.16);
     --ff-accent-ring: rgba(167, 139, 250, 0.30);
+    --ff-danger-text: #ef4444;
     --ff-warn:      #fb923c;
     --ff-warn-soft: rgba(251, 146, 60, 0.16);
     --ff-feed-node: #c4b5fd;
@@ -148,18 +151,19 @@
   --ff-default-surface-3: #fafafa;
   --ff-default-fg:        #18181b;
   --ff-default-fg-muted:  #52525b;
-  --ff-default-fg-subtle: #71717a;
+  --ff-default-fg-subtle: #52525b;
   --ff-default-border:    #e4e4e7;
   --ff-default-border-strong: #d4d4d8;
   --ff-default-run:       #10b981;
   --ff-default-run-hover: #059669;
   --ff-default-danger:    #ef4444;
+  --ff-default-danger-text: #b91c1c;
   --ff-default-radius-sm: 6px;
   --ff-default-surface-2: #f4f4f5;
-  --ff-default-fg-faint:  #a1a1aa;
-  --ff-default-accent:      #8b5cf6;
+  --ff-default-fg-faint:  #52525b;
+  --ff-default-accent:      #7c3aed;
   --ff-default-accent-soft: rgba(139, 92, 246, 0.12);
-  --ff-default-warn:      #d97706;
+  --ff-default-warn:      #92400e;
   --ff-default-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 .dark      :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer),
@@ -178,6 +182,7 @@
   --ff-default-accent:      #a78bfa;
   --ff-default-accent-soft: rgba(167, 139, 250, 0.16);
   --ff-default-warn:      #fb923c;
+  --ff-default-danger-text: #ef4444;
 }
 @media (prefers-color-scheme: dark) {
   :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer):not(.ff-canvas--light):not(.ff-canvas--light *) {
@@ -193,6 +198,7 @@
     --ff-default-accent:      #a78bfa;
     --ff-default-accent-soft: rgba(167, 139, 250, 0.16);
     --ff-default-warn:      #fb923c;
+    --ff-default-danger-text: #ef4444;
   }
 }
 
@@ -286,7 +292,7 @@
 .ff-node__desc { margin: 0; padding: 8px 10px 0; font-size: 11px; color: var(--ff-fg-subtle); }
 .ff-node__body { padding: 8px 10px 10px; }
 .ff-node__status-text { margin: 0; padding: 4px 10px 8px; font-size: 11px; color: var(--ff-fg-subtle); }
-.ff-node--status-error .ff-node__status-text { color: var(--ff-danger); }
+.ff-node--status-error .ff-node__status-text { color: var(--ff-danger-text); }
 /* The handle keeps its normal dot size; only the NAME is extra, and it sits
    OUTSIDE the node — to the left of the anchor. Inline, it rendered on top of
    the node's own body text, which is the legibility problem this label exists
@@ -529,7 +535,7 @@
 .ff-run-feed__time { color: var(--ff-fg-faint); flex-shrink: 0; }
 .ff-run-feed__node { color: var(--ff-feed-node); flex-shrink: 0; }
 .ff-run-feed__text { flex: 1; min-width: 0; }
-.ff-run-feed__row--error  .ff-run-feed__text { color: var(--ff-danger); }
+.ff-run-feed__row--error  .ff-run-feed__text { color: var(--ff-danger-text); }
 .ff-run-feed__row--warn   .ff-run-feed__text { color: var(--ff-warn); }
 .ff-run-feed__row--status .ff-run-feed__text { color: var(--ff-feed-node); }
 
@@ -585,7 +591,7 @@
   padding: 6px 10px; border-radius: 5px; font-size: 12.5px; color: inherit;
 }
 .ff-editor__ctx-item:hover { background: var(--ff-surface-3); }
-.ff-editor__ctx-item--danger { color: var(--ff-danger); }
+.ff-editor__ctx-item--danger { color: var(--ff-danger-text); }
 
 .ff-editor__sep { width: 1px; align-self: stretch; background: var(--ff-border); margin: 0 3px; }
 .ff-editor__btn {
@@ -683,7 +689,7 @@
 .ff-panel__delete {
   width: 100%; padding: 8px 10px;
   font-size: 13px; font-weight: 500;
-  color: var(--ff-danger); background: transparent;
+  color: var(--ff-danger-text); background: transparent;
   border: 1px solid var(--ff-danger); border-radius: var(--ff-radius-sm);
   cursor: pointer; opacity: 0.85; transition: opacity 150ms, background 150ms;
 }
@@ -691,7 +697,7 @@
 .ff-panel__field { display: flex; flex-direction: column; gap: 5px; }
 .ff-panel__label { font-size: 12px; font-weight: 600; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); }
 .ff-panel__hint { font-size: 11px; color: var(--ff-fg-faint, var(--ff-default-fg-faint)); margin: 0; line-height: 1.4; }
-.ff-panel__required { color: var(--ff-danger, var(--ff-default-danger)); }
+.ff-panel__required { color: var(--ff-danger-text, var(--ff-danger, var(--ff-default-danger-text))); }
 .ff-panel__input {
   width: 100%; padding: 7px 10px;
   border: 1px solid var(--ff-border, var(--ff-default-border)); border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm));
@@ -732,7 +738,7 @@
 .ff-repeater__btn { border: 1px solid transparent; background: transparent; cursor: pointer; border-radius: 4px; font-size: 11px; line-height: 1; padding: 3px 5px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); }
 .ff-repeater__btn:hover:not(:disabled) { background: var(--ff-surface-3, var(--ff-default-surface-3)); color: var(--ff-fg, var(--ff-default-fg)); }
 .ff-repeater__btn:disabled { opacity: .35; cursor: not-allowed; }
-.ff-repeater__btn--danger:hover:not(:disabled) { background: rgba(239,68,68,0.12); color: var(--ff-danger, var(--ff-default-danger)); }
+.ff-repeater__btn--danger:hover:not(:disabled) { background: rgba(239,68,68,0.12); color: var(--ff-danger-text, var(--ff-danger, var(--ff-default-danger-text))); }
 .ff-repeater__cell { display: flex; flex-direction: column; gap: 3px; }
 .ff-panel__label--sub { font-size: 11px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); font-weight: 400; }
 .ff-repeater__add {
@@ -784,7 +790,7 @@
 .ff-prompt__fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .ff-prompt__field { display: flex; flex-direction: column; gap: 5px; }
 .ff-prompt__label { font-size: 12px; font-weight: 500; color: var(--ff-fg-muted); }
-.ff-prompt__req { color: var(--ff-danger); }
+.ff-prompt__req { color: var(--ff-danger-text); }
 .ff-prompt__input {
   width: 100%; box-sizing: border-box; padding: 8px 10px;
   font-size: 13px; border-radius: var(--ff-radius-sm);
@@ -799,7 +805,7 @@
 .ff-prompt__btn--ghost:hover { background: var(--ff-surface-3); }
 .ff-prompt__btn--primary { background: var(--ff-accent); color: #fff; }
 .ff-prompt__btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.ff-prompt__btn--danger { background: transparent; border-color: var(--ff-danger); color: var(--ff-danger); }
+.ff-prompt__btn--danger { background: transparent; border-color: var(--ff-danger); color: var(--ff-danger-text); }
 
 /* Alignment guide lines (G15) */
 .ff-helper-line { background: var(--ff-accent); }
@@ -913,8 +919,7 @@
   font-family: var(--ff-mono, var(--ff-default-mono));
   font-size: 10px; color: var(--ff-accent, var(--ff-default-accent)); text-decoration: underline dotted;
 }
-/* -muted, not -subtle: this sits on the panel's recessed surface, where -subtle
-   reads 4.42:1. */
+/* -muted: this sits on the panel's recessed surface. */
 .ff-expression__hint { font-size: 10px; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); }
 .ff-expression__hint code { font-family: var(--ff-mono, var(--ff-default-mono)); }
 

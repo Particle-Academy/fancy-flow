@@ -420,9 +420,32 @@ colour mode, and any token you set wins, from `:root`, a wrapper or the element.
 | `--ff-border` | Input and repeater row border, reference panel border |
 | `--ff-border-strong` | `{{ }}` menu border, switch track, "add" button border |
 | `--ff-accent`, `--ff-accent-soft` | Focus ring, switched-on track, `{{ }}` reference button |
-| `--ff-danger`, `--ff-warn` | Required marker, parse errors |
+| `--ff-danger-text`, `--ff-warn` | Required marker, parse errors |
 | `--ff-mono` | Expression and JSON inputs, variable names |
 | `--ff-radius-sm` | Inputs, repeater rows, buttons |
+
+### Text colours in light mode
+
+These light defaults all read at least 4.5:1 on the surfaces they sit on. Dark is unchanged.
+
+| Token | Used for | Default (light) | Default (dark) |
+|---|---|---|---|
+| `--ff-fg-subtle` | Descriptions, sub-labels, status text | `#52525b` | `#a1a1aa` |
+| `--ff-fg-faint` | Hints, group labels, timestamps, placeholders | `#52525b` | `#71717a` |
+| `--ff-accent` | Selection, focus, switched-on track, primary prompt button, and accent text | `#7c3aed` | `#a78bfa` |
+| `--ff-danger-text` | Danger as text: delete, deny, errors, required markers | `#b91c1c` | `#ef4444` |
+| `--ff-danger` | Danger as a fill or border: Cancel, delete and deny outlines | `#ef4444` | same |
+| `--ff-warn` | Warnings, the "running" badge | `#92400e` | `#fb923c` |
+| `--ff-feed-ok` | A node's live output | `#047857` | `#34d399` |
+
+`--ff-accent` paints both text and fills, so one value themes both. Danger needs two,
+because the `#b91c1c` that reads as text would darken Cancel. **If you set `--ff-danger`
+on a root, set `--ff-danger-text` there too**, or that root's danger text stays the
+default red. A standalone field on a wrapper needs only `--ff-danger`.
+
+**If you theme a dark look with tokens and no `.dark`, `[data-theme="dark"]` or OS
+signal,** the light defaults above apply to whatever you did not set, and they are dark
+text. Set these too, or use one of the signals.
 
 ### `FlowViewer`
 
