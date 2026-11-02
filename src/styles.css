@@ -139,8 +139,11 @@
    would beat the value it inherits, whatever the specificity, and a host's theme
    would silently stop applying. `--ff-default-*` is private, not a theming API.
    The values copy the lists above; tests/standalone-token-defaults.test.ts fails
-   if they drift, and only tokens that differ in dark are swapped there. */
-:is(.ff-run-controls, .ff-rich-preview) {
+   if they drift, and only tokens that differ in dark are swapped there.
+   `ConfigFieldRenderer` has no root: it returns a bare control, so every top-level
+   class it can emit is listed. Inside `.ff-panel` these names are declared and never
+   read, because the panel's own tokens answer first. */
+:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer) {
   --ff-default-surface:   #ffffff;
   --ff-default-surface-3: #fafafa;
   --ff-default-fg:        #18181b;
@@ -152,11 +155,17 @@
   --ff-default-run-hover: #059669;
   --ff-default-danger:    #ef4444;
   --ff-default-radius-sm: 6px;
+  --ff-default-surface-2: #f4f4f5;
+  --ff-default-fg-faint:  #a1a1aa;
+  --ff-default-accent:      #8b5cf6;
+  --ff-default-accent-soft: rgba(139, 92, 246, 0.12);
+  --ff-default-warn:      #d97706;
+  --ff-default-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
-.dark      :is(.ff-run-controls, .ff-rich-preview),
-[data-theme="dark"] :is(.ff-run-controls, .ff-rich-preview),
-.dark:is(.ff-run-controls, .ff-rich-preview),
-[data-theme="dark"]:is(.ff-run-controls, .ff-rich-preview) {
+.dark      :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer),
+[data-theme="dark"] :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer),
+.dark:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer),
+[data-theme="dark"]:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer) {
   --ff-default-surface:   #1c1c22;
   --ff-default-surface-3: #27272a;
   --ff-default-fg:        #fafafa;
@@ -164,9 +173,14 @@
   --ff-default-fg-subtle: #a1a1aa;
   --ff-default-border:    #3f3f46;
   --ff-default-border-strong: #52525b;
+  --ff-default-surface-2: #141419;
+  --ff-default-fg-faint:  #71717a;
+  --ff-default-accent:      #a78bfa;
+  --ff-default-accent-soft: rgba(167, 139, 250, 0.16);
+  --ff-default-warn:      #fb923c;
 }
 @media (prefers-color-scheme: dark) {
-  :is(.ff-run-controls, .ff-rich-preview):not(.ff-canvas--light):not(.ff-canvas--light *) {
+  :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer):not(.ff-canvas--light):not(.ff-canvas--light *) {
     --ff-default-surface:   #1c1c22;
     --ff-default-surface-3: #27272a;
     --ff-default-fg:        #fafafa;
@@ -174,6 +188,40 @@
     --ff-default-fg-subtle: #a1a1aa;
     --ff-default-border:    #3f3f46;
     --ff-default-border-strong: #52525b;
+    --ff-default-surface-2: #141419;
+    --ff-default-fg-faint:  #71717a;
+    --ff-default-accent:      #a78bfa;
+    --ff-default-accent-soft: rgba(167, 139, 250, 0.16);
+    --ff-default-warn:      #fb923c;
+  }
+}
+
+/* The viewer's status pills. These have no public token: they were dark-only
+   literals, so a pill on a light page read 1.7:1. Dark keeps those colours. */
+.ff-viewer {
+  --ff-private-viewer-status-ok:      #047857;
+  --ff-private-viewer-status-running: #1d4ed8;
+  --ff-private-viewer-status-failed:  #b91c1c;
+  --ff-private-viewer-status-skipped: #52525b;
+  --ff-private-viewer-status-pending: #7e22ce;
+}
+.dark      .ff-viewer,
+[data-theme="dark"] .ff-viewer,
+.dark.ff-viewer,
+[data-theme="dark"].ff-viewer {
+  --ff-private-viewer-status-ok:      #34d399;
+  --ff-private-viewer-status-running: #60a5fa;
+  --ff-private-viewer-status-failed:  #f87171;
+  --ff-private-viewer-status-skipped: #a1a1aa;
+  --ff-private-viewer-status-pending: #c084fc;
+}
+@media (prefers-color-scheme: dark) {
+  .ff-viewer:not(.ff-canvas--light):not(.ff-canvas--light *) {
+    --ff-private-viewer-status-ok:      #34d399;
+    --ff-private-viewer-status-running: #60a5fa;
+    --ff-private-viewer-status-failed:  #f87171;
+    --ff-private-viewer-status-skipped: #a1a1aa;
+    --ff-private-viewer-status-pending: #c084fc;
   }
 }
 
@@ -251,7 +299,7 @@
   margin-right: 6px;
   padding: 0 4px;
   border-radius: 3px;
-  background: var(--ff-bg);
+  background: var(--ff-canvas-bg);
   color: var(--ff-fg-subtle);
   font-family: var(--ff-mono);
   font-size: 9px;
@@ -613,28 +661,31 @@
 }
 .ff-panel__delete:hover { opacity: 1; background: rgba(239, 68, 68, 0.08); }
 .ff-panel__field { display: flex; flex-direction: column; gap: 5px; }
-.ff-panel__label { font-size: 12px; font-weight: 600; color: var(--ff-fg-muted); }
-.ff-panel__hint { font-size: 11px; color: var(--ff-fg-faint); margin: 0; line-height: 1.4; }
-.ff-panel__required { color: var(--ff-danger); }
+.ff-panel__label { font-size: 12px; font-weight: 600; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); }
+.ff-panel__hint { font-size: 11px; color: var(--ff-fg-faint, var(--ff-default-fg-faint)); margin: 0; line-height: 1.4; }
+.ff-panel__required { color: var(--ff-danger, var(--ff-default-danger)); }
 .ff-panel__input {
   width: 100%; padding: 7px 10px;
-  border: 1px solid var(--ff-border); border-radius: var(--ff-radius-sm);
-  background: var(--ff-surface); color: inherit; font: inherit; font-size: 12.5px;
+  border: 1px solid var(--ff-border, var(--ff-default-border)); border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm));
+  background: var(--ff-surface, var(--ff-default-surface)); color: inherit; font: inherit; font-size: 12.5px;
   box-sizing: border-box; outline: none;
   transition: border-color 150ms, box-shadow 150ms;
 }
-.ff-panel__input:focus { border-color: var(--ff-accent); box-shadow: 0 0 0 3px var(--ff-accent-soft); }
+/* The default surface is opaque and follows the colour mode, so standalone the text
+   has to as well. Inside a panel it still inherits, as it always has. */
+.ff-panel__input:not(.ff-panel *) { color: var(--ff-fg, var(--ff-default-fg)); }
+.ff-panel__input:focus { border-color: var(--ff-accent, var(--ff-default-accent)); box-shadow: 0 0 0 3px var(--ff-accent-soft, var(--ff-default-accent-soft)); }
 .ff-panel__input--textarea { font-family: inherit; resize: vertical; line-height: 1.5; }
 .ff-panel__input--expression,
-.ff-panel__input--json { font-family: var(--ff-mono); font-size: 11.5px; }
+.ff-panel__input--json { font-family: var(--ff-mono, var(--ff-default-mono)); font-size: 11.5px; }
 .ff-panel__switch { display: inline-flex; align-items: center; cursor: pointer; }
 .ff-panel__switch input { display: none; }
-.ff-panel__switch-slider { width: 32px; height: 18px; background: var(--ff-border-strong); border-radius: 999px; position: relative; transition: background 200ms; }
+.ff-panel__switch-slider { width: 32px; height: 18px; background: var(--ff-border-strong, var(--ff-default-border-strong)); border-radius: 999px; position: relative; transition: background 200ms; }
 .ff-panel__switch-slider::before { content: ""; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: left 200ms; }
-.ff-panel__switch input:checked + .ff-panel__switch-slider { background: var(--ff-accent); }
+.ff-panel__switch input:checked + .ff-panel__switch-slider { background: var(--ff-accent, var(--ff-default-accent)); }
 .ff-panel__switch input:checked + .ff-panel__switch-slider::before { left: 16px; }
 .ff-panel__issues { margin-top: 4px; }
-.ff-panel__issue { font-size: 11px; color: var(--ff-warn); margin: 2px 0; }
+.ff-panel__issue { font-size: 11px; color: var(--ff-warn, var(--ff-default-warn)); margin: 2px 0; }
 /* A parse error sits directly under the field it belongs to, not in the panel's
    issue list at the bottom — an error about the box you are typing in is
    useless three scroll-lengths away from it. */
@@ -642,32 +693,32 @@
 
 /* Repeater / key-value config fields */
 .ff-repeater { display: flex; flex-direction: column; gap: 8px; }
-.ff-repeater__empty { font-size: 11px; color: var(--ff-fg-subtle); margin: 0; font-style: italic; }
+.ff-repeater__empty { font-size: 11px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); margin: 0; font-style: italic; }
 .ff-repeater__row {
   display: flex; flex-direction: column; gap: 6px;
-  border: 1px solid var(--ff-border); border-radius: var(--ff-radius-sm); padding: 10px; background: var(--ff-surface);
+  border: 1px solid var(--ff-border, var(--ff-default-border)); border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm)); padding: 10px; background: var(--ff-surface, var(--ff-default-surface));
 }
 .ff-repeater__row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ff-repeater__row-title { font-size: 11px; font-weight: 600; color: var(--ff-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ff-repeater__row-title { font-size: 11px; font-weight: 600; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ff-repeater__row-actions { display: flex; gap: 2px; flex-shrink: 0; }
-.ff-repeater__btn { border: 1px solid transparent; background: transparent; cursor: pointer; border-radius: 4px; font-size: 11px; line-height: 1; padding: 3px 5px; color: var(--ff-fg-subtle); }
-.ff-repeater__btn:hover:not(:disabled) { background: var(--ff-surface-3); color: var(--ff-fg); }
+.ff-repeater__btn { border: 1px solid transparent; background: transparent; cursor: pointer; border-radius: 4px; font-size: 11px; line-height: 1; padding: 3px 5px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); }
+.ff-repeater__btn:hover:not(:disabled) { background: var(--ff-surface-3, var(--ff-default-surface-3)); color: var(--ff-fg, var(--ff-default-fg)); }
 .ff-repeater__btn:disabled { opacity: .35; cursor: not-allowed; }
-.ff-repeater__btn--danger:hover:not(:disabled) { background: rgba(239,68,68,0.12); color: var(--ff-danger); }
+.ff-repeater__btn--danger:hover:not(:disabled) { background: rgba(239,68,68,0.12); color: var(--ff-danger, var(--ff-default-danger)); }
 .ff-repeater__cell { display: flex; flex-direction: column; gap: 3px; }
-.ff-panel__label--sub { font-size: 11px; color: var(--ff-fg-subtle); font-weight: 400; }
+.ff-panel__label--sub { font-size: 11px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); font-weight: 400; }
 .ff-repeater__add {
-  align-self: flex-start; border: 1px dashed var(--ff-border-strong); background: transparent;
-  border-radius: var(--ff-radius-sm); padding: 6px 11px; font-size: 11px; color: var(--ff-fg-muted); cursor: pointer;
+  align-self: flex-start; border: 1px dashed var(--ff-border-strong, var(--ff-default-border-strong)); background: transparent;
+  border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm)); padding: 6px 11px; font-size: 11px; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); cursor: pointer;
 }
-.ff-repeater__add:hover:not(:disabled) { border-color: var(--ff-accent); color: var(--ff-accent); }
+.ff-repeater__add:hover:not(:disabled) { border-color: var(--ff-accent, var(--ff-default-accent)); color: var(--ff-accent, var(--ff-default-accent)); }
 .ff-repeater__add:disabled { opacity: .4; cursor: not-allowed; }
 
 .ff-keyvalue { display: flex; flex-direction: column; gap: 6px; }
 .ff-keyvalue__head,
 .ff-keyvalue__row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
-.ff-keyvalue__head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--ff-fg-faint); }
-.ff-panel__hint--missing { color: var(--ff-warn); font-style: italic; }
+.ff-keyvalue__head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--ff-fg-faint, var(--ff-default-fg-faint)); }
+.ff-panel__hint--missing { color: var(--ff-warn, var(--ff-default-warn)); font-style: italic; }
 
 /* Edge label editor */
 .ff-editor__edge-label { padding: 6px; min-width: 200px; }
@@ -757,6 +808,9 @@
    Read-only rendering of a workflow. Every colour here reads from the same
    --ff-* token layer the editor uses, so a consumer that themed the editor gets
    a themed viewer for free and does not restyle the same surface twice.
+   Standalone it stays transparent and inherits its text, so it sits on whatever the
+   host's page is. Secondary text falls back to `--ff-default-fg-subtle` rather than
+   `-fg-muted` on purpose: that is #a1a1aa in dark, what a dark host sees already.
    ──────────────────────────────────────────────────────────────────────────── */
 .ff-viewer { color: var(--ff-fg, inherit); }
 
@@ -764,10 +818,10 @@
   display: grid;
   place-items: center;
   padding: 2rem 1rem;
-  border: 1px dashed var(--ff-border, #3f3f46);
+  border: 1px dashed var(--ff-border, var(--ff-default-border));
   border-radius: var(--ff-radius, 12px);
 }
-.ff-viewer__empty { font-size: 13px; color: var(--ff-fg-muted, #a1a1aa); }
+.ff-viewer__empty { font-size: 13px; color: var(--ff-fg-muted, var(--ff-default-fg-subtle)); }
 
 .ff-viewer__list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 
@@ -778,8 +832,11 @@
   width: 100%;
   padding: 10px 12px;
   text-align: left;
+  /* An interactive row is a <button>, which does not inherit text colour by default:
+     its title was black on a dark page, and ignored `--ff-fg` altogether. */
+  color: inherit;
   background: var(--ff-surface, transparent);
-  border: 1px solid var(--ff-border, #3f3f46);
+  border: 1px solid var(--ff-border, var(--ff-default-border));
   border-radius: var(--ff-radius, 10px);
 }
 .ff-viewer__row--interactive { cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
@@ -802,7 +859,7 @@
 .ff-viewer__title { font-size: 13px; font-weight: 600; line-height: 1.3; }
 .ff-viewer__desc {
   font-size: 12px; line-height: 1.4;
-  color: var(--ff-fg-muted, #a1a1aa);
+  color: var(--ff-fg-muted, var(--ff-default-fg-subtle));
   overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
 }
 
@@ -812,11 +869,11 @@
   border-radius: 999px;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
 }
-.ff-viewer__status--ok      { background: #10b98122; color: #34d399; }
-.ff-viewer__status--running { background: #3b82f622; color: #60a5fa; }
-.ff-viewer__status--failed  { background: #ef444422; color: #f87171; }
-.ff-viewer__status--skipped { background: #71717a22; color: #a1a1aa; }
-.ff-viewer__status--pending { background: #a855f722; color: #c084fc; }
+.ff-viewer__status--ok      { background: #10b98122; color: var(--ff-private-viewer-status-ok); }
+.ff-viewer__status--running { background: #3b82f622; color: var(--ff-private-viewer-status-running); }
+.ff-viewer__status--failed  { background: #ef444422; color: var(--ff-private-viewer-status-failed); }
+.ff-viewer__status--skipped { background: #71717a22; color: var(--ff-private-viewer-status-skipped); }
+.ff-viewer__status--pending { background: #a855f722; color: var(--ff-private-viewer-status-pending); }
 
 /* ── Expression field: {{ }} autocomplete + reference help (issue #5) ─────── */
 .ff-expression { position: relative; }
@@ -825,19 +882,22 @@
 }
 .ff-expression__helpbtn {
   background: none; border: none; padding: 0; cursor: pointer;
-  font-family: var(--ff-font-mono, ui-monospace, monospace);
-  font-size: 10px; color: var(--ff-accent); text-decoration: underline dotted;
+  font-family: var(--ff-mono, var(--ff-default-mono));
+  font-size: 10px; color: var(--ff-accent, var(--ff-default-accent)); text-decoration: underline dotted;
 }
-.ff-expression__hint { font-size: 10px; color: var(--ff-fg-3); }
-.ff-expression__hint code { font-family: var(--ff-font-mono, ui-monospace, monospace); }
+/* -muted, not -subtle: this sits on the panel's recessed surface, where -subtle
+   reads 4.42:1. */
+.ff-expression__hint { font-size: 10px; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); }
+.ff-expression__hint code { font-family: var(--ff-mono, var(--ff-default-mono)); }
 
 /* The menu overlays whatever follows the field, so a picker opening near the
-   bottom of the panel does not push the rest of the form down as you type. */
+   bottom of the panel does not push the rest of the form down as you type.
+   Same recipe as the node right-click menu, the other thing that floats here. */
 .ff-expression__menu {
   position: absolute; z-index: 20; left: 0; right: 0;
   margin: 2px 0 0; padding: 4px; list-style: none;
   max-height: 208px; overflow-y: auto;
-  background: var(--ff-bg-1); border: 1px solid var(--ff-border-1);
+  background: var(--ff-surface, var(--ff-default-surface)); border: 1px solid var(--ff-border-strong, var(--ff-default-border-strong));
   border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
 }
 .ff-expression__option {
@@ -845,23 +905,26 @@
   padding: 5px 7px; border: none; border-radius: 4px;
   background: none; text-align: left; cursor: pointer;
 }
+/* -surface-2, not the -surface-3 other hovers use: #fafafa on the menu's white is
+   1.04:1, and this is the only mark of which option Enter will take. */
 .ff-expression__option:hover,
-.ff-expression__option.is-active { background: var(--ff-bg-2); }
+.ff-expression__option.is-active { background: var(--ff-surface-2, var(--ff-default-surface-2)); }
 .ff-expression__path {
-  font-family: var(--ff-font-mono, ui-monospace, monospace);
-  font-size: 11px; color: var(--ff-fg-1);
+  font-family: var(--ff-mono, var(--ff-default-mono));
+  font-size: 11px; color: var(--ff-fg, var(--ff-default-fg));
 }
-.ff-expression__source { font-size: 10px; color: var(--ff-accent); }
-.ff-expression__desc { font-size: 10px; color: var(--ff-fg-3); }
+.ff-expression__source { font-size: 10px; color: var(--ff-accent, var(--ff-default-accent)); }
+/* -muted for the same reason as the hint: an active option is on -surface-2. */
+.ff-expression__desc { font-size: 10px; color: var(--ff-fg-muted, var(--ff-default-fg-muted)); }
 
 .ff-expression__help {
   margin-top: 4px; padding: 7px 8px;
-  background: var(--ff-bg-2); border: 1px solid var(--ff-border-1);
-  border-radius: 6px; font-size: 10px; color: var(--ff-fg-2);
+  background: var(--ff-surface-3, var(--ff-default-surface-3)); border: 1px solid var(--ff-border, var(--ff-default-border));
+  border-radius: 6px; font-size: 10px; color: var(--ff-fg-muted, var(--ff-default-fg-muted));
 }
 .ff-expression__help dl { margin: 0; display: grid; gap: 4px; }
 .ff-expression__help dt code {
-  font-family: var(--ff-font-mono, ui-monospace, monospace); color: var(--ff-fg-1);
+  font-family: var(--ff-mono, var(--ff-default-mono)); color: var(--ff-fg, var(--ff-default-fg));
 }
-.ff-expression__help dd { margin: 0 0 0 2px; color: var(--ff-fg-3); }
-.ff-expression__note { margin: 6px 0 0; color: var(--ff-fg-3); }
+.ff-expression__help dd { margin: 0 0 0 2px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); }
+.ff-expression__note { margin: 6px 0 0; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); }

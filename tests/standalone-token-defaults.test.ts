@@ -26,8 +26,8 @@
  * for the SHAPE that the browser check verified, so CI catches a root joining the
  * lists or a default drifting from the list it copies.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 
 type Rule = { selector: string; media: string | null; body: string };
@@ -52,7 +52,7 @@ function parseRules(source: string, media: string | null = null): Rule[] {
       j += 1;
     }
     const body = source.slice(open + 1, j - 1);
-    if (selector.startsWith("@media") || selector.startsWith("@container")) {
+    if (selector.startsWith("@media") || selector.startsWith("@container") || selector.startsWith("@supports")) {
       rules.push(...parseRules(body, selector));
     } else if (!selector.startsWith("@")) {
       rules.push({ selector, media, body });
@@ -125,7 +125,36 @@ const defaultsRules = rules.filter(isDefaultsRule);
 /** The public token behind a private default. */
 const publicName = (name: string) => name.replace("--ff-default-", "--ff-");
 
-const ROOTS = [".ff-run-controls", ".ff-rich-preview"];
+/**
+ * `ConfigFieldRenderer` has no root of its own: it returns a bare control, so each
+ * top-level class it can emit is listed. Declaring the PRIVATE names on those
+ * elements shadows nothing a host can set, which is why no markup had to change.
+ */
+const ROOTS = [
+  ".ff-run-controls",
+  ".ff-rich-preview",
+  ".ff-expression",
+  ".ff-panel__input",
+  ".ff-panel__switch",
+  ".ff-panel__label",
+  ".ff-panel__hint",
+  ".ff-panel__issue",
+  ".ff-repeater",
+  ".ff-keyvalue",
+  ".ff-viewer",
+];
+
+/**
+ * Reads that deliberately do not fall back to their own private default.
+ *
+ * The viewer's
+ * `inherit` and `transparent` are not dark-only: they adapt to whatever page the
+ * viewer sits on, and giving a read-only row an opaque surface would repaint every
+ * host that has one on a card. Its accent and radius literals hold in both modes.
+ */
+const OWN_FALLBACK: Record<string, string[]> = {
+  ".ff-viewer": ["--ff-fg", "--ff-surface", "--ff-accent", "--ff-radius"],
+};
 
 describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
   // The root plus its BEM children, which is where nearly all the reads are.
@@ -135,7 +164,7 @@ describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
     const offenders = rules.filter((rule) => {
       if (!namesRoot(rule.selector, root)) return false;
       return [...declarations(rule.body).keys()].some(
-        (name) => name.startsWith("--ff-") && !name.startsWith("--ff-default-"),
+        (name) => name.startsWith("--ff-") && !name.startsWith("--ff-default-") && !name.startsWith("--ff-private-"),
       );
     });
     expect(offenders.map((rule) => rule.selector)).toEqual([]);
@@ -154,7 +183,10 @@ describe.each(ROOTS)("%s stands alone without shadowing a host", (root) => {
     for (const rule of own) {
       for (const match of rule.body.matchAll(/var\((--ff-[\w-]+)(\s*,\s*var\((--ff-[\w-]+)\))?\)?/g)) {
         const [, token, , fallback] = match;
-        if (token!.startsWith("--ff-default-")) continue;
+        if (token!.startsWith("--ff-default-") || token!.startsWith("--ff-private-")) continue;
+        if (OWN_FALLBACK[root]?.includes(token!)) continue;
+        // Keeps exactly what a dark host sees today: see the FlowViewer block below.
+        if (root === ".ff-viewer" && token === "--ff-fg-muted" && fallback === "--ff-default-fg-subtle") continue;
         if (fallback !== publicName(token!).replace("--ff-", "--ff-default-")) {
           bare.push(`${rule.selector}: ${match[0]}`);
         }
@@ -203,6 +235,130 @@ describe("Cancel on hover", () => {
       "Cancel hover",
     );
     expect(hover.get("background")).toBe("var(--ff-danger, var(--ff-default-danger))");
+  });
+});
+
+/** WCAG relative luminance of a `#rrggbb`, and the ratio between two of them. */
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((at) => {
+    const v = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+const ratioOf = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+describe("ConfigFieldRenderer shares ff-panel__* with .ff-panel", () => {
+  test(".ff-panel keeps its own declared tokens and takes no private defaults", () => {
+    expect(defaultsRules.filter((rule) => namesRoot(rule.selector, ".ff-panel"))).toEqual([]);
+  });
+
+  test("a required marker, which is only ever rendered inside a label, falls back too", () => {
+    const required = onlyRule((rule) => rule.selector === ".ff-panel__required", "required marker");
+    expect(required.get("color")).toBe("var(--ff-danger, var(--ff-default-danger))");
+  });
+
+  test("an input's text gets a colour standalone, but inherits inside .ff-panel as it always did", () => {
+    const base = onlyRule((rule) => rule.selector === ".ff-panel__input", "panel input");
+    expect(base.get("color")).toBe("inherit");
+    const standalone = onlyRule((rule) => rule.selector === ".ff-panel__input:not(.ff-panel *)", "standalone input");
+    expect(standalone.get("color")).toBe("var(--ff-fg, var(--ff-default-fg))");
+  });
+});
+
+describe("FlowViewer", () => {
+  const viewer = rules.filter((rule) => rule.selector.includes(".ff-viewer") && !isDefaultsRule(rule));
+
+  test("no var() falls back to a colour that only works in dark", () => {
+    const offenders = viewer.flatMap((rule) => rule.body.match(/var\(--ff-[\w-]+,\s*#(3f3f46|a1a1aa)\)/g) ?? []);
+    expect(offenders).toEqual([]);
+  });
+
+  /** The status pills were dark-only literals too: #34d399 over its tint on white is 1.7:1. */
+  const STATUS = {
+    ok: "#34d399",
+    running: "#60a5fa",
+    failed: "#f87171",
+    skipped: "#a1a1aa",
+    pending: "#c084fc",
+  };
+  const statusRules = rules.filter((rule) => /--ff-private-viewer-status-[\w-]+\s*:/.test(rule.body));
+
+  test("status colours are declared in all three modes", () => {
+    expect(statusRules).toHaveLength(3);
+    expect(statusRules.filter((rule) => rule.media === DARK_MEDIA)).toHaveLength(1);
+  });
+
+  test.each(Object.entries(STATUS))("%s keeps its current colour in both dark rules", (name, value) => {
+    const dark = statusRules.filter((rule) => rule.media === DARK_MEDIA || rule.selector.includes(".dark"));
+    expect(dark).toHaveLength(2);
+    for (const rule of dark) {
+      expect(declarations(rule.body).get(`--ff-private-viewer-status-${name}`)).toBe(value);
+    }
+  });
+
+  test.each(Object.keys(STATUS))("%s reaches AA over its tint on white in light", (name) => {
+    const light = statusRules.find((rule) => !rule.media && !rule.selector.includes(".dark"))!;
+    const value = declarations(light.body).get(`--ff-private-viewer-status-${name}`)!;
+    const tint = onlyRule((rule) => rule.selector === `.ff-viewer__status--${name}`, name).get("background")!;
+    const channels = [1, 3, 5].map((at) => parseInt(tint.slice(at, at + 2), 16));
+    const alpha = parseInt(tint.slice(7, 9), 16) / 255;
+    const over = `#${channels.map((c) => Math.round(c * alpha + 255 * (1 - alpha)).toString(16).padStart(2, "0")).join("")}`;
+    expect(ratioOf(luminance(value), luminance(over))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+/**
+ * The defect behind the ExpressionField menu: its rules read `--ff-bg-1`,
+ * `--ff-border-1` and friends, names that no list has ever declared, so the menu
+ * was transparent and borderless even inside `FlowEditor`, and nothing could say
+ * so. A var() with no value is not an error anywhere. This makes it one.
+ */
+describe("every --ff-* read in src/ resolves to something", () => {
+  /** Public, read, and deliberately in no list. */
+  const PUBLIC_OPTIONAL = new Set<string>();
+
+  const src = resolve(__dirname, "../src");
+  const files = (readdirSync(src, { recursive: true }) as string[])
+    .filter((file) => /\.(css|tsx?)$/.test(file))
+    .map((file) => resolve(src, file));
+
+  const reads = new Map<string, Set<string>>();
+  for (const file of files) {
+    const text = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const match of text.matchAll(/(?:var\(\s*|getPropertyValue\(\s*["'`])(--ff-[\w-]+)/g)) {
+      if (!reads.has(match[1]!)) reads.set(match[1]!, new Set());
+      reads.get(match[1]!)!.add(relative(src, file));
+    }
+  }
+
+  const declaredBy = (matches: (rule: Rule) => boolean) =>
+    new Set(rules.filter(matches).flatMap((rule) => [...declarations(rule.body).keys()]));
+  const lists = declaredBy(isTokenList);
+  const defaults = declaredBy(isDefaultsRule);
+  const anywhere = declaredBy(() => true);
+
+  test("it found the stylesheet's reads, so a pass means something", () => {
+    expect(files.some((file) => file.endsWith("styles.css"))).toBe(true);
+    expect(reads.size).toBeGreaterThan(30);
+    expect(reads.has("--ff-surface")).toBe(true);
+    expect(lists.has("--ff-surface")).toBe(true);
+    expect(defaults.has("--ff-default-surface")).toBe(true);
+  });
+
+  test("public reads are in the token lists, private ones are declared", () => {
+    const undefinedReads = [...reads.entries()]
+      .filter(([name]) => {
+        if (name.startsWith("--ff-default-")) return !defaults.has(name);
+        if (name.startsWith("--ff-private-")) return !anywhere.has(name);
+        return !lists.has(name) && !PUBLIC_OPTIONAL.has(name);
+      })
+      .map(([name, where]) => `${name} (${[...where].join(", ")})`);
+    expect(undefinedReads).toEqual([]);
+  });
+
+  test("the allowance for a public optional token has not gone stale", () => {
+    for (const name of PUBLIC_OPTIONAL) expect(reads.has(name), name).toBe(true);
   });
 });
 

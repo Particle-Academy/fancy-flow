@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The `ExpressionField` `{{ }}` menu was transparent and borderless, even inside
+  `FlowEditor`,** with its text on whatever happened to be behind it. Its rules read
+  `--ff-bg-1`, `--ff-border-1`, `--ff-fg-1` and others that no list has ever declared.
+  They now read the real tokens, and a test fails on any `--ff-*` read in `src/` that
+  nothing defines. Consumer action: none, unless you set one of those undocumented
+  names to work around this. `--ff-bg`, `--ff-bg-1`, `--ff-bg-2`, `--ff-border-1`,
+  `--ff-fg-1`, `--ff-fg-2`, `--ff-fg-3` and `--ff-font-mono` are no longer read. Use
+  `--ff-canvas-bg`, `--ff-surface`, `--ff-surface-2` or `--ff-surface-3`, `--ff-border`
+  or `--ff-border-strong`, `--ff-fg`, `--ff-fg-muted`, `--ff-fg-subtle` and `--ff-mono`.
+- **A port name on a node's fallback handle had no background behind it,** from the same
+  undefined `--ff-bg`. It now sits on `--ff-canvas-bg`, as its comment always intended.
+  Consumer action: none.
+- **`ExpressionField` and `ConfigFieldRenderer` outside a themed root lost their borders
+  and backgrounds.** They now have correct defaults in every colour mode, and a host's
+  tokens still win. No markup changed, and `NodeConfigPanel` looks the same: every
+  computed property of every element outside the `{{ }}` field is unchanged. Consumer
+  action: none.
+- **`FlowViewer` used dark-only colours on a light page:** `#a1a1aa` descriptions, a
+  `#3f3f46` border and status pills as low as 1.7:1 on white. They now follow the colour
+  mode, and pass 4.5:1 on white. On a dark page these colours are unchanged, and the
+  viewer stays transparent over your page. Consumer action: none.
+- **The title in an interactive `FlowViewer` row ignored `--ff-fg` and the page's text
+  colour,** because `onSelectNode` makes the row a `<button>`, which does not inherit
+  either by default: black on a dark page, for any host without a CSS reset. Consumer
+  action: none.
+
 ## [0.82.2] - 2026-11-02
 
 ### Fixed

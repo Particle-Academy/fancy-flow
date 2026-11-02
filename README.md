@@ -381,6 +381,38 @@ set (`.ff-editor`, `.ff-canvas`, `.ff-palette`, `.ff-panel`, `.ff-run-feed`,
 `--ff-surface-3`, `--ff-border`, `--ff-border-strong`, `--ff-fg-muted`,
 `--ff-fg-subtle` and `--ff-radius-sm`.
 
+### `ExpressionField` and `ConfigFieldRenderer` on their own
+
+Both render correctly outside `NodeConfigPanel`, with the same rules: defaults in every
+colour mode, and any token you set wins, from `:root`, a wrapper or the element.
+
+| Token | Used for |
+|---|---|
+| `--ff-surface` | Input and repeater row background, `{{ }}` menu background |
+| `--ff-surface-2` | The hovered or active `{{ }}` option |
+| `--ff-surface-3` | `{{ }}` reference panel, repeater button hover |
+| `--ff-fg` | Input text, variable names in the menu |
+| `--ff-fg-muted` | Labels, `{{ }}` hint, menu descriptions, reference panel text |
+| `--ff-fg-subtle` | Sub-labels, repeater buttons, reference panel descriptions |
+| `--ff-fg-faint` | Field hints, key/value column heads |
+| `--ff-border` | Input and repeater row border, reference panel border |
+| `--ff-border-strong` | `{{ }}` menu border, switch track, "add" button border |
+| `--ff-accent`, `--ff-accent-soft` | Focus ring, switched-on track, `{{ }}` reference button |
+| `--ff-danger`, `--ff-warn` | Required marker, parse errors |
+| `--ff-mono` | Expression and JSON inputs, variable names |
+| `--ff-radius-sm` | Inputs, repeater rows, buttons |
+
+### `FlowViewer`
+
+The viewer has no surface of its own unless you give it one: standalone it is
+transparent and inherits your page's text colour, so it sits on whatever the page is.
+Its border and secondary text follow the colour mode. It reads `--ff-fg`, `--ff-surface`,
+`--ff-border`, `--ff-fg-muted`, `--ff-accent` and `--ff-radius`, and any you set win.
+
+The defaults follow `.dark`, `[data-theme="dark"]` or the OS. A page that ignores all
+three on a dark OS is a light page with dark-mode defaults, so its description text reads
+`#a1a1aa`. Mark such a page with `.ff-canvas--light`, or set `--ff-fg-muted`.
+
 ## Node kinds
 
 31 builtins, grouped by category. Ids are namespaced (`@particle-academy/<name>`)
