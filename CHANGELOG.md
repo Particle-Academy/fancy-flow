@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Releases need a lab-run certificate.** `publish.yml` gains a read-only
+  `lab-certificate` job that every publishing job needs: a tag is published only
+  when the fancy-labs lab has certified that exact version and commit. Consumers
+  do nothing; this changes how releases are cut, not what the package does.
+
 ## [0.84.0] - 2026-11-02
 
 ### Added
@@ -328,7 +335,6 @@ answer "unknown shape" already had.
   `BranchExecutor` + `Expr::truthy`. `switch_case` is unaffected: it stringifies
   its resolved value, so a raw boolean has always become `"true"` everywhere.
 
-
 ## [0.79.2] - 2026-10-02
 
 ### Fixed
@@ -417,7 +423,6 @@ answer "unknown shape" already had.
 - **`for_each` declares `results` and `failures`.** Its `outputShape` and
   description described the data-only half only, and 0.77.1 had tightened the
   description to say "nothing runs per item" -- true then, and now not.
-
 
 ## [0.77.1] - 2026-09-16
 
@@ -1375,7 +1380,6 @@ publish `out`.**
   by a consumer who was worried the split might change WHEN the registry
   exists rather than only what is in it.
 
-
 ## [0.66.0] - 2026-09-05
 
 ### Added
@@ -1420,7 +1424,6 @@ publish `out`.**
   graph down the success path), and an unconfigured `transform` **passes
   through** rather than returning `{}` (silently emptying a payload breaks
   every node downstream with no clue where the data went).
-
 
 ### Added
 
