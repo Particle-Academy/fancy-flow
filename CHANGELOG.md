@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `lab-certificate` job that every publishing job needs: a tag is published only
   when the fancy-labs lab has certified that exact version and commit. Consumers
   do nothing; this changes how releases are cut, not what the package does.
+- Rebranded the display name to Fancy Dev Kit (README and package description). Package names, the npm scope, URLs and the `fancy-ui` MCP id are unchanged.
 
 ## [0.84.0] - 2026-11-02
 
