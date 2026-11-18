@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: Particle-Academy/.github
-          ref: 47d5c7bf54a21c36f399a6288ae4236797b06205
+          ref: 3c90e2d99e8bb4234645edb5ff26168169bea247
           path: .lab-cert-verifier
           persist-credentials: false
 
@@ -48,10 +48,10 @@ jobs:
           DYLD_LIBRARY_PATH: ''
           PIN_ROOT: .lab-cert-verifier
           PIN_DIR: .lab-cert-verifier/lab-certificates
-          PIN_SHA: 47d5c7bf54a21c36f399a6288ae4236797b06205
+          PIN_SHA: 3c90e2d99e8bb4234645edb5ff26168169bea247
           PIN_SHA256: |
-            2d64f3aa9881d0eb89917477f236fb4a17aa5703a540a4e90625a0702d0cb2d5  verify-lab-cert.mjs
-            61a851ac55887a2923367e14199a1ce983a91b533428cac2758660a2e99aa44f  lab-cert-public-key.ed25519
+            b836599eccafc41dfa8ce224e0b1e0e23cbeac20de7e0e6401fea400f61b19e5  verify-lab-cert.mjs
+            d7cb3282119aae83fd8cc1ffe7472b1fa2874734a2f956bb53e849561c634db5  lab-cert-keys.json
         run: |
           node -e '
           const fs = require("node:fs");
