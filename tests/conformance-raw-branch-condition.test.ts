@@ -63,7 +63,7 @@ describe("shared rows: a raw branch.condition routes the same way everywhere", (
   it("loads all five rows from the pinned fixture version", () => {
     // A filter that silently matches nothing turns this whole file into a pass.
     console.log(`flow/graph-runs raw branch condition [node] -- fancy-conformance ${suiteVersion()}`);
-    expect(suiteVersion()).toBe("0.33.0");
+    expect(suiteVersion()).toBe("0.62.0");
     expect(ROWS).toHaveLength(5);
   });
 
