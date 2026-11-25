@@ -142,6 +142,7 @@ const ROOTS = [
   ".ff-repeater",
   ".ff-keyvalue",
   ".ff-viewer",
+  ".ff-mermaid",
 ];
 
 /**

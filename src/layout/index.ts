@@ -37,22 +37,26 @@ export function autoLayout(graph: FlowGraph, options: AutoLayoutOptions = {}): F
   const inScope = (n: FlowNode) => (options.scope ? (n as any).parentId === options.scope : !(n as any).parentId);
   const targets = graph.nodes.filter(inScope);
   if (targets.length === 0) return graph.nodes;
-  const ids = new Set(targets.map((n) => n.id));
+  // dagre's graphlib keys plain objects by node id, so an id like `__proto__`
+  // or `constructor` breaks it. It only ever sees these index keys.
+  const key = new Map(targets.map((n, i) => [n.id, `n${i}`]));
 
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: dir, nodesep, ranksep });
   g.setDefaultEdgeLabel(() => ({}));
   for (const n of targets) {
-    g.setNode(n.id, { width: (n as any).width ?? dw, height: (n as any).height ?? dh });
+    g.setNode(key.get(n.id)!, { width: (n as any).width ?? dw, height: (n as any).height ?? dh });
   }
   for (const e of graph.edges) {
-    if (ids.has(e.source) && ids.has(e.target)) g.setEdge(e.source, e.target);
+    const s = key.get(e.source);
+    const t = key.get(e.target);
+    if (s && t) g.setEdge(s, t);
   }
   dagre.layout(g);
 
   const pos = new Map<string, { x: number; y: number }>();
   for (const n of targets) {
-    const d = g.node(n.id);
+    const d = g.node(key.get(n.id)!);
     // dagre positions are node centers; xyflow wants the top-left corner.
     if (d) pos.set(n.id, { x: d.x - d.width / 2, y: d.y - d.height / 2 });
   }

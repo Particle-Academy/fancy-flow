@@ -146,7 +146,7 @@
    `ConfigFieldRenderer` has no root: it returns a bare control, so every top-level
    class it can emit is listed. Inside `.ff-panel` these names are declared and never
    read, because the panel's own tokens answer first. */
-:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer) {
+:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer, .ff-mermaid) {
   --ff-default-surface:   #ffffff;
   --ff-default-surface-3: #fafafa;
   --ff-default-fg:        #18181b;
@@ -166,10 +166,10 @@
   --ff-default-warn:      #92400e;
   --ff-default-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
-.dark      :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer),
-[data-theme="dark"] :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer),
-.dark:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer),
-[data-theme="dark"]:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer) {
+.dark      :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer, .ff-mermaid),
+[data-theme="dark"] :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer, .ff-mermaid),
+.dark:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer, .ff-mermaid),
+[data-theme="dark"]:is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer, .ff-mermaid) {
   --ff-default-surface:   #1c1c22;
   --ff-default-surface-3: #27272a;
   --ff-default-fg:        #fafafa;
@@ -185,7 +185,7 @@
   --ff-default-danger-text: #ef4444;
 }
 @media (prefers-color-scheme: dark) {
-  :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer):not(.ff-canvas--light):not(.ff-canvas--light *) {
+  :is(.ff-run-controls, .ff-rich-preview, .ff-expression, .ff-panel__input, .ff-panel__switch, .ff-panel__label, .ff-panel__hint, .ff-panel__issue, .ff-repeater, .ff-keyvalue, .ff-viewer, .ff-mermaid):not(.ff-canvas--light):not(.ff-canvas--light *) {
     --ff-default-surface:   #1c1c22;
     --ff-default-surface-3: #27272a;
     --ff-default-fg:        #fafafa;
@@ -971,3 +971,99 @@
 }
 .ff-expression__help dd { margin: 0 0 0 2px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); }
 .ff-expression__note { margin: 6px 0 0; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); }
+
+/* ─── Mermaid diagram (<MermaidDiagram>) ─────────────────────────────────
+   The root and its chrome stand alone (a diagram in a chat message has no
+   editor around it), so they read `var(--ff-x, var(--ff-default-x))` like the
+   other standalone roots. Nodes are drawn inside `.ff-canvas` and read the
+   canvas tokens directly. No literal colours here: every one follows dark. */
+.ff-mermaid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--ff-fg, var(--ff-default-fg));
+}
+.ff-mermaid__toolbar { display: flex; justify-content: flex-end; gap: 6px; }
+.ff-mermaid__button {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm));
+  border: 1px solid var(--ff-border, var(--ff-default-border));
+  background: var(--ff-surface, var(--ff-default-surface));
+  color: var(--ff-fg-muted, var(--ff-default-fg-muted));
+  cursor: pointer;
+}
+.ff-mermaid__button:hover { background: var(--ff-surface-3, var(--ff-default-surface-3)); color: var(--ff-fg, var(--ff-default-fg)); }
+.ff-mermaid__button:focus-visible { outline: 2px solid var(--ff-accent, var(--ff-default-accent)); outline-offset: 1px; }
+.ff-mermaid__button[aria-pressed="true"] { background: var(--ff-accent-soft, var(--ff-default-accent-soft)); }
+.ff-mermaid__notice {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm));
+  border: 1px solid var(--ff-border-strong, var(--ff-default-border-strong));
+  background: var(--ff-surface-2, var(--ff-default-surface-2));
+  color: var(--ff-warn, var(--ff-default-warn));
+}
+.ff-mermaid__issues { font-size: 12px; color: var(--ff-fg-subtle, var(--ff-default-fg-subtle)); }
+.ff-mermaid__issues summary { cursor: pointer; }
+.ff-mermaid__issues ul { margin: 4px 0 0; padding-left: 18px; }
+.ff-mermaid__source {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  max-height: 480px;
+  font-family: var(--ff-mono, var(--ff-default-mono));
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre;
+  border-radius: var(--ff-radius-sm, var(--ff-default-radius-sm));
+  border: 1px solid var(--ff-border, var(--ff-default-border));
+  background: var(--ff-surface-2, var(--ff-default-surface-2));
+  color: var(--ff-fg, var(--ff-default-fg));
+}
+/* Marker defs sit outside the canvas, so they read standalone tokens. */
+.ff-mermaid__markers { position: absolute; width: 0; height: 0; overflow: hidden; }
+.ff-mermaid__markers circle { fill: var(--ff-surface, var(--ff-default-surface)); stroke: var(--ff-fg-muted, var(--ff-default-fg-muted)); stroke-width: 1.5; }
+.ff-mermaid__markers path { fill: none; stroke: var(--ff-fg-muted, var(--ff-default-fg-muted)); stroke-width: 1.8; }
+
+/* Nodes (inside .ff-canvas). */
+.ff-mnode {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 6px 14px;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--ff-fg);
+}
+.ff-mnode__shape { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.ff-mnode__shape :is(rect, path, polygon, circle) { fill: var(--ff-node-bg); stroke: var(--ff-border-strong); stroke-width: 1.5; }
+.ff-mnode__shape line { stroke: var(--ff-border-strong); stroke-width: 1.5; }
+.ff-mnode__label { position: relative; white-space: pre-line; overflow-wrap: anywhere; max-width: 100%; }
+.ff-mnode__handle { opacity: 0; pointer-events: none; }
+.ff-mgroup {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: var(--ff-radius-md);
+  border: 1px dashed var(--ff-border-strong);
+  background: var(--ff-accent-soft);
+}
+.ff-mgroup__title {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ff-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* ─── end Mermaid diagram ──────────────────────────────────────────────── */

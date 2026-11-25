@@ -1,0 +1,11 @@
+flowchart TB
+  A["Start"]
+  B{"Is it?"}
+  C["OK"]
+  D["Rethink"]
+  E["End"]
+  A --> B
+  B -->|"Yes"| C
+  C --> D
+  D --> B
+  B ---->|"No"| E

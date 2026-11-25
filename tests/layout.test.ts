@@ -55,3 +55,24 @@ describe("autoLayout", () => {
     expect(autoLayout(graph, { scope: "nonexistent" })).toBe(graph.nodes);
   });
 });
+
+describe("autoLayout with ids that are object keys", () => {
+  // dagre's graphlib stores nodes and edges in plain objects keyed by id, so a
+  // node called `__proto__` threw "Cannot create property ... on number 'NaN'"
+  // and `constructor` / `toString` collided with inherited keys. Ids reach this
+  // function from saved graphs and, through `./mermaid`, from pasted diagrams.
+  it("lays out __proto__, constructor and toString like any other id", () => {
+    const graph: FlowGraph = {
+      nodes: [node("__proto__"), node("constructor"), node("toString")],
+      edges: [
+        { id: "e1", source: "__proto__", target: "constructor" },
+        { id: "e2", source: "constructor", target: "toString" },
+      ],
+    };
+    const out = autoLayout(graph, { direction: "LR" });
+    const x = (id: string) => out.find((n) => n.id === id)!.position.x;
+    expect(x("__proto__")).toBeLessThan(x("constructor"));
+    expect(x("constructor")).toBeLessThan(x("toString"));
+    expect(({} as Record<string, unknown>).constructor).toBe(Object);
+  });
+});

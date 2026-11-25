@@ -32,6 +32,28 @@ export {
   type FlowViewerClassNames,
   type FlowNodeStatus,
 } from "./components/FlowViewer";
+// Mermaid: a read-only diagram, and a ContentRenderer fence renderer. The
+// parser itself is the React-free `./mermaid` subpath, re-exported here too.
+export {
+  MermaidDiagram,
+  MermaidFence,
+  type MermaidDiagramProps,
+  type MermaidDiagramView,
+  type MermaidDiagramStatus,
+  type MermaidClipboardWriter,
+  type MermaidFenceProps,
+} from "./components/MermaidDiagram";
+export {
+  fromMermaid,
+  toMermaid,
+  exportMermaid,
+  MERMAID_DEFAULT_LIMITS,
+  type MermaidGraph,
+  type MermaidReport,
+  type MermaidIssue,
+  type MermaidLimits,
+  type MermaidImportResult,
+} from "./mermaid";
 export {
   NodeConfigPanel,
   ConfigFieldRenderer,

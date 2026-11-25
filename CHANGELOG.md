@@ -12,6 +12,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Mermaid import and export: `@particle-academy/fancy-flow/mermaid`** (CC-fancy-0060).
+  `fromMermaid(source, { limits })` reads a Mermaid flowchart (`flowchart` /
+  `graph`: directions, 14 node shapes, every link stroke and end, link labels,
+  chains, `&`, nested subgraphs with their own `direction`, comments) into a
+  laid-out graph and returns `{ graph, report }`. `toMermaid(graph)` writes it
+  back in one canonical form, and `exportMermaid` adds a report of renamed ids
+  and skipped edges. A new subpath, so nothing changes for anyone who does not
+  import it; it is pure (no React) and stays out of `./engine` and
+  `./connectors`, which a test checks against the built bundles. No third-party
+  Mermaid code: the parser is hand-written, with no eval and no regular
+  expression that can backtrack across the input.
+  - **Imported nodes are display-only.** Every node is a `note`, which the
+    engine walks past, so importing a diagram can never produce a workflow that
+    runs. Map nodes to real kinds on purpose to make one.
+  - **Labels are always text.** `<br>` is a line break; any other markup is kept
+    as the literal characters and reported.
+  - **Nothing is dropped silently.** Other diagram types (sequence, gantt,
+    class, ...) return `graph: null` with an `unsupported-diagram` issue; styling,
+    `click`, directives, front matter and unsupported syntax are each listed in
+    `report.issues` with their line.
+  - **Bounded.** `maxInputLength` 50,000, `maxNodes` 500, `maxEdges` 1,000,
+    `maxLabelLength` 500, `maxSubgraphDepth` 16, all configurable. Over a size
+    limit the import is refused rather than drawn cut down.
+  - The supported subset is documented in `AGENTS.md` ("Mermaid").
+- **`<MermaidDiagram source=... />`**, a read-only Mermaid diagram drawn by
+  `FlowViewer`: Mermaid's shapes and links in light and dark from the `--ff-*`
+  tokens, a canvas height that follows the container's width and the diagram's
+  proportions, zoom and pan, a source toggle (controllable with `view` +
+  `onViewChange`) and a copy button. Diagram types it cannot draw show their
+  source with a "not supported yet" notice; a flowchart with statements left
+  out is drawn with a notice listing them. Every part carries a
+  `data-mermaid-diagram-*` handle and every node `data-mermaid-node`.
+  **`MermaidFence`** wraps it for react-fancy's `ContentRenderer`:
+  `fences={{ mermaid: MermaidFence }}`.
+- **`FlowViewer` gains `nodeTypes`, `colorMode` and `fitOnResize`.** All
+  optional; without them it behaves exactly as before. `nodeTypes` merges over
+  the registry's renderers, and `fitOnResize` refits the graph when the viewer's
+  box changes size or the graph changes.
+
+### Fixed
+
+- **`autoLayout` (`./layout`) threw on a node id that is an object key.** dagre
+  stores nodes in plain objects keyed by id, so a node called `__proto__` threw
+  "Cannot create property ... on number 'NaN'", and `constructor` / `toString`
+  collided with inherited keys. It now hands dagre index keys and maps positions
+  back by id. Nothing to do.
+
 ### Changed
 
 - **CI: the lab-certificate gate verifies against the lab's rotated key list.**

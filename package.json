@@ -73,6 +73,16 @@
         "default": "./dist/layout.cjs"
       }
     },
+    "./mermaid": {
+      "import": {
+        "types": "./dist/mermaid/index.d.ts",
+        "default": "./dist/mermaid.js"
+      },
+      "require": {
+        "types": "./dist/mermaid/index.d.cts",
+        "default": "./dist/mermaid.cjs"
+      }
+    },
     "./engine": {
       "import": {
         "types": "./dist/engine.d.ts",

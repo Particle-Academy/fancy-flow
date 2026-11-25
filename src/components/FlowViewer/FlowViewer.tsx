@@ -1,8 +1,10 @@
-import { useMemo, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
+import type { NodeTypes, ReactFlowInstance } from "@xyflow/react";
 import { FlowCanvas } from "../canvas";
 import { buildNodeTypes } from "../../registry";
 import { categoryAccent, getNodeKind } from "../../registry/registry";
 import { labelOn } from "../label-on";
+import type { FlowColorModeInput } from "../canvas/use-resolved-color-mode";
 import type { FlowGraph, FlowNode } from "../../types";
 
 /** Outcome of one node in a run, for annotating the graph after the fact. */
@@ -58,7 +60,22 @@ export interface FlowViewerProps {
   style?: CSSProperties;
   /** Rendered when the graph has no nodes. */
   empty?: ReactNode;
+  /**
+   * Renderers merged OVER the registry's, by node type: for a viewer that draws
+   * its own kind of picture (MermaidDiagram draws imported notes as Mermaid
+   * shapes). Ignored by `list`.
+   */
+  nodeTypes?: NodeTypes;
+  /** Pins the canvas light or dark. Unset follows the app, as FlowCanvas does. */
+  colorMode?: FlowColorModeInput;
+  /**
+   * Fit the graph again whenever the viewer's box changes size, and when the
+   * graph changes. Off by default: the canvas fits once, on mount, as before.
+   */
+  fitOnResize?: boolean;
 }
+
+const FIT = { padding: 0.2 };
 
 const STATUS_LABEL: Record<FlowNodeStatus, string> = {
   ok: "ok",
@@ -96,8 +113,26 @@ export function FlowViewer({
   classNames = {},
   style,
   empty,
+  nodeTypes: extraNodeTypes,
+  colorMode,
+  fitOnResize = false,
 }: FlowViewerProps) {
-  const nodeTypes = useMemo(() => buildNodeTypes(), []);
+  const nodeTypes = useMemo(() => ({ ...buildNodeTypes(), ...(extraNodeTypes ?? {}) }), [extraNodeTypes]);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<ReactFlowInstance<any, any> | null>(null);
+
+  // Container-aware fit: a viewer in a resizable panel or a reflowing column
+  // keeps the whole graph in view, not the framing of its first size.
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!fitOnResize || !box || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => void instanceRef.current?.fitView(FIT));
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [fitOnResize]);
+  useEffect(() => {
+    if (fitOnResize) void instanceRef.current?.fitView(FIT);
+  }, [fitOnResize, graph]);
 
   const rows = useMemo(
     () =>
@@ -192,6 +227,7 @@ export function FlowViewer({
 
   return (
     <div
+      ref={boxRef}
       className={cx("ff-viewer ff-viewer--canvas", className, classNames.root)}
       style={style}
       data-flow-viewer="canvas"
@@ -201,6 +237,10 @@ export function FlowViewer({
         edges={graph.edges}
         nodeTypes={nodeTypes}
         height={height}
+        colorMode={colorMode}
+        onInit={(instance) => {
+          instanceRef.current = instance;
+        }}
         showControls={showControls}
         showMinimap={showMinimap}
         // The read-only contract. Every mutation path React Flow offers is
