@@ -29,7 +29,9 @@ const names = readdirSync(DIR)
   .map((f) => f.slice(0, -".in.mmd".length))
   .sort();
 
-const read = (file: string) => readFileSync(DIR + file, "utf8");
+// Normalised: with core.autocrlf a Windows checkout writes these with CRLF,
+// and the canonical form `toMermaid` writes uses LF.
+const read = (file: string) => readFileSync(DIR + file, "utf8").replace(/\r\n/g, "\n");
 
 /** What a graph MEANS, independent of order, ids of edges and layout. */
 function meaning(graph: FlowGraph | null) {
