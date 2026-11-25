@@ -55,8 +55,11 @@ function safeId(id: string, taken: Set<string>): string {
   if (!VALID_ID.test(out) || RESERVED.has(out)) {
     out = id
       .replace(/[^\p{L}\p{N}_-]+/gu, "_")
-      .replace(/-{2,}/g, "_")
-      .replace(/^-+|-+$/g, "_");
+      .replace(/-{2,}/g, "_");
+    // A linear trim, not /^-+|-+$/: that pattern is polynomial on hostile ids.
+    // After the collapse above, an edge run of dashes is at most one character.
+    if (out.startsWith("-")) out = "_" + out.slice(1);
+    if (out.length > 1 && out.endsWith("-")) out = out.slice(0, -1) + "_";
     if (!out) out = "node";
     if (RESERVED.has(out)) out += "_";
   }

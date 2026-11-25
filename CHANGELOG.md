@@ -61,6 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   collided with inherited keys. It now hands dagre index keys and maps positions
   back by id. Nothing to do.
 
+### Security
+
+- **`toMermaid` / `exportMermaid` no longer use a polynomial regular expression on node ids.** The edge-dash trim in the id sanitiser was `/^-+|-+$/`, flagged by code scanning (alert 4, js/polynomial-redos); node ids come from the caller's graph. It is now a linear scan with the same output. The Mermaid subpath is new in this release, so no published version carried it.
+
 ### Changed
 
 - **CI: the lab-certificate gate verifies against the lab's rotated key list.**
