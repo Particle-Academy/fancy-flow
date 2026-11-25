@@ -4,7 +4,7 @@ import type { MermaidDirection, MermaidLimits, MermaidNodeMeta, MermaidReport } 
 import { FlowViewer } from "../FlowViewer/FlowViewer";
 import { useResolvedColorMode, type FlowColorModeInput } from "../canvas/use-resolved-color-mode";
 import { MermaidDirections, MermaidNode } from "./MermaidNode";
-import { mermaidDiagramHeight, mermaidEdgeView } from "./view";
+import { mermaidBackEdges, mermaidDiagramHeight, mermaidEdgeView, mermaidNodeDirections } from "./view";
 import type { FlowGraph } from "../../types";
 
 export type MermaidDiagramView = "diagram" | "source";
@@ -80,28 +80,6 @@ function noticeFor(status: MermaidDiagramStatus, report: MermaidReport): string 
     default:
       return null;
   }
-}
-
-/** Each node's effective direction: its subgraph's `direction`, else the enclosing one's. */
-function directions(graph: FlowGraph, base: MermaidDirection): Map<string, MermaidDirection> {
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-  const out = new Map<string, MermaidDirection>();
-  // The direction a node is laid out in: its container's own `direction`, else
-  // the direction the container itself is laid out in. Same rule as the layout.
-  const of = (id: string, depth: number): MermaidDirection => {
-    const known = out.get(id);
-    if (known) return known;
-    const parent = (byId.get(id) as { parentId?: string } | undefined)?.parentId;
-    let dir = base;
-    if (parent && byId.has(parent) && depth < 64) {
-      const meta = (byId.get(parent)!.data as { mermaid?: MermaidNodeMeta } | undefined)?.mermaid;
-      dir = meta?.direction ?? of(parent, depth + 1);
-    }
-    out.set(id, dir);
-    return dir;
-  };
-  for (const n of graph.nodes) of(n.id, 0);
-  return out;
 }
 
 /**
@@ -180,9 +158,11 @@ export function MermaidDiagram({
 
   const view_ = useMemo(() => {
     if (!graph) return null;
+    const directions = mermaidNodeDirections(graph, graph.mermaid?.direction ?? "TB");
+    const backs = mermaidBackEdges(graph, directions);
     return {
-      graph: { nodes: graph.nodes, edges: graph.edges.map((e) => mermaidEdgeView(e, markerId)) } as FlowGraph,
-      directions: directions(graph, graph.mermaid?.direction ?? "TB"),
+      graph: { nodes: graph.nodes, edges: graph.edges.map((e) => mermaidEdgeView(e, markerId, backs.has(e.id))) } as FlowGraph,
+      directions,
     };
   }, [graph, markerId]);
 

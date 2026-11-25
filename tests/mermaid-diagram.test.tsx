@@ -14,7 +14,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { MermaidDiagram, MermaidFence, mermaidEdgeView, mermaidDiagramHeight } from "../src/components/MermaidDiagram";
+import {
+  MermaidDiagram,
+  MermaidFence,
+  mermaidEdgeView,
+  mermaidDiagramHeight,
+  mermaidBackEdges,
+  mermaidNodeDirections,
+} from "../src/components/MermaidDiagram";
 import { fromMermaid } from "../src/mermaid";
 
 // React Flow measures its container, and jsdom has none. Recorded so a test
@@ -248,6 +255,55 @@ describe("edges are drawn as Mermaid wrote them", () => {
 
   test("labels pass through as text", () => {
     expect(edge("-->|<b>hi</b>|").label).toBe("<b>hi</b>");
+  });
+});
+
+// A cycle edge (B --> A after A --> B) is laid out with its target BEHIND its
+// source. Drawn between the normal out/in handles, xyflow's bezier for two nodes
+// on one row is a flat line under both nodes and the forward edge: the edge and
+// its label vanish. Seen in a headless browser on 2026-11-24 (CC-fancy-0060).
+describe("back edges loop around instead of lying under the nodes", () => {
+  const backs = (src: string) => {
+    const g = fromMermaid(src).graph!;
+    const ids = mermaidBackEdges(g, mermaidNodeDirections(g, g.mermaid?.direction ?? "TB"));
+    return g.edges.filter((e) => ids.has(e.id)).map((e) => `${e.source}>${e.target}`);
+  };
+
+  test("a cycle edge is a back edge, the forward edges are not", () => {
+    expect(backs("flowchart LR\n  A --> B\n  B --> C\n  C -.->|no| A")).toEqual(["C>A"]);
+    expect(backs("flowchart TB\n  A --> B\n  B --> A")).toEqual(["B>A"]);
+    expect(backs("flowchart RL\n  A --> B\n  B --> A")).toEqual(["B>A"]);
+    expect(backs("flowchart BT\n  A --> B\n  B --> A")).toEqual(["B>A"]);
+    expect(backs("flowchart LR\n  A --> B --> C\n  A --> C")).toEqual([]);
+  });
+
+  test("inside a subgraph, by that subgraph's own direction", () => {
+    expect(backs("flowchart LR\n  subgraph s\n    direction TB\n    A --> B\n    B --> A\n  end")).toEqual(["B>A"]);
+  });
+
+  test("edges across containers and self-loops keep the normal route", () => {
+    expect(backs("flowchart LR\n  subgraph s\n    A --> B\n  end\n  B --> C\n  C --> A")).toEqual([]);
+    expect(backs("flowchart LR\n  A --> A")).toEqual([]);
+  });
+
+  test("a back edge leaves and enters by the side handles, on a stepped path", () => {
+    const g = fromMermaid("flowchart LR\n  A --> B\n  B -.->|no| A").graph!;
+    const back = mermaidEdgeView(g.edges[1], "m", true);
+    expect(back).toMatchObject({ type: "smoothstep", sourceHandle: "back-out", targetHandle: "back-in", label: "no" });
+    expect(back.style).toMatchObject({ strokeDasharray: "5 4" });
+    const forward = mermaidEdgeView(g.edges[0], "m");
+    expect(forward.type).toBe("default");
+    expect(forward.sourceHandle).toBeUndefined();
+    expect(forward.targetHandle).toBeUndefined();
+  });
+
+  test("every node carries the side handles, after the normal ones", () => {
+    const { container } = render(<MermaidDiagram source={"flowchart LR\n  A --> B\n  B --> A"} />);
+    resize(root(container), 800);
+    const node = container.querySelector('[data-mermaid-node="A"]');
+    expect(node).not.toBeNull();
+    const ids = [...node!.querySelectorAll(".react-flow__handle")].map((h) => h.getAttribute("data-handleid"));
+    expect(ids).toEqual([null, null, "back-in", "back-out"]);
   });
 });
 

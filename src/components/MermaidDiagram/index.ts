@@ -8,4 +8,4 @@ export {
   type MermaidFenceProps,
 } from "./MermaidDiagram";
 export { MermaidNode } from "./MermaidNode";
-export { mermaidEdgeView, mermaidDiagramHeight } from "./view";
+export { mermaidEdgeView, mermaidDiagramHeight, mermaidBackEdges, mermaidNodeDirections } from "./view";

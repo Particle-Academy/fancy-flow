@@ -44,7 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proportions, zoom and pan, a source toggle (controllable with `view` +
   `onViewChange`) and a copy button. Diagram types it cannot draw show their
   source with a "not supported yet" notice; a flowchart with statements left
-  out is drawn with a notice listing them. Every part carries a
+  out is drawn with a notice listing them. A link that runs back against the
+  flow (a cycle, such as `B -.->|no| A` after `A --> B`) steps around the nodes
+  from their side, so it and its label stay visible instead of lying under the
+  forward link. Every part carries a
   `data-mermaid-diagram-*` handle and every node `data-mermaid-node`.
   **`MermaidFence`** wraps it for react-fancy's `ContentRenderer`:
   `fences={{ mermaid: MermaidFence }}`.

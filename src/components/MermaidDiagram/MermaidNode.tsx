@@ -2,6 +2,7 @@ import { createContext, memo, useContext } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { MermaidDirection, MermaidNodeMeta, MermaidShape } from "../../mermaid/types";
 import type { FlowNode } from "../../types";
+import { MERMAID_BACK_IN, MERMAID_BACK_OUT } from "./view";
 
 /** Each node's effective direction, so handles sit where edges arrive. */
 export const MermaidDirections = createContext<ReadonlyMap<string, MermaidDirection>>(new Map());
@@ -95,10 +96,15 @@ function MermaidNodeInner({ id, data, width, height }: NodeProps<FlowNode>) {
   const label = typeof data.label === "string" ? data.label : "";
   const direction = useContext(MermaidDirections).get(id) ?? "TB";
   const [inSide, outSide] = SIDES[direction];
+  // Back edges use the side across the flow, so they step around the nodes.
+  // The normal handles come first: an edge with no handle id takes the first.
+  const backSide = direction === "LR" || direction === "RL" ? Position.Bottom : Position.Right;
   const handles = (
     <>
       <Handle type="target" position={inSide} isConnectable={false} className="ff-mnode__handle" />
       <Handle type="source" position={outSide} isConnectable={false} className="ff-mnode__handle" />
+      <Handle id={MERMAID_BACK_IN} type="target" position={backSide} isConnectable={false} className="ff-mnode__handle" />
+      <Handle id={MERMAID_BACK_OUT} type="source" position={backSide} isConnectable={false} className="ff-mnode__handle" />
     </>
   );
 
