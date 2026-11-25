@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`for_each` now forwards every event its item lane emits** (parity with
+  fancy-flow-php #25). Each iteration ran its lane with a no-op event sink, so a
+  status, message or log from a node inside the loop never reached the host's
+  `onEvent`: the PHP twin reported five per-item events for five items and this
+  engine reported none. Node-scoped events now arrive re-addressed as
+  `<for_each id>/<index>/<node id>` (the id escaped as in run identities), the
+  same rule as PHP's `RunEvent::forParent`, exported here as `forParent`. A
+  lane's own `run-start` / `run-end` / `run-error` are not forwarded. Nothing to
+  do, unless your `onEvent` assumed every `nodeId` is a top-level node: ids with
+  a `/` now come from inside a loop.
+
 ## [0.85.0] - 2026-11-24
 
 ### Added

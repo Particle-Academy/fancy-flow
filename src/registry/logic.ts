@@ -1,8 +1,9 @@
 import { evaluateExpression, truthy, text, tryResolvePath } from "../expressions/expr";
 import { runFlow } from "../runtime/run-flow";
+import { escapeSegment } from "../runtime/run-identity";
 import { decodePause } from "./pause";
 import { trimmedKey } from "./blank";
-import type { FlowEdge, FlowGraph, FlowNode, NodeExecutor } from "../types";
+import type { FlowEdge, FlowGraph, FlowNode, NodeExecutor, RunEvent } from "../types";
 
 /**
  * Default executors for the four PURE-LOGIC builtins.
@@ -409,6 +410,21 @@ function forEachLane(
 }
 
 /**
+ * A nested run's event as its PARENT sees it, or null if the parent must not.
+ *
+ * Port of fancy-flow-php's `RunEvent::forParent`. A lane's nodes carry ids the
+ * host has never heard of and that collide with the parent's, so a node-scoped
+ * event is re-addressed under `prefix`. Run-scoped events return null: a
+ * lane's `run-start` is not the workflow starting, once per item.
+ */
+export function forParent(event: RunEvent, prefix: string): RunEvent | null {
+  if (event.type === "run-start" || event.type === "run-end" || event.type === "run-error") return null;
+  const nodeId = (event as { nodeId?: string }).nodeId;
+  if (nodeId === undefined || nodeId === null) return { ...event };
+  return { ...event, nodeId: prefix + nodeId } as RunEvent;
+}
+
+/**
  * `for_each` — the collection as DATA, or the lane run once per item.
  *
  * WITHOUT an `item` edge (or with `mode: "collect"`) this publishes the
@@ -473,7 +489,16 @@ export const forEachExecutor: NodeExecutor = async (ctx) => {
       };
     }
 
-    const nested = await runFlow(lane.graph, { ...(ctx.executors ?? {}) } as never, () => {}, {
+    // EVERY node-scoped event the lane emits, re-addressed for the parent, as
+    // fancy-flow-php's ForEachExecutor does (#25). This was a no-op sink, so a
+    // status, message or log from inside the loop never reached the host.
+    const prefix = `${escapeSegment(ctx.node.id)}/${index}/`;
+    const forward = (event: RunEvent): void => {
+      const forwarded = forParent(event, prefix);
+      if (forwarded !== null) ctx.emit(forwarded);
+    };
+
+    const nested = await runFlow(lane.graph, { ...(ctx.executors ?? {}) } as never, forward, {
       initialInputs,
       depth: (ctx.depth ?? 0) + 1,
       // The index rides on the identity, so a node in iteration 3 cannot share
