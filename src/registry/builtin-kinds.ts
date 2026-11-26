@@ -630,7 +630,7 @@ const KINDS: NodeKindDefinition[] = [
           { value: "openai", label: "OpenAI" },
           { value: "custom", label: "Custom" },
         ] },
-      { type: "text", key: "model", label: "Model", placeholder: "claude-sonnet-4-5", required: true },
+      { type: "text", key: "model", label: "Model", placeholder: "claude-sonnet-5-5", required: true },
       { type: "textarea", key: "system", label: "System prompt", rows: 4 },
       { type: "expression", key: "prompt", label: "User prompt", example: "{{ $json.question }}", required: true },
       // No default: a sampling parameter is sent only when the author sets one.
@@ -710,7 +710,7 @@ const KINDS: NodeKindDefinition[] = [
           { value: "openai", label: "OpenAI" },
           { value: "custom", label: "Custom" },
         ] },
-      { type: "text", key: "model", label: "Model", placeholder: "claude-sonnet-4-5" },
+      { type: "text", key: "model", label: "Model", placeholder: "claude-sonnet-5-5" },
       { type: "switch", key: "fallback", label: "Add a `fallback` port", default: true,
         description: "Where the flow goes if the model returns no usable route." },
       { type: "credential", key: "credential", label: "API credential", credentialType: "llm_credential" },

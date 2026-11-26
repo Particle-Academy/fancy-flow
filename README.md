@@ -660,7 +660,7 @@ only by this subpath:
 import { anthropic } from "@ai-sdk/anthropic";
 import { useVercelAiForLlmBranch } from "@particle-academy/fancy-flow/llm/vercel-ai";
 
-useVercelAiForLlmBranch({ model: anthropic("claude-sonnet-4-5") });
+useVercelAiForLlmBranch({ model: anthropic("claude-sonnet-5-5") });
 ```
 
 Neither is required — `registerLlmClient()` takes any implementation, including a

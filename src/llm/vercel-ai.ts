@@ -16,7 +16,7 @@
  * import { anthropic } from "@ai-sdk/anthropic";
  * import { useVercelAiForLlmBranch } from "@particle-academy/fancy-flow/llm/vercel-ai";
  *
- * useVercelAiForLlmBranch({ model: anthropic("claude-sonnet-4-5") });
+ * useVercelAiForLlmBranch({ model: anthropic("claude-sonnet-5-5") });
  * ```
  *
  * `ai` is an OPTIONAL peer — required only by this subpath. The main entry
@@ -26,7 +26,7 @@ import { Output, generateText, type LanguageModel } from "ai";
 import { registerLlmClient, type LlmClient, type LlmRouteRequest } from "../registry/capabilities";
 
 export type VercelAiOptions = {
-  /** The model to route with, e.g. `anthropic("claude-sonnet-4-5")`. */
+  /** The model to route with, e.g. `anthropic("claude-sonnet-5-5")`. */
   model: LanguageModel;
   /**
    * Resolve a per-node model. `llm_branch` config can name a provider/model,
