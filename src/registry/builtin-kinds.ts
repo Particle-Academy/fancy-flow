@@ -633,7 +633,9 @@ const KINDS: NodeKindDefinition[] = [
       { type: "text", key: "model", label: "Model", placeholder: "claude-sonnet-4-5", required: true },
       { type: "textarea", key: "system", label: "System prompt", rows: 4 },
       { type: "expression", key: "prompt", label: "User prompt", example: "{{ $json.question }}", required: true },
-      { type: "number", key: "temperature", label: "Temperature", min: 0, max: 2, step: 0.1, default: 0.7 },
+      // No default: a sampling parameter is sent only when the author sets one.
+      // Current Anthropic models reject a request that sets `temperature`.
+      { type: "number", key: "temperature", label: "Temperature", min: 0, max: 2, step: 0.1 },
       { type: "number", key: "max_tokens", label: "Max tokens", min: 1, max: 8192, default: 1024 },
       {
         type: "repeater", key: "tools", label: "Tools",

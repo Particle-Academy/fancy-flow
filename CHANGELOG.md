@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`llm_call` no longer defaults `temperature` to 0.7.** The field had
+  `default: 0.7`, so `defaultConfigFor()` wrote it into every new node: the
+  editor's palette, a headless authoring server (fancy-flow-mcp-js) and
+  `importWorkflow()` for a node saved without a config. A host adapter then
+  forwarded it to the provider, and current Anthropic models reject a request
+  that sets `temperature`, so such a node failed on its first call. No sampling
+  parameter (`temperature`, `top_p`, `top_k`) now has a default: none is set
+  unless the author sets one, and the editor inserts none. An explicit value
+  still passes through unchanged; whether a provider accepts it is the
+  adapter's call. The field is still declared, so authors can set it.
+  **What to do:** nothing, unless you relied on the implicit 0.7; then set
+  `temperature: 0.7` on the node. Saved graphs are not rewritten: a stored 0.7
+  from the old default cannot be told apart from a deliberate one, so it stays
+  and is still sent. Remove it from nodes that run on a model that rejects it.
+
 ## [0.85.0] - 2026-11-25
 
 ### Added
