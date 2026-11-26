@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.85.1] - 2026-11-26
+
 ### Fixed
 
 - **`llm_call` no longer defaults `temperature` to 0.7.** The field had
