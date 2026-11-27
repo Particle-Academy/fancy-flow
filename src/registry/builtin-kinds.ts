@@ -426,7 +426,14 @@ const KINDS: NodeKindDefinition[] = [
       // `results` and 0.31.0 added `failures`, both BREAKING, both so that a
       // runtime which has not implemented iteration fails here rather than
       // reporting surface parity it does not have.
-      { path: "results", type: "array" },
+      {
+        path: "results",
+        type: "array",
+        description:
+          "One entry per item, in item order: that iteration's node outputs keyed by node id, so a lane " +
+          "node's field is `results.0.<node-id>.<field>` (e.g. `{{ in.results.0.score-1.total }}`). " +
+          "A failed item's entry is null; its error is in `failures`.",
+      },
       { path: "failures", type: "array" },
       { path: "count", type: "number" },
     ],
@@ -436,7 +443,7 @@ const KINDS: NodeKindDefinition[] = [
     executor: forEachExecutor,
     category: "logic",
     label: "For Each",
-    description: "Wire `item` to a lane and it runs once per item, aggregating `results` and `failures` on `done`. Leave `item` unwired (or set `mode: collect`) and it just publishes the list and its size -- one node, one checkpoint.",
+    description: "Wire `item` to a lane and it runs once per item, aggregating `results` and `failures` on `done`. Each `results` entry is that iteration's node outputs keyed by node id (`results.0.<node-id>.<field>`), and null for a failed item. Leave `item` unwired (or set `mode: collect`) and it just publishes the list and its size -- one node, one checkpoint.",
     icon: "↻",
     inputs: [{ id: "in" }],
     outputs: [{ id: "item", label: "item" }, { id: "done", label: "done" }],
